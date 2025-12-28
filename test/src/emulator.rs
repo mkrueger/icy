@@ -317,7 +317,7 @@ impl<P: Program + 'static> Emulator<P> {
                 };
 
                 for event in &events {
-                    if let core::Event::Mouse(mouse::Event::CursorMoved { position }) = event {
+                    if let core::Event::Mouse(mouse::Event::CursorMoved { position, .. }) = event {
                         self.cursor = mouse::Cursor::Available(*position);
                     }
                 }

@@ -169,16 +169,18 @@ pub fn window_event(
 
             Some(Event::Mouse(mouse::Event::CursorMoved {
                 position: Point::new(position.x as f32, position.y as f32),
+                modifiers: self::modifiers(modifiers),
             }))
         }
         WindowEvent::CursorEntered { .. } => Some(Event::Mouse(mouse::Event::CursorEntered)),
         WindowEvent::CursorLeft { .. } => Some(Event::Mouse(mouse::Event::CursorLeft)),
         WindowEvent::MouseInput { button, state, .. } => {
             let button = mouse_button(button);
+            let modifiers = self::modifiers(modifiers);
 
             Some(Event::Mouse(match state {
-                winit::event::ElementState::Pressed => mouse::Event::ButtonPressed(button),
-                winit::event::ElementState::Released => mouse::Event::ButtonReleased(button),
+                winit::event::ElementState::Pressed => mouse::Event::ButtonPressed { button, modifiers },
+                winit::event::ElementState::Released => mouse::Event::ButtonReleased { button, modifiers },
             }))
         }
         WindowEvent::MouseWheel { delta, .. } => match delta {
@@ -188,6 +190,7 @@ pub fn window_event(
                         x: delta_x,
                         y: delta_y,
                     },
+                    modifiers: self::modifiers(modifiers),
                 }))
             }
             winit::event::MouseScrollDelta::PixelDelta(position) => {
@@ -196,6 +199,7 @@ pub fn window_event(
                         x: position.x as f32,
                         y: position.y as f32,
                     },
+                    modifiers: self::modifiers(modifiers),
                 }))
             }
         },

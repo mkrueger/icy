@@ -257,7 +257,7 @@ where
         let is_dragging = state.is_dragging;
         let current_value = self.value;
 
-        let locate = |cursor_position: Point| -> Option<T> {
+        let locate = |cursor_position: Point, modifiers: keyboard::Modifiers| -> Option<T> {
             let bounds = layout.bounds();
 
             if cursor_position.y >= bounds.y + bounds.height {
@@ -265,7 +265,7 @@ where
             } else if cursor_position.y <= bounds.y {
                 Some(*self.range.end())
             } else {
-                let step = if state.keyboard_modifiers.shift() {
+                let step = if modifiers.shift() {
                     self.shift_step.unwrap_or(self.step)
                 } else {
                     self.step
@@ -285,8 +285,8 @@ where
             }
         };
 
-        let increment = |value: T| -> Option<T> {
-            let step = if state.keyboard_modifiers.shift() {
+        let increment = |value: T, modifiers: keyboard::Modifiers| -> Option<T> {
+            let step = if modifiers.shift() {
                 self.shift_step.unwrap_or(self.step)
             } else {
                 self.step
@@ -303,8 +303,8 @@ where
             T::from_f64(new_value)
         };
 
-        let decrement = |value: T| -> Option<T> {
-            let step = if state.keyboard_modifiers.shift() {
+        let decrement = |value: T, modifiers: keyboard::Modifiers| -> Option<T> {
+            let step = if modifiers.shift() {
                 self.shift_step.unwrap_or(self.step)
             } else {
                 self.step
@@ -330,21 +330,27 @@ where
         };
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if let Some(cursor_position) = cursor.position_over(layout.bounds()) {
-                    if state.keyboard_modifiers.control() || state.keyboard_modifiers.command() {
+                    // Extract modifiers - for touch events, use default (no modifiers)
+                    let modifiers = if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) = event {
+                        *modifiers
+                    } else {
+                        keyboard::Modifiers::default()
+                    };
+                    if modifiers.control() || modifiers.command() {
                         let _ = self.default.map(change);
                         state.is_dragging = false;
                     } else {
-                        let _ = locate(cursor_position).map(change);
+                        let _ = locate(cursor_position, modifiers).map(change);
                         state.is_dragging = true;
                     }
 
                     shell.capture_event();
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerLifted { .. })
             | Event::Touch(touch::Event::FingerLost { .. }) => {
                 if is_dragging {
@@ -357,13 +363,18 @@ where
             Event::Mouse(mouse::Event::CursorMoved { .. })
             | Event::Touch(touch::Event::FingerMoved { .. }) => {
                 if is_dragging {
-                    let _ = cursor.land().position().and_then(locate).map(change);
+                    let modifiers = if let Event::Mouse(mouse::Event::CursorMoved { modifiers, .. }) = event {
+                        *modifiers
+                    } else {
+                        keyboard::Modifiers::default()
+                    };
+                    let _ = cursor.land().position().and_then(|p| locate(p, modifiers)).map(change);
 
                     shell.capture_event();
                 }
             }
-            Event::Mouse(mouse::Event::WheelScrolled { delta })
-                if state.keyboard_modifiers.control() =>
+            Event::Mouse(mouse::Event::WheelScrolled { delta, modifiers })
+                if modifiers.control() =>
             {
                 if cursor.is_over(layout.bounds()) {
                     let delta = match *delta {
@@ -372,31 +383,28 @@ where
                     };
 
                     if delta < 0.0 {
-                        let _ = decrement(current_value).map(change);
+                        let _ = decrement(current_value, *modifiers).map(change);
                     } else {
-                        let _ = increment(current_value).map(change);
+                        let _ = increment(current_value, *modifiers).map(change);
                     }
 
                     shell.capture_event();
                 }
             }
-            Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+            Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
                 if cursor.is_over(layout.bounds()) {
                     match key {
                         Key::Named(key::Named::ArrowUp) => {
-                            let _ = increment(current_value).map(change);
+                            let _ = increment(current_value, *modifiers).map(change);
                             shell.capture_event();
                         }
                         Key::Named(key::Named::ArrowDown) => {
-                            let _ = decrement(current_value).map(change);
+                            let _ = decrement(current_value, *modifiers).map(change);
                             shell.capture_event();
                         }
                         _ => (),
                     }
                 }
-            }
-            Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
-                state.keyboard_modifiers = *modifiers;
             }
             _ => {}
         }
@@ -548,5 +556,4 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct State {
     is_dragging: bool,
-    keyboard_modifiers: keyboard::Modifiers,
 }

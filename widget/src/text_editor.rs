@@ -1207,7 +1207,7 @@ impl<Message> Update<Message> {
 
         match event {
             Event::Mouse(event) => match event {
-                mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                mouse::Event::ButtonPressed { button: mouse::Button::Left, .. } => {
                     if let Some(cursor_position) = cursor.position_in(bounds) {
                         let cursor_position =
                             cursor_position - Vector::new(padding.left, padding.top);
@@ -1225,7 +1225,7 @@ impl<Message> Update<Message> {
                         None
                     }
                 }
-                mouse::Event::ButtonReleased(mouse::Button::Left) => Some(Update::Release),
+                mouse::Event::ButtonReleased { button: mouse::Button::Left, .. } => Some(Update::Release),
                 mouse::Event::CursorMoved { .. } => match state.drag_click {
                     Some(mouse::click::Kind::Single) => {
                         let cursor_position =
@@ -1235,7 +1235,7 @@ impl<Message> Update<Message> {
                     }
                     _ => None,
                 },
-                mouse::Event::WheelScrolled { delta } if cursor.is_over(bounds) => {
+                mouse::Event::WheelScrolled { delta, .. } if cursor.is_over(bounds) => {
                     Some(Update::Scroll(match delta {
                         mouse::ScrollDelta::Lines { y, .. } => {
                             if y.abs() > 0.0 {

@@ -22,7 +22,6 @@
 use crate::container;
 use crate::core::alignment;
 use crate::core::border::{self, Border};
-use crate::core::keyboard;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -577,8 +576,8 @@ where
         if let Some(last_scrolled) = state.last_scrolled {
             let clear_transaction = match event {
                 Event::Mouse(
-                    mouse::Event::ButtonPressed(_)
-                    | mouse::Event::ButtonReleased(_)
+                    mouse::Event::ButtonPressed { .. }
+                    | mouse::Event::ButtonReleased { .. }
                     | mouse::Event::CursorLeft,
                 ) => true,
                 Event::Mouse(mouse::Event::CursorMoved { .. }) => {
@@ -623,7 +622,7 @@ where
                 }
             } else if mouse_over_y_scrollbar {
                 match event {
-                    Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                    Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
                     | Event::Touch(touch::Event::FingerPressed { .. }) => {
                         let Some(cursor_position) = cursor.position() else {
                             return;
@@ -685,7 +684,7 @@ where
                 }
             } else if mouse_over_x_scrollbar {
                 match event {
-                    Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                    Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
                     | Event::Touch(touch::Event::FingerPressed { .. }) => {
                         let Some(cursor_position) = cursor.position() else {
                             return;
@@ -721,7 +720,7 @@ where
                 && matches!(
                     event,
                     Event::Mouse(
-                        mouse::Event::ButtonPressed(_) | mouse::Event::WheelScrolled { .. }
+                        mouse::Event::ButtonPressed { .. } | mouse::Event::WheelScrolled { .. }
                     ) | Event::Touch(_)
                         | Event::Keyboard(_)
                 )
@@ -773,7 +772,7 @@ where
 
             if matches!(
                 event,
-                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+                Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
                     | Event::Touch(
                         touch::Event::FingerLifted { .. } | touch::Event::FingerLost { .. }
                     )
@@ -787,14 +786,14 @@ where
             }
 
             match event {
-                Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
+                Event::Mouse(mouse::Event::WheelScrolled { delta, modifiers }) => {
                     if cursor_over_scrollable.is_none() {
                         return;
                     }
 
                     let delta = match *delta {
                         mouse::ScrollDelta::Lines { x, y } => {
-                            let is_shift_pressed = state.keyboard_modifiers.shift();
+                            let is_shift_pressed = modifiers.shift();
 
                             // macOS automatically inverts the axes when Shift is pressed
                             let (x, y) = if cfg!(target_os = "macos") && is_shift_pressed {
@@ -826,7 +825,7 @@ where
                         shell.capture_event();
                     }
                 }
-                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle))
+                Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Middle, .. })
                     if self.auto_scroll && matches!(state.interaction, Interaction::None) =>
                 {
                     let Some(origin) = cursor_over_scrollable else {
@@ -889,7 +888,7 @@ where
 
                     shell.capture_event();
                 }
-                Event::Mouse(mouse::Event::CursorMoved { position }) => {
+                Event::Mouse(mouse::Event::CursorMoved { position, .. }) => {
                     if let Interaction::AutoScrolling {
                         origin, last_frame, ..
                     } = state.interaction
@@ -909,9 +908,6 @@ where
                             shell.request_redraw();
                         }
                     }
-                }
-                Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
-                    state.keyboard_modifiers = *modifiers;
                 }
                 Event::Window(window::Event::RedrawRequested(now)) => {
                     if let Interaction::AutoScrolling {
@@ -1504,7 +1500,6 @@ struct State {
     offset_y: Offset,
     offset_x: Offset,
     interaction: Interaction,
-    keyboard_modifiers: keyboard::Modifiers,
     last_notified: Option<Viewport>,
     last_scrolled: Option<Instant>,
     is_scrollbar_visible: bool,
@@ -1529,7 +1524,6 @@ impl Default for State {
             offset_y: Offset::Absolute(0.0),
             offset_x: Offset::Absolute(0.0),
             interaction: Interaction::None,
-            keyboard_modifiers: keyboard::Modifiers::default(),
             last_notified: None,
             last_scrolled: None,
             is_scrollbar_visible: true,

@@ -1,3 +1,4 @@
+use crate::core::keyboard;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -390,9 +391,10 @@ fn record<Message>(
         return;
     }
 
-    let interaction = if let Event::Mouse(mouse::Event::CursorMoved { position }) = event {
+    let interaction = if let Event::Mouse(mouse::Event::CursorMoved { position, .. }) = event {
         Interaction::from_event(&Event::Mouse(mouse::Event::CursorMoved {
             position: *position - (bounds.position() - Point::ORIGIN),
+            modifiers: keyboard::Modifiers::default(),
         }))
     } else {
         Interaction::from_event(event)

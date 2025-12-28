@@ -61,7 +61,6 @@
 //! }
 //! ```
 use crate::core::alignment;
-use crate::core::keyboard;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -422,7 +421,7 @@ where
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if state.is_open {
                     // Event wasn't processed by overlay, so cursor was clicked either outside its
@@ -453,8 +452,9 @@ where
             }
             Event::Mouse(mouse::Event::WheelScrolled {
                 delta: mouse::ScrollDelta::Lines { y, .. },
+                modifiers,
             }) => {
-                if state.keyboard_modifiers.command()
+                if modifiers.command()
                     && cursor.is_over(layout.bounds())
                     && !state.is_open
                 {
@@ -492,9 +492,6 @@ where
 
                     shell.capture_event();
                 }
-            }
-            Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
-                state.keyboard_modifiers = *modifiers;
             }
             _ => {}
         };
@@ -731,7 +728,6 @@ where
 #[derive(Debug)]
 struct State<P: text::Paragraph> {
     menu: menu::State,
-    keyboard_modifiers: keyboard::Modifiers,
     is_open: bool,
     hovered_option: Option<usize>,
     options: Vec<paragraph::Plain<P>>,
@@ -743,7 +739,6 @@ impl<P: text::Paragraph> State<P> {
     fn new() -> Self {
         Self {
             menu: menu::State::default(),
-            keyboard_modifiers: keyboard::Modifiers::default(),
             is_open: bool::default(),
             hovered_option: Option::default(),
             options: Vec::new(),

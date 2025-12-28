@@ -662,8 +662,14 @@ where
         };
 
         match &event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
+                // Extract modifiers - for touch events, use default (no modifiers)
+                let modifiers = if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) = event {
+                    *modifiers
+                } else {
+                    keyboard::Modifiers::default()
+                };
                 let state = state::<Renderer>(tree);
                 let cursor_before = state.cursor;
 
@@ -714,7 +720,7 @@ where
                             }
                             .unwrap_or(0);
 
-                            if state.keyboard_modifiers.shift() {
+                            if modifiers.shift() {
                                 state
                                     .cursor
                                     .select_range(state.cursor.start(&self.value), position);
@@ -761,12 +767,12 @@ where
                     shell.capture_event();
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerLifted { .. })
             | Event::Touch(touch::Event::FingerLost { .. }) => {
                 state::<Renderer>(tree).is_dragging = None;
             }
-            Event::Mouse(mouse::Event::CursorMoved { position })
+            Event::Mouse(mouse::Event::CursorMoved { position, .. })
             | Event::Touch(touch::Event::FingerMoved { position, .. }) => {
                 let state = state::<Renderer>(tree);
 

@@ -286,7 +286,7 @@ where
         }
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if self.on_press.is_some() {
                     let bounds = layout.bounds();
@@ -300,7 +300,7 @@ where
                     }
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
             | Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if let Some(on_press) = &self.on_press {
                     let state = tree.state.downcast_mut::<State>();
