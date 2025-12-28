@@ -87,7 +87,6 @@ impl Interaction {
                     }
                     _ => None?,
                 },
-                keyboard::Event::ModifiersChanged(_) => None?,
             }),
             _ => None?,
         })

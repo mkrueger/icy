@@ -771,18 +771,18 @@ where
                             }
                             Binding::Copy => {
                                 if let Some(selection) = content.selection() {
-                                    clipboard.write(clipboard::Kind::Standard, selection);
+                                    clipboard.write_text(clipboard::Kind::Standard, selection);
                                 }
                             }
                             Binding::Cut => {
                                 if let Some(selection) = content.selection() {
-                                    clipboard.write(clipboard::Kind::Standard, selection);
+                                    clipboard.write_text(clipboard::Kind::Standard, selection);
 
                                     publish(Action::Edit(Edit::Delete));
                                 }
                             }
                             Binding::Paste => {
-                                if let Some(contents) = clipboard.read(clipboard::Kind::Standard) {
+                                if let Some(contents) = clipboard.read_text(clipboard::Kind::Standard) {
                                     publish(Action::Edit(Edit::Paste(Arc::new(contents))));
                                 }
                             }

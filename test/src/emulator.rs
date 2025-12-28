@@ -529,11 +529,60 @@ struct Clipboard {
 }
 
 impl core::Clipboard for Clipboard {
-    fn read(&self, _kind: core::clipboard::Kind) -> Option<String> {
+    fn read_text(&self, _kind: core::clipboard::Kind) -> Option<String> {
         self.content.clone()
     }
 
-    fn write(&mut self, _kind: core::clipboard::Kind, contents: String) {
+    fn write_text(&mut self, _kind: core::clipboard::Kind, contents: String) {
         self.content = Some(contents);
+    }
+
+    fn read(
+        &self,
+        _kind: core::clipboard::Kind,
+        _mime_types: &[&str],
+    ) -> Option<core::clipboard::ClipboardData> {
+        self.content.as_ref().map(|text| {
+            core::clipboard::ClipboardData::new("text/plain", text.as_bytes().to_vec())
+        })
+    }
+
+    fn write(
+        &mut self,
+        _kind: core::clipboard::Kind,
+        data: std::borrow::Cow<'_, [u8]>,
+        _mime_types: &[&str],
+    ) {
+        if let Ok(text) = String::from_utf8(data.into_owned()) {
+            self.content = Some(text);
+        }
+    }
+
+    fn write_multi(
+        &mut self,
+        _kind: core::clipboard::Kind,
+        _formats: &[(std::borrow::Cow<'_, [u8]>, &[&str])],
+    ) {
+        // Not implemented for test clipboard
+    }
+
+    fn available_mime_types(&self, _kind: core::clipboard::Kind) -> Vec<String> {
+        if self.content.is_some() {
+            vec!["text/plain".to_string()]
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn read_files(&self, _kind: core::clipboard::Kind) -> Option<Vec<std::path::PathBuf>> {
+        None
+    }
+
+    fn write_files(&mut self, _kind: core::clipboard::Kind, _paths: &[std::path::PathBuf]) {
+        // Not implemented for test clipboard
+    }
+
+    fn clear(&mut self, _kind: core::clipboard::Kind) {
+        self.content = None;
     }
 }

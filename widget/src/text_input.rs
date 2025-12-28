@@ -840,17 +840,18 @@ where
                 text,
                 modified_key,
                 physical_key,
+                modifiers,
                 ..
             }) => {
                 let state = state::<Renderer>(tree);
 
                 if let Some(focus) = &mut state.is_focused {
-                    let modifiers = state.keyboard_modifiers;
+                    let modifiers = *modifiers;
 
                     match key.to_latin(*physical_key) {
-                        Some('c') if state.keyboard_modifiers.command() && !self.is_secure => {
+                        Some('c') if modifiers.command() && !self.is_secure => {
                             if let Some((start, end)) = state.cursor.selection(&self.value) {
-                                clipboard.write(
+                                clipboard.write_text(
                                     clipboard::Kind::Standard,
                                     self.value.select(start, end).to_string(),
                                 );
@@ -859,13 +860,13 @@ where
                             shell.capture_event();
                             return;
                         }
-                        Some('x') if state.keyboard_modifiers.command() && !self.is_secure => {
+                        Some('x') if modifiers.command() && !self.is_secure => {
                             let Some(on_input) = &self.on_input else {
                                 return;
                             };
 
                             if let Some((start, end)) = state.cursor.selection(&self.value) {
-                                clipboard.write(
+                                clipboard.write_text(
                                     clipboard::Kind::Standard,
                                     self.value.select(start, end).to_string(),
                                 );
@@ -883,8 +884,8 @@ where
                             return;
                         }
                         Some('v')
-                            if state.keyboard_modifiers.command()
-                                && !state.keyboard_modifiers.alt() =>
+                            if modifiers.command()
+                                && !modifiers.alt() =>
                         {
                             let Some(on_input) = &self.on_input else {
                                 return;
@@ -894,7 +895,7 @@ where
                                 Some(content) => content,
                                 None => {
                                     let content: String = clipboard
-                                        .read(clipboard::Kind::Standard)
+                                        .read_text(clipboard::Kind::Standard)
                                         .unwrap_or_default()
                                         .chars()
                                         .filter(|c| !c.is_control())
@@ -920,7 +921,7 @@ where
                             update_cache(state, &self.value);
                             return;
                         }
-                        Some('a') if state.keyboard_modifiers.command() => {
+                        Some('a') if modifiers.command() => {
                             let cursor_before = state.cursor;
 
                             state.cursor.select_all(&self.value);
@@ -1132,8 +1133,6 @@ where
                             state.is_dragging = None;
                             state.is_pasting = None;
 
-                            state.keyboard_modifiers = keyboard::Modifiers::default();
-
                             shell.capture_event();
                         }
                         _ => {}
@@ -1153,11 +1152,7 @@ where
 
                 state.is_pasting = None;
             }
-            Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
-                let state = state::<Renderer>(tree);
 
-                state.keyboard_modifiers = *modifiers;
-            }
             Event::InputMethod(event) => match event {
                 input_method::Event::Opened | input_method::Event::Closed => {
                     let state = state::<Renderer>(tree);
@@ -1350,7 +1345,6 @@ pub struct State<P: text::Paragraph> {
     preedit: Option<input_method::Preedit>,
     last_click: Option<mouse::Click>,
     cursor: Cursor,
-    keyboard_modifiers: keyboard::Modifiers,
     // TODO: Add stateful horizontal scrolling offset
 }
 

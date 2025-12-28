@@ -1269,17 +1269,64 @@ fn run_action<'a, P, C>(
     use crate::core::Renderer as _;
     use crate::runtime::clipboard;
     use crate::runtime::window;
+    use std::borrow::Cow;
 
     match action {
         Action::Output(message) => {
             messages.push(message);
         }
         Action::Clipboard(action) => match action {
-            clipboard::Action::Read { target, channel } => {
-                let _ = channel.send(clipboard.read(target));
+            clipboard::Action::ReadText { target, channel } => {
+                let _ = channel.send(clipboard.read_text(target));
             }
-            clipboard::Action::Write { target, contents } => {
-                clipboard.write(target, contents);
+            clipboard::Action::WriteText { target, contents } => {
+                clipboard.write_text(target, contents);
+            }
+            clipboard::Action::Read {
+                target,
+                mime_types,
+                channel,
+            } => {
+                let mime_refs: Vec<&str> = mime_types.iter().map(String::as_str).collect();
+                let _ = channel.send(clipboard.read(target, &mime_refs));
+            }
+            clipboard::Action::Write {
+                target,
+                data,
+                mime_types,
+            } => {
+                let mime_refs: Vec<&str> = mime_types.iter().map(String::as_str).collect();
+                clipboard.write(target, Cow::Owned(data), &mime_refs);
+            }
+            clipboard::Action::WriteMulti { target, formats } => {
+                // Keep the original strings alive while we build the references
+                let formats_owned: Vec<(Vec<u8>, Vec<String>)> = formats;
+                let formats_with_refs: Vec<(Cow<'_, [u8]>, Vec<&str>)> = formats_owned
+                    .iter()
+                    .map(|(data, mimes)| {
+                        (
+                            Cow::Borrowed(data.as_slice()),
+                            mimes.iter().map(String::as_str).collect(),
+                        )
+                    })
+                    .collect();
+                let format_slices: Vec<(Cow<'_, [u8]>, &[&str])> = formats_with_refs
+                    .iter()
+                    .map(|(data, mimes)| (data.clone(), mimes.as_slice()))
+                    .collect();
+                clipboard.write_multi(target, &format_slices);
+            }
+            clipboard::Action::AvailableMimeTypes { target, channel } => {
+                let _ = channel.send(clipboard.available_mime_types(target));
+            }
+            clipboard::Action::ReadFiles { target, channel } => {
+                let _ = channel.send(clipboard.read_files(target));
+            }
+            clipboard::Action::WriteFiles { target, paths } => {
+                clipboard.write_files(target, &paths);
+            }
+            clipboard::Action::Clear { target } => {
+                clipboard.clear(target);
             }
         },
         Action::Window(action) => match action {

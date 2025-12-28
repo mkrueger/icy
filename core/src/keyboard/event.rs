@@ -51,7 +51,4 @@ pub enum Event {
         /// The state of the modifier keys.
         modifiers: Modifiers,
     },
-
-    /// The keyboard modifiers have changed.
-    ModifiersChanged(Modifiers),
 }

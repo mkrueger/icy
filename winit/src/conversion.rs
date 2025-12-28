@@ -277,9 +277,7 @@ pub fn window_event(
                 },
             }
         })),
-        WindowEvent::ModifiersChanged(new_modifiers) => Some(Event::Keyboard(
-            keyboard::Event::ModifiersChanged(self::modifiers(new_modifiers.state())),
-        )),
+        WindowEvent::ModifiersChanged(_) => None,
         WindowEvent::Ime(event) => Some(Event::InputMethod(match event {
             Ime::Enabled => input_method::Event::Opened,
             Ime::Preedit(content, size) => {
