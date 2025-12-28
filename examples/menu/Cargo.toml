@@ -1,0 +1,9 @@
+[package]
+name = "menu"
+version = "0.1.0"
+authors = ["icy contributors"]
+edition = "2024"
+publish = false
+
+[dependencies]
+iced.workspace = true

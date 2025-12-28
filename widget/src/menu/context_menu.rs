@@ -1,0 +1,374 @@
+// From libcosmic, license MPL-2.0
+// Ported to icy
+
+//! A context menu is a menu in a graphical user interface that appears upon
+//! user interaction, such as a right-click mouse operation.
+
+use super::menu_bar::{menu_roots_diff, MenuBarState};
+use super::menu_inner::{CloseCondition, ItemHeight, ItemWidth, Menu, PathHighlight};
+use super::menu_tree::MenuTree;
+use super::style::StyleSheet;
+
+use crate::core::{
+    keyboard, mouse, overlay, touch,
+    widget::{tree, Tree},
+    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
+};
+use crate::core::renderer;
+
+use std::collections::HashSet;
+
+/// A context menu is a menu in a graphical user interface that appears upon
+/// user interaction, such as a right-click mouse operation.
+pub fn context_menu<'a, Message, Theme, Renderer>(
+    content: impl Into<Element<'a, Message, Theme, Renderer>>,
+    menu: Option<Vec<MenuTree<'a, Message, Theme, Renderer>>>,
+) -> ContextMenu<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Renderer: renderer::Renderer + 'a,
+    Theme: StyleSheet + crate::text::Catalog + 'a,
+{
+    let mut this = ContextMenu {
+        content: content.into(),
+        context_menu: menu.map(|menus| {
+            vec![MenuTree::with_children(
+                Element::from(crate::Row::<'static, Message, Theme, Renderer>::new()),
+                menus,
+            )]
+        }),
+        close_on_escape: true,
+    };
+
+    if let Some(ref mut context_menu) = this.context_menu {
+        context_menu.iter_mut().for_each(MenuTree::set_index);
+    }
+
+    this
+}
+
+/// A context menu is a menu in a graphical user interface that appears upon
+/// user interaction, such as a right-click mouse operation.
+#[must_use]
+pub struct ContextMenu<'a, Message, Theme = crate::Theme, Renderer = crate::Renderer>
+where
+    Renderer: renderer::Renderer,
+{
+    content: Element<'a, Message, Theme, Renderer>,
+    context_menu: Option<Vec<MenuTree<'a, Message, Theme, Renderer>>>,
+    /// Whether to close on escape key press
+    pub close_on_escape: bool,
+}
+
+impl<'a, Message, Theme, Renderer> ContextMenu<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Renderer: renderer::Renderer + 'a,
+    Theme: StyleSheet + 'a,
+{
+    /// Set whether to close on escape key press
+    pub fn close_on_escape(mut self, close_on_escape: bool) -> Self {
+        self.close_on_escape = close_on_escape;
+        self
+    }
+}
+
+struct LocalState {
+    context_cursor: Point,
+    fingers_pressed: HashSet<touch::Finger>,
+    menu_bar_state: MenuBarState,
+}
+
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for ContextMenu<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Renderer: renderer::Renderer + 'a,
+    Theme: StyleSheet + 'a,
+{
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<LocalState>()
+    }
+
+    fn state(&self) -> tree::State {
+        #[allow(clippy::default_trait_access)]
+        tree::State::new(LocalState {
+            context_cursor: Point::default(),
+            fingers_pressed: Default::default(),
+            menu_bar_state: Default::default(),
+        })
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        let mut children = Vec::with_capacity(if self.context_menu.is_some() { 2 } else { 1 });
+
+        children.push(Tree::new(self.content.as_widget()));
+
+        // Assign the context menu's elements as this widget's children.
+        if let Some(ref context_menu) = self.context_menu {
+            let mut tree = Tree::empty();
+            tree.children = context_menu
+                .iter()
+                .map(|root| {
+                    let mut tree = Tree::empty();
+                    let flat = root
+                        .flatten()
+                        .iter()
+                        .map(|mt| Tree::new(mt.item.as_widget()))
+                        .collect();
+                    tree.children = flat;
+                    tree
+                })
+                .collect();
+
+            children.push(tree);
+        }
+
+        children
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.children[0].diff(self.content.as_widget());
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.content.as_widget().size()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &crate::core::layout::Limits,
+    ) -> crate::core::layout::Node {
+        self.content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        style: &crate::core::renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            style,
+            layout,
+            cursor,
+            viewport,
+        );
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn crate::core::widget::Operation<()>,
+    ) {
+        self.content
+            .as_widget_mut()
+            .operate(&mut tree.children[0], layout, renderer, operation);
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_mut::<LocalState>();
+        let bounds = layout.bounds();
+
+        let open = state.menu_bar_state.inner.with_data(|state| state.open);
+        let mut was_open = false;
+
+        // Handle escape key and clicks when menu is open
+        if matches!(
+            event,
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                ..
+            }) | Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Right | mouse::Button::Left,
+                ..
+            }) | Event::Touch(touch::Event::FingerPressed { .. })
+        ) && open
+        {
+            state.menu_bar_state.inner.with_data_mut(|state| {
+                was_open = true;
+                state.menu_states.clear();
+                state.active_root.clear();
+                state.open = false;
+            });
+            shell.capture_event();
+            shell.request_redraw();
+        }
+
+        if !was_open && cursor.is_over(bounds) {
+            let fingers_pressed = state.fingers_pressed.len();
+
+            match event {
+                Event::Touch(touch::Event::FingerPressed { id, .. }) => {
+                    let _ = state.fingers_pressed.insert(*id);
+                }
+
+                Event::Touch(touch::Event::FingerLifted { id, .. }) => {
+                    let _ = state.fingers_pressed.remove(id);
+                }
+
+                _ => (),
+            }
+
+            // Present a context menu on a right click event.
+            if !was_open
+                && self.context_menu.is_some()
+                && (right_button_released(event) || (touch_lifted(event) && fingers_pressed == 2))
+            {
+                state.context_cursor = cursor.position().unwrap_or_default();
+                state.menu_bar_state.inner.with_data_mut(|state| {
+                    state.open = true;
+                    state.view_cursor = cursor;
+                });
+
+                shell.capture_event();
+                shell.request_redraw();
+                return;
+            } else if !was_open && right_button_released(event)
+                || touch_lifted(event)
+                || left_button_released(event)
+            {
+                state.menu_bar_state.inner.with_data_mut(|state| {
+                    was_open = true;
+                    state.menu_states.clear();
+                    state.active_root.clear();
+                    state.open = false;
+                });
+                shell.request_redraw();
+            }
+        }
+
+        self.content.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'_>,
+        _renderer: &Renderer,
+        _viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        let state = tree.state.downcast_ref::<LocalState>();
+
+        let context_menu = self.context_menu.as_mut()?;
+
+        if !state.menu_bar_state.inner.with_data(|state| state.open) {
+            return None;
+        }
+
+        // Sync trees
+        state.menu_bar_state.inner.with_data_mut(|inner| {
+            menu_roots_diff(context_menu, &mut inner.tree);
+        });
+
+        let mut bounds = layout.bounds();
+        bounds.x = state.context_cursor.x;
+        bounds.y = state.context_cursor.y;
+
+        Some(
+            Menu {
+                tree: state.menu_bar_state.clone(),
+                menu_roots: context_menu,
+                bounds_expand: 16,
+                menu_overlays_parent: true,
+                close_condition: CloseCondition {
+                    leave: false,
+                    click_outside: true,
+                    click_inside: true,
+                },
+                item_width: ItemWidth::Uniform(240),
+                item_height: ItemHeight::Dynamic(40),
+                bar_bounds: bounds,
+                main_offset: -(bounds.height as i32),
+                cross_offset: 0,
+                root_bounds_list: vec![bounds],
+                path_highlight: Some(PathHighlight::MenuActive),
+                style: <Theme as StyleSheet>::Style::default(),
+                position: Point::new(translation.x, translation.y),
+                is_overlay: true,
+            }
+            .overlay(),
+        )
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
+    ) -> mouse::Interaction {
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout,
+            cursor,
+            viewport,
+            renderer,
+        )
+    }
+}
+
+impl<'a, Message, Theme, Renderer> From<ContextMenu<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
+where
+    Message: Clone + 'static,
+    Renderer: renderer::Renderer + 'a,
+    Theme: StyleSheet + 'a,
+{
+    fn from(widget: ContextMenu<'a, Message, Theme, Renderer>) -> Self {
+        Self::new(widget)
+    }
+}
+
+fn right_button_released(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Right, .. })
+    )
+}
+
+fn left_button_released(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
+    )
+}
+
+fn touch_lifted(event: &Event) -> bool {
+    matches!(event, Event::Touch(touch::Event::FingerLifted { .. }))
+}

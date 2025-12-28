@@ -359,7 +359,24 @@ where
     ) {
         let bounds = layout.bounds();
         let content_layout = layout.children().next().unwrap();
-        let style = theme.style(&self.class, self.status.unwrap_or(Status::Disabled));
+        
+        // Compute status dynamically if not yet set
+        let status = self.status.unwrap_or_else(|| {
+            if self.on_press.is_none() {
+                Status::Disabled
+            } else if cursor.is_over(bounds) {
+                let state = tree.state.downcast_ref::<State>();
+                if state.is_pressed {
+                    Status::Pressed
+                } else {
+                    Status::Hovered
+                }
+            } else {
+                Status::Active
+            }
+        });
+        
+        let style = theme.style(&self.class, status);
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
             renderer.fill_quad(

@@ -1,0 +1,76 @@
+// From iced_aw, license MIT
+// Ported from libcosmic
+
+//! A [`MenuBar`] widget for displaying [`MenuTree`]s
+//!
+//! # Example
+//!
+//! ```ignore
+//! use iced::widget::button;
+//! use iced_widget::menu::{MenuTree, MenuBar};
+//!
+//! let sub_2 = MenuTree::with_children(
+//!     button("Sub Menu 2"),
+//!     vec![
+//!         MenuTree::new(button("item_1")),
+//!         MenuTree::new(button("item_2")),
+//!         MenuTree::new(button("item_3")),
+//!     ]
+//! );
+//!
+//! let sub_1 = MenuTree::with_children(
+//!     button("Sub Menu 1"),
+//!     vec![
+//!         MenuTree::new(button("item_1")),
+//!         sub_2,
+//!         MenuTree::new(button("item_2")),
+//!         MenuTree::new(button("item_3")),
+//!     ]
+//! );
+//!
+//!
+//! let root_1 = MenuTree::with_children(
+//!     button("Menu 1"),
+//!     vec![
+//!         MenuTree::new(button("item_1")),
+//!         MenuTree::new(button("item_2")),
+//!         sub_1,
+//!         MenuTree::new(button("item_3")),
+//!     ]
+//! );
+//!
+//! let root_2 = MenuTree::with_children(
+//!     button("Menu 2"),
+//!     vec![
+//!         MenuTree::new(button("item_1")),
+//!         MenuTree::new(button("item_2")),
+//!         MenuTree::new(button("item_3")),
+//!     ]
+//! );
+//!
+//! let menu_bar = MenuBar::new(vec![root_1, root_2]);
+//!
+//! ```
+//!
+
+pub mod action;
+
+pub use action::MenuAction as Action;
+
+pub mod key_bind;
+pub use key_bind::{KeyBind, Modifier};
+
+mod menu_bar;
+pub use menu_bar::{menu_bar as bar, MenuBar};
+
+mod menu_inner;
+mod menu_tree;
+pub use menu_tree::{menu_button, menu_items as items, menu_root as root, MenuItem as Item, MenuTree as Tree};
+
+pub use menu_inner::{CloseCondition, ItemHeight, ItemWidth, PathHighlight};
+
+mod context_menu;
+pub use context_menu::{context_menu, ContextMenu};
+
+mod style;
+pub use style::{Appearance, StyleSheet, Style, menu_item, menu_root_style, menu_folder};

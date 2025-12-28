@@ -62,6 +62,14 @@ impl<'a, Message> Shell<'a, Message> {
         self.event_status == event::Status::Captured
     }
 
+    /// Resets the event status to [`event::Status::Ignored`].
+    ///
+    /// This is useful when you need to simulate multiple events in sequence
+    /// and want each event to be processed independently.
+    pub fn uncapture_event(&mut self) {
+        self.event_status = event::Status::Ignored;
+    }
+
     /// Requests a new frame to be drawn as soon as possible.
     pub fn request_redraw(&mut self) {
         self.redraw_request = window::RedrawRequest::NextFrame;
