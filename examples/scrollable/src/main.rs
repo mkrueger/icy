@@ -308,6 +308,7 @@ impl ScrollableDemo {
             .show_viewport(Size::new(CANVAS_SIZE, CANVAS_SIZE), move |viewport| {
                 Self::render_tiles(viewport, tile_size)
             })
+            .with_cell_size(Size::new(tile_size, tile_size))
             .on_scroll(Message::Scrolled);
 
         let pos_x = self.current_scroll_offset.x * CANVAS_SIZE;

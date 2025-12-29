@@ -92,6 +92,9 @@ use std::ops::Range;
 /// This is the most flexible virtualization approach - you decide what to render
 /// based on the viewport. For simple uniform-height rows, consider [`show_rows`].
 ///
+/// Smooth scrolling is automatic - the widget applies sub-pixel translation based
+/// on the scroll offset to ensure pixel-perfect rendering.
+///
 /// # Arguments
 /// * `content_size` - The total size of the virtual content
 /// * `view` - A callback that receives the visible viewport and returns content
@@ -193,6 +196,9 @@ where
     on_scroll: Option<Box<dyn Fn(Viewport) -> Message + 'a>>,
     class: Theme::Class<'a>,
     last_status: Option<Status>,
+    /// Cell size for smooth sub-cell scrolling.
+    /// For rows, only height is used. For 2D grids, both width and height.
+    cell_size: Option<Size>,
 }
 
 impl<'a, Message, Theme, Renderer> VirtualScrollable<'a, Message, Theme, Renderer>
@@ -215,10 +221,14 @@ where
             on_scroll: None,
             class: Theme::default(),
             last_status: None,
+            cell_size: None,
         }
     }
 
     /// Creates a new [`VirtualScrollable`] optimized for uniform-height rows.
+    ///
+    /// This variant enables smooth sub-row scrolling by rendering one extra row
+    /// and applying a fractional offset, similar to egui's `show_rows`.
     pub fn with_rows(
         row_height: f32,
         total_rows: usize,
@@ -242,6 +252,7 @@ where
             on_scroll: None,
             class: Theme::default(),
             last_status: None,
+            cell_size: Some(Size::new(0.0, row_height)),
         }
     }
 
@@ -330,6 +341,41 @@ where
         Theme::Class<'a>: From<StyleFn<'a, Theme>>,
     {
         self.class = (Box::new(style) as StyleFn<'a, Theme>).into();
+        self
+    }
+
+    /// Sets the cell size for smooth sub-cell scrolling.
+    ///
+    /// When using [`show_viewport`] with a grid of uniform-sized cells (like tiles),
+    /// call this method with the cell size to enable smooth scrolling. The widget
+    /// will calculate the sub-cell offset and translate the content appropriately.
+    ///
+    /// For row-based scrolling, use [`show_rows`] which sets this automatically.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Size; }
+    /// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+    /// use iced::widget::virtual_scrollable;
+    /// use iced::Size;
+    ///
+    /// enum Message {}
+    ///
+    /// let tile_size = 200.0;
+    /// let canvas_size = 100_000.0;
+    ///
+    /// virtual_scrollable::show_viewport(
+    ///     Size::new(canvas_size, canvas_size),
+    ///     move |viewport| {
+    ///         // Render visible tiles based on viewport
+    ///         # iced::widget::text("").into()
+    ///     }
+    /// )
+    /// .with_cell_size(Size::new(tile_size, tile_size));
+    /// ```
+    #[must_use]
+    pub fn with_cell_size(mut self, cell_size: Size) -> Self {
+        self.cell_size = Some(cell_size);
         self
     }
 
@@ -756,11 +802,47 @@ where
         let translation =
             state.translation(self.direction, Rectangle::with_size(bounds), content_bounds);
 
-        let visible_viewport = Rectangle {
-            x: translation.x,
-            y: translation.y,
-            width: bounds.width,
-            height: bounds.height,
+        let visible_viewport = {
+            let (extra_width, extra_height) = self
+                .cell_size
+                .map(|cell_size| {
+                    let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
+                    let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
+
+                    let at_end_x = translation.x >= max_scroll_x;
+                    let at_end_y = translation.y >= max_scroll_y;
+
+                    let extra_width = if cell_size.width > 0.0
+                        && !at_end_x
+                        && (translation.x % cell_size.width) != 0.0
+                    {
+                        cell_size.width
+                    } else {
+                        0.0
+                    };
+
+                    let extra_height = if cell_size.height > 0.0
+                        && !at_end_y
+                        && (translation.y % cell_size.height) != 0.0
+                    {
+                        cell_size.height
+                    } else {
+                        0.0
+                    };
+
+                    (extra_width, extra_height)
+                })
+                .unwrap_or((0.0, 0.0));
+
+            let max_width = (content_bounds.width - translation.x).max(0.0);
+            let max_height = (content_bounds.height - translation.y).max(0.0);
+
+            Rectangle {
+                x: translation.x,
+                y: translation.y,
+                width: (bounds.width + extra_width).min(max_width),
+                height: (bounds.height + extra_height).min(max_height),
+            }
         };
 
         // Create the visible content
@@ -1017,11 +1099,47 @@ where
                 };
 
                 // Rebuild content for current viewport and update it
-                let visible_viewport = Rectangle {
-                    x: translation.x,
-                    y: translation.y,
-                    width: bounds.width,
-                    height: bounds.height,
+                let visible_viewport = {
+                    let (extra_width, extra_height) = self
+                        .cell_size
+                        .map(|cell_size| {
+                            let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
+                            let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
+
+                            let at_end_x = translation.x >= max_scroll_x;
+                            let at_end_y = translation.y >= max_scroll_y;
+
+                            let extra_width = if cell_size.width > 0.0
+                                && !at_end_x
+                                && (translation.x % cell_size.width) != 0.0
+                            {
+                                cell_size.width
+                            } else {
+                                0.0
+                            };
+
+                            let extra_height = if cell_size.height > 0.0
+                                && !at_end_y
+                                && (translation.y % cell_size.height) != 0.0
+                            {
+                                cell_size.height
+                            } else {
+                                0.0
+                            };
+
+                            (extra_width, extra_height)
+                        })
+                        .unwrap_or((0.0, 0.0));
+
+                    let max_width = (content_bounds.width - translation.x).max(0.0);
+                    let max_height = (content_bounds.height - translation.y).max(0.0);
+
+                    Rectangle {
+                        x: translation.x,
+                        y: translation.y,
+                        width: (bounds.width + extra_width).min(max_width),
+                        height: (bounds.height + extra_height).min(max_height),
+                    }
                 };
 
                 let mut content = (self.view)(visible_viewport);
@@ -1341,12 +1459,48 @@ where
 
         // Draw virtual content
         if scrollbars.active() {
-            // Calculate visible viewport in content coordinates
-            let visible_viewport = Rectangle {
-                x: translation.x,
-                y: translation.y,
-                width: bounds.width,
-                height: bounds.height,
+            // Calculate visible viewport in content coordinates (+ overscan when needed)
+            let visible_viewport = {
+                let (extra_width, extra_height) = self
+                    .cell_size
+                    .map(|cell_size| {
+                        let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
+                        let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
+
+                        let at_end_x = translation.x >= max_scroll_x;
+                        let at_end_y = translation.y >= max_scroll_y;
+
+                        let extra_width = if cell_size.width > 0.0
+                            && !at_end_x
+                            && (translation.x % cell_size.width) != 0.0
+                        {
+                            cell_size.width
+                        } else {
+                            0.0
+                        };
+
+                        let extra_height = if cell_size.height > 0.0
+                            && !at_end_y
+                            && (translation.y % cell_size.height) != 0.0
+                        {
+                            cell_size.height
+                        } else {
+                            0.0
+                        };
+
+                        (extra_width, extra_height)
+                    })
+                    .unwrap_or((0.0, 0.0));
+
+                let max_width = (content_bounds.width - translation.x).max(0.0);
+                let max_height = (content_bounds.height - translation.y).max(0.0);
+
+                Rectangle {
+                    x: translation.x,
+                    y: translation.y,
+                    width: (bounds.width + extra_width).min(max_width),
+                    height: (bounds.height + extra_height).min(max_height),
+                }
             };
 
             // Generate content for visible viewport
@@ -1362,15 +1516,54 @@ where
 
             renderer.with_layer(visible_bounds, |renderer| {
                 if let Some(content_layout) = layout.children().next() {
-                    content.as_widget().draw(
-                        content_tree,
-                        renderer,
-                        theme,
-                        defaults,
-                        content_layout,
-                        cursor,
-                        &visible_bounds,
-                    );
+                    // Calculate translation offset for smooth scrolling
+                    // Use cell_size for sub-cell offset, or fractional pixel offset as fallback
+                    let (offset_x, offset_y) = if let Some(cell_size) = self.cell_size {
+                        let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
+                        let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
+
+                        let at_end_x = translation.x >= max_scroll_x;
+                        let at_end_y = translation.y >= max_scroll_y;
+
+                        // Sub-cell offset for smooth cell-based scrolling
+                        let ox = if cell_size.width > 0.0 {
+                            if at_end_x {
+                                0.0
+                            } else {
+                                translation.x % cell_size.width
+                            }
+                        } else {
+                            translation.x - translation.x.floor()
+                        };
+                        let oy = if cell_size.height > 0.0 {
+                            if at_end_y {
+                                0.0
+                            } else {
+                                translation.y % cell_size.height
+                            }
+                        } else {
+                            translation.y - translation.y.floor()
+                        };
+                        (ox, oy)
+                    } else {
+                        // Fractional pixel offset for viewport-based scrolling
+                        (
+                            translation.x - translation.x.floor(),
+                            translation.y - translation.y.floor(),
+                        )
+                    };
+
+                    renderer.with_translation(Vector::new(-offset_x, -offset_y), |renderer| {
+                        content.as_widget().draw(
+                            content_tree,
+                            renderer,
+                            theme,
+                            defaults,
+                            content_layout,
+                            cursor,
+                            &visible_bounds,
+                        );
+                    });
                 }
             });
 
