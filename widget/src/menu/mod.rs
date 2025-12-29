@@ -74,5 +74,10 @@ pub use menu_inner::{CloseCondition, ItemHeight, ItemWidth, PathHighlight};
 mod context_menu;
 pub use context_menu::{ContextMenu, context_menu};
 
+mod mnemonic;
+pub use mnemonic::{
+    MnemonicDisplay, ParsedMnemonic, mnemonic_text, mnemonics_enabled, parse_mnemonic,
+};
+
 mod style;
 pub use style::{Appearance, Style, StyleSheet, menu_folder, menu_item, menu_root_style};

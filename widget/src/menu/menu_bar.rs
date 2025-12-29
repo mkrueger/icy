@@ -11,6 +11,7 @@ use super::{
         CloseCondition, Direction, ItemHeight, ItemWidth, Menu, MenuState, PathHighlight,
     },
     menu_tree::MenuTree,
+    mnemonic::{MnemonicDisplay, mnemonics_enabled},
     style::StyleSheet,
 };
 
@@ -81,6 +82,10 @@ pub(crate) struct MenuBarStateInner {
     pub(crate) horizontal_direction: Direction,
     pub(crate) vertical_direction: Direction,
     pub(crate) menu_states: Vec<MenuState>,
+    /// Whether the Alt key is currently pressed
+    pub(crate) alt_pressed: bool,
+    /// Whether to show mnemonic underlines (based on Alt state and display mode)
+    pub(crate) show_mnemonics: bool,
 }
 
 impl MenuBarStateInner {
@@ -97,6 +102,8 @@ impl MenuBarStateInner {
         self.open = false;
         self.active_root = Vec::new();
         self.menu_states.clear();
+        self.alt_pressed = false;
+        self.show_mnemonics = false;
     }
 }
 
@@ -111,6 +118,8 @@ impl Default for MenuBarStateInner {
             horizontal_direction: Direction::Positive,
             vertical_direction: Direction::Positive,
             menu_states: Vec::new(),
+            alt_pressed: false,
+            show_mnemonics: false,
         }
     }
 }
@@ -190,6 +199,7 @@ where
     path_highlight: Option<PathHighlight>,
     menu_roots: Vec<MenuTree<'a, Message, Theme, Renderer>>,
     style: Theme::Style,
+    mnemonic_display: MnemonicDisplay,
 }
 
 impl<'a, Message, Theme, Renderer> MenuBar<'a, Message, Theme, Renderer>
@@ -222,6 +232,7 @@ where
             path_highlight: Some(PathHighlight::MenuActive),
             menu_roots,
             style: Theme::Style::default(),
+            mnemonic_display: MnemonicDisplay::default(),
         }
     }
 
@@ -310,6 +321,20 @@ where
     #[must_use]
     pub fn width(mut self, width: Length) -> Self {
         self.width = width;
+        self
+    }
+
+    /// Sets how mnemonic underlines are displayed.
+    ///
+    /// - [`MnemonicDisplay::Hide`]: Never show underlines.
+    /// - [`MnemonicDisplay::Show`]: Always show underlines.
+    /// - [`MnemonicDisplay::OnAlt`]: Show underlines only when Alt is pressed (default).
+    ///
+    /// Note: Mnemonic keyboard navigation is only enabled on Windows and Linux.
+    /// On macOS, mnemonics are disabled as the platform uses Cmd-based shortcuts.
+    #[must_use]
+    pub fn mnemonic_display(mut self, display: MnemonicDisplay) -> Self {
+        self.mnemonic_display = display;
         self
     }
 }
@@ -433,6 +458,69 @@ where
         let my_state = tree.state.downcast_mut::<MenuBarState>();
 
         match event {
+            // Alt key pressed - update mnemonic display state
+            Keyboard(keyboard::Event::KeyPressed {
+                key: keyboard::Key::Named(Named::Alt),
+                ..
+            }) if mnemonics_enabled() => {
+                my_state.inner.with_data_mut(|state| {
+                    state.alt_pressed = true;
+                    if self.mnemonic_display == MnemonicDisplay::OnAlt {
+                        state.show_mnemonics = true;
+                    }
+                });
+                shell.request_redraw();
+            }
+
+            // Alt key released - update mnemonic display state
+            Keyboard(keyboard::Event::KeyReleased {
+                key: keyboard::Key::Named(Named::Alt),
+                ..
+            }) if mnemonics_enabled() => {
+                my_state.inner.with_data_mut(|state| {
+                    state.alt_pressed = false;
+                    // Keep mnemonics visible if menu is open
+                    if !state.open && self.mnemonic_display == MnemonicDisplay::OnAlt {
+                        state.show_mnemonics = false;
+                    }
+                });
+                shell.request_redraw();
+            }
+
+            // Alt+letter for mnemonic activation (opens root menu)
+            Keyboard(keyboard::Event::KeyPressed {
+                key: keyboard::Key::Character(c),
+                modifiers,
+                ..
+            }) if mnemonics_enabled()
+                && modifiers.alt()
+                && !modifiers.control()
+                && !modifiers.logo() =>
+            {
+                let char_lower = c.chars().next().map(|ch| ch.to_ascii_lowercase());
+
+                if let Some(ch) = char_lower {
+                    // Find menu root with matching mnemonic
+                    for (idx, root) in self.menu_roots.iter().enumerate() {
+                        if root.mnemonic == Some(ch) {
+                            // Open this menu
+                            my_state.inner.with_data_mut(|state| {
+                                state.active_root = vec![idx];
+                                state.open = true;
+                                state.view_cursor = view_cursor;
+                                // Show mnemonics while menu is open
+                                if self.mnemonic_display == MnemonicDisplay::OnAlt {
+                                    state.show_mnemonics = true;
+                                }
+                            });
+                            shell.request_redraw();
+                            shell.capture_event();
+                            break;
+                        }
+                    }
+                }
+            }
+
             // Escape key closes the menu
             Keyboard(keyboard::Event::KeyPressed {
                 key: keyboard::Key::Named(Named::Escape),

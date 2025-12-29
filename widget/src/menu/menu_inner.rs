@@ -5,6 +5,7 @@
 
 use super::menu_bar::MenuBarState;
 use super::menu_tree::MenuTree;
+use super::mnemonic::mnemonics_enabled;
 use super::style::StyleSheet;
 
 use crate::core::{Border, Shadow};
@@ -1164,6 +1165,47 @@ where
                 });
                 shell.request_redraw();
                 Captured
+            }
+
+            // Letter key for mnemonic navigation in open menus (no modifiers required)
+            keyboard::Key::Character(c) if mnemonics_enabled() => {
+                let char_lower = c.chars().next().map(|ch| ch.to_ascii_lowercase());
+                
+                if let Some(ch) = char_lower {
+                    let menu_roots = &self.menu_roots;
+                    let mut captured = false;
+                    
+                    self.tree.inner.with_data_mut(|state| {
+                        if state.open && !state.active_root.is_empty() {
+                            // Get the current menu items
+                            let active_menu = state
+                                .active_root
+                                .iter()
+                                .skip(1)
+                                .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                                    &mt[*next].children
+                                });
+                            
+                            // Find item with matching mnemonic
+                            for (idx, item) in active_menu.iter().enumerate() {
+                                if item.mnemonic == Some(ch) && !item.is_separator {
+                                    if let Some(ms) = state.menu_states.last_mut() {
+                                        ms.index = Some(idx);
+                                    }
+                                    captured = true;
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                    
+                    if captured {
+                        // Activate the selected item
+                        self.activate_selected_item(renderer, clipboard, shell, overlay_offset);
+                        return Captured;
+                    }
+                }
+                Ignored
             }
 
             _ => Ignored,

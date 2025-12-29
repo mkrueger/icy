@@ -183,52 +183,73 @@ impl App {
         .collect();
 
         // Build menu structure using Tree::with_children
-        let file_menu = Tree::with_children(
-            root("File", Message::NoOp),
+        // Use '&' to mark mnemonic characters (e.g., "&File" makes Alt+F open File menu)
+        let (file_btn, file_mnemonic) = root("&File", Message::NoOp);
+        let mut file_menu = Tree::with_children(
+            file_btn,
             items(
                 &key_binds,
                 vec![
-                    Item::Button("New", MenuAction::New),
-                    Item::Button("Open", MenuAction::Open),
+                    Item::Button("&New", MenuAction::New),
+                    Item::Button("&Open", MenuAction::Open),
                     Item::Divider,
-                    Item::Button("Save", MenuAction::Save),
-                    Item::Button("Save As...", MenuAction::SaveAs),
+                    Item::Button("&Save", MenuAction::Save),
+                    Item::Button("Save &As...", MenuAction::SaveAs),
                     Item::Divider,
-                    Item::Button("Exit", MenuAction::Exit),
+                    Item::Button("E&xit", MenuAction::Exit),
                 ],
             ),
         );
+        if let Some(m) = file_mnemonic {
+            file_menu = file_menu.mnemonic(m);
+        }
 
-        let edit_menu = Tree::with_children(
-            root("Edit", Message::NoOp),
+        let (edit_btn, edit_mnemonic) = root("&Edit", Message::NoOp);
+        let mut edit_menu = Tree::with_children(
+            edit_btn,
             items(
                 &key_binds,
                 vec![
-                    Item::Button("Undo", MenuAction::Undo),
-                    Item::Button("Redo", MenuAction::Redo),
+                    Item::Button("&Undo", MenuAction::Undo),
+                    Item::Button("&Redo", MenuAction::Redo),
                     Item::Divider,
-                    Item::Button("Cut", MenuAction::Cut),
-                    Item::Button("Copy", MenuAction::Copy),
-                    Item::Button("Paste", MenuAction::Paste),
+                    Item::Button("Cu&t", MenuAction::Cut),
+                    Item::Button("&Copy", MenuAction::Copy),
+                    Item::Button("&Paste", MenuAction::Paste),
                 ],
             ),
         );
+        if let Some(m) = edit_mnemonic {
+            edit_menu = edit_menu.mnemonic(m);
+        }
 
-        let view_menu = Tree::with_children(
-            root("View", Message::NoOp),
+        let (view_btn, view_mnemonic) = root("&View", Message::NoOp);
+        let mut view_menu = Tree::with_children(
+            view_btn,
             items(
                 &key_binds,
                 vec![
-                    Item::CheckBox("Dark Mode", self.dark_mode, MenuAction::ToggleDarkMode),
-                    Item::CheckBox("Show Toolbar", self.show_toolbar, MenuAction::ToggleToolbar),
+                    Item::CheckBox("&Dark Mode", self.dark_mode, MenuAction::ToggleDarkMode),
+                    Item::CheckBox(
+                        "Show &Toolbar",
+                        self.show_toolbar,
+                        MenuAction::ToggleToolbar,
+                    ),
                 ],
             ),
         );
+        if let Some(m) = view_mnemonic {
+            view_menu = view_menu.mnemonic(m);
+        }
 
-        let help_menu = Tree::with_children(
-            root("Help", Message::NoOp),
-            items(&key_binds, vec![Item::Button("About", MenuAction::About)]),
+        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp);
+        let mut help_menu = Tree::with_children(
+            help_btn,
+            items(&key_binds, vec![Item::Button("&About", MenuAction::About)]),
         );
+        if let Some(m) = help_mnemonic {
+            help_menu = help_menu.mnemonic(m);
+        }
 
         // Create the menu bar
         let menu_bar: MenuBar<'_, Message> = bar(vec![file_menu, edit_menu, view_menu, help_menu]);
@@ -236,6 +257,7 @@ impl App {
         // Main content
         let content = column![
             text("Click on the menu bar above to open menus").size(20),
+            text("Or press Alt+letter to activate mnemonics (e.g., Alt+F for File)").size(14),
             text("").size(10),
             if self.last_action.is_empty() {
                 text("No action selected yet")
