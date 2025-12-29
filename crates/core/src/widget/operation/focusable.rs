@@ -3,6 +3,43 @@ use crate::Rectangle;
 use crate::widget::Id;
 use crate::widget::operation::{self, Operation, Outcome};
 
+/// Controls which widgets participate in Tab navigation.
+///
+/// This mirrors macOS "Full Keyboard Access" behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FocusLevel {
+    /// Only text inputs and editors receive Tab focus (macOS default behavior).
+    #[default]
+    TextOnly,
+
+    /// All interactive widgets receive Tab focus (full keyboard access).
+    AllControls,
+
+    /// No automatic Tab navigation (app handles focus manually).
+    Manual,
+}
+
+impl FocusLevel {
+    /// Returns whether the given tier should be focusable at this level.
+    pub fn allows(self, tier: FocusTier) -> bool {
+        match self {
+            FocusLevel::TextOnly => tier == FocusTier::Text,
+            FocusLevel::AllControls => true,
+            FocusLevel::Manual => false,
+        }
+    }
+}
+
+/// The focus tier of a widget, used with [`FocusLevel`] to filter Tab navigation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum FocusTier {
+    /// Text inputs and editors — always focusable via Tab.
+    Text,
+    /// Buttons, checkboxes, sliders — only focusable with [`FocusLevel::AllControls`].
+    #[default]
+    Control,
+}
+
 /// The internal state of a widget that can be focused.
 pub trait Focusable {
     /// Returns whether the widget is focused or not.
@@ -13,6 +50,14 @@ pub trait Focusable {
 
     /// Unfocuses the widget.
     fn unfocus(&mut self);
+
+    /// Returns the focus tier of this widget.
+    ///
+    /// Used with [`FocusLevel`] to determine if this widget participates
+    /// in Tab navigation.
+    fn focus_tier(&self) -> FocusTier {
+        FocusTier::Control
+    }
 }
 
 /// A summary of the focusable widgets present on a widget tree.
@@ -230,5 +275,295 @@ pub fn is_focused(target: Id) -> impl Operation<bool> {
     IsFocused {
         target,
         is_focused: None,
+    }
+}
+
+/// Produces an [`Operation`] that generates a [`Count`] of focusable widgets
+/// that match the given [`FocusLevel`].
+pub fn count_filtered(level: FocusLevel) -> impl Operation<Count> {
+    struct CountFiltered {
+        level: FocusLevel,
+        count: Count,
+    }
+
+    impl Operation<Count> for CountFiltered {
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
+            if !self.level.allows(state.focus_tier()) {
+                return;
+            }
+
+            if state.is_focused() {
+                self.count.focused = Some(self.count.total);
+            }
+
+            self.count.total += 1;
+        }
+
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<Count>)) {
+            operate(self);
+        }
+
+        fn finish(&self) -> Outcome<Count> {
+            Outcome::Some(self.count)
+        }
+    }
+
+    CountFiltered {
+        level,
+        count: Count::default(),
+    }
+}
+
+/// Produces an [`Operation`] that focuses the previous focusable widget
+/// that matches the given [`FocusLevel`].
+pub fn focus_previous_filtered<T>(level: FocusLevel) -> impl Operation<T>
+where
+    T: Send + 'static,
+{
+    struct CountPreviousFiltered {
+        level: FocusLevel,
+        count: Count,
+    }
+
+    struct ApplyPreviousFiltered {
+        level: FocusLevel,
+        count: Count,
+        current: usize,
+    }
+
+    impl<T> Operation<T> for CountPreviousFiltered {
+        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+            if !self.level.allows(state.focus_tier()) {
+                return;
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] prev/count: id={:?} tier={:?} focused={} bounds={:?}",
+                    id,
+                    state.focus_tier(),
+                    state.is_focused(),
+                    bounds
+                );
+            }
+
+            if state.is_focused() {
+                self.count.focused = Some(self.count.total);
+            }
+
+            self.count.total += 1;
+        }
+
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<T>)) {
+            operate(self);
+        }
+
+        fn finish(&self) -> Outcome<T> {
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] prev/count done: level={:?} total={} focused_index={:?}",
+                    self.level, self.count.total, self.count.focused
+                );
+            }
+
+            Outcome::Chain(Box::new(ApplyPreviousFiltered {
+                level: self.level,
+                count: self.count,
+                current: 0,
+            }))
+        }
+    }
+
+    impl<T> Operation<T> for ApplyPreviousFiltered {
+        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+            if !self.level.allows(state.focus_tier()) {
+                return;
+            }
+
+            if self.count.total == 0 {
+                #[cfg(debug_assertions)]
+                eprintln!(
+                    "[focus.op] prev/apply: no focusables (level={:?})",
+                    self.level
+                );
+                return;
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] prev/apply: current={} focused_index={:?} total={} -> id={:?} tier={:?} was_focused={} bounds={:?}",
+                    self.current,
+                    self.count.focused,
+                    self.count.total,
+                    id,
+                    state.focus_tier(),
+                    state.is_focused(),
+                    bounds
+                );
+            }
+
+            match self.count.focused {
+                None if self.current == self.count.total - 1 => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] prev/apply: -> focus last");
+                    state.focus()
+                }
+                Some(0) if self.current == 0 => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] prev/apply: -> unfocus first");
+                    state.unfocus()
+                }
+                Some(0) => {}
+                Some(focused) if focused == self.current => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] prev/apply: -> unfocus current");
+                    state.unfocus()
+                }
+                Some(focused) if focused - 1 == self.current => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] prev/apply: -> focus previous");
+                    state.focus()
+                }
+                _ => {}
+            }
+
+            self.current += 1;
+        }
+
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<T>)) {
+            operate(self);
+        }
+    }
+
+    CountPreviousFiltered {
+        level,
+        count: Count::default(),
+    }
+}
+
+/// Produces an [`Operation`] that focuses the next focusable widget
+/// that matches the given [`FocusLevel`].
+pub fn focus_next_filtered<T>(level: FocusLevel) -> impl Operation<T>
+where
+    T: Send + 'static,
+{
+    struct CountNextFiltered {
+        level: FocusLevel,
+        count: Count,
+    }
+
+    struct ApplyNextFiltered {
+        level: FocusLevel,
+        count: Count,
+        current: usize,
+    }
+
+    impl<T> Operation<T> for CountNextFiltered {
+        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+            if !self.level.allows(state.focus_tier()) {
+                return;
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] next/count: id={:?} tier={:?} focused={} bounds={:?}",
+                    id,
+                    state.focus_tier(),
+                    state.is_focused(),
+                    bounds
+                );
+            }
+
+            if state.is_focused() {
+                self.count.focused = Some(self.count.total);
+            }
+
+            self.count.total += 1;
+        }
+
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<T>)) {
+            operate(self);
+        }
+
+        fn finish(&self) -> Outcome<T> {
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] next/count done: level={:?} total={} focused_index={:?}",
+                    self.level, self.count.total, self.count.focused
+                );
+            }
+
+            Outcome::Chain(Box::new(ApplyNextFiltered {
+                level: self.level,
+                count: self.count,
+                current: 0,
+            }))
+        }
+    }
+
+    impl<T> Operation<T> for ApplyNextFiltered {
+        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+            if !self.level.allows(state.focus_tier()) {
+                return;
+            }
+
+            if self.count.total == 0 {
+                #[cfg(debug_assertions)]
+                eprintln!(
+                    "[focus.op] next/apply: no focusables (level={:?})",
+                    self.level
+                );
+                return;
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                eprintln!(
+                    "[focus.op] next/apply: current={} focused_index={:?} total={} -> id={:?} tier={:?} was_focused={} bounds={:?}",
+                    self.current,
+                    self.count.focused,
+                    self.count.total,
+                    id,
+                    state.focus_tier(),
+                    state.is_focused(),
+                    bounds
+                );
+            }
+
+            match self.count.focused {
+                None if self.current == 0 => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] next/apply: -> focus first");
+                    state.focus()
+                }
+                Some(focused) if focused == self.current => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] next/apply: -> unfocus current");
+                    state.unfocus()
+                }
+                Some(focused) if focused + 1 == self.current => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] next/apply: -> focus next");
+                    state.focus()
+                }
+                _ => {}
+            }
+
+            self.current += 1;
+        }
+
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<T>)) {
+            operate(self);
+        }
+    }
+
+    CountNextFiltered {
+        level,
+        count: Count::default(),
     }
 }

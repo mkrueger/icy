@@ -1434,6 +1434,10 @@ impl<P: text::Paragraph> operation::Focusable for State<P> {
         State::is_focused(self)
     }
 
+    fn focus_tier(&self) -> operation::FocusTier {
+        operation::FocusTier::Text
+    }
+
     fn focus(&mut self) {
         State::focus(self);
     }

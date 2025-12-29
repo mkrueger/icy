@@ -3,7 +3,7 @@ pub mod focusable;
 pub mod scrollable;
 pub mod text_input;
 
-pub use focusable::Focusable;
+pub use focusable::{FocusLevel, FocusTier, Focusable};
 pub use scrollable::Scrollable;
 pub use text_input::TextInput;
 

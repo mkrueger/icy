@@ -9,7 +9,7 @@ Which is IMHO a very good UI library that just need some core things changed to 
 + Scrollbar that's not from 1998 and works on long view areas as well
 + Menus 
 + Extended theming
-- Basic support for focus/keyboard input for all controls
++ Support for focus/keyboard input for all controls
 - Drag & drop support
 
 Unfortunately iced isn't moving and/or unwilling to move forward. So I was forced to fork it.
@@ -22,4 +22,8 @@ where this is going to but I need more out of an UI lib than what the existing o
 
 However you can take a look and if you have similiar needs feel free to use this fork instead.
 
-I try to keep doc up 2 date. 
+I try to keep doc up 2 date. I take PRs and ideas and try to listen to my users instead of dictating things. 
+
+I can't promise to take/implement all feature request because of my time limits. 
+
+But the goal is to make a more community friendly project.

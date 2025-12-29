@@ -35,12 +35,15 @@ use crate::core::layout;
 use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::touch;
+use crate::core::widget::Id as WidgetId;
+use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
     self, Background, Clipboard, Color, Element, Event, Layout, Length, Pixels, Point, Rectangle,
     Shell, Size, Theme, Widget,
 };
+use crate::focus::FocusRing;
 
 use std::ops::RangeInclusive;
 
@@ -84,6 +87,7 @@ pub struct Slider<'a, T, Message, Theme = crate::Theme>
 where
     Theme: Catalog,
 {
+    id: Option<WidgetId>,
     range: RangeInclusive<T>,
     step: T,
     shift_step: Option<T>,
@@ -131,6 +135,7 @@ where
         };
 
         Slider {
+            id: None,
             value,
             default: None,
             range,
@@ -143,6 +148,12 @@ where
             class: Theme::default(),
             status: None,
         }
+    }
+
+    /// Sets the unique identifier of the [`Slider`].
+    pub fn id(mut self, id: impl Into<WidgetId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// Sets the optional default value for the [`Slider`].
@@ -350,6 +361,7 @@ where
                             let _ = locate(cursor_position, modifiers).map(change);
                             state.is_dragging = true;
                         }
+                        state.is_focused = true;
 
                         shell.capture_event();
                     }
@@ -407,13 +419,14 @@ where
                     }
                 }
                 Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                    if cursor.is_over(layout.bounds()) {
+                    // Allow keyboard control when focused or when cursor is over
+                    if state.is_focused || cursor.is_over(layout.bounds()) {
                         match key {
-                            Key::Named(key::Named::ArrowUp) => {
+                            Key::Named(key::Named::ArrowUp | key::Named::ArrowRight) => {
                                 let _ = increment(current_value, *modifiers).map(change);
                                 shell.capture_event();
                             }
-                            Key::Named(key::Named::ArrowDown) => {
+                            Key::Named(key::Named::ArrowDown | key::Named::ArrowLeft) => {
                                 let _ = decrement(current_value, *modifiers).map(change);
                                 shell.capture_event();
                             }
@@ -444,7 +457,7 @@ where
 
     fn draw(
         &self,
-        _tree: &Tree,
+        tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
         _style: &renderer::Style,
@@ -453,6 +466,7 @@ where
         _viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
+        let state = tree.state.downcast_ref::<State>();
 
         let style = theme.style(&self.class, self.status.unwrap_or(Status::Active));
 
@@ -507,14 +521,16 @@ where
             style.rail.backgrounds.1,
         );
 
+        let handle_bounds = Rectangle {
+            x: bounds.x + offset,
+            y: rail_y - handle_height / 2.0,
+            width: handle_width,
+            height: handle_height,
+        };
+
         renderer.fill_quad(
             renderer::Quad {
-                bounds: Rectangle {
-                    x: bounds.x + offset,
-                    y: rail_y - handle_height / 2.0,
-                    width: handle_width,
-                    height: handle_height,
-                },
+                bounds: handle_bounds,
                 border: Border {
                     radius: handle_border_radius,
                     width: style.handle.border_width,
@@ -524,6 +540,22 @@ where
             },
             style.handle.background,
         );
+
+        // Draw focus ring when focused
+        if state.is_focused {
+            FocusRing::default().draw(renderer, handle_bounds);
+        }
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        _renderer: &Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        let state = tree.state.downcast_mut::<State>();
+        operation.focusable(self.id.as_ref(), layout.bounds(), state);
     }
 
     fn mouse_interaction(
@@ -572,6 +604,25 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct State {
     is_dragging: bool,
+    is_focused: bool,
+}
+
+impl operation::Focusable for State {
+    fn is_focused(&self) -> bool {
+        self.is_focused
+    }
+
+    fn focus(&mut self) {
+        self.is_focused = true;
+    }
+
+    fn unfocus(&mut self) {
+        self.is_focused = false;
+    }
+
+    fn focus_tier(&self) -> operation::FocusTier {
+        operation::FocusTier::Control
+    }
 }
 
 /// The possible status of a [`Slider`].

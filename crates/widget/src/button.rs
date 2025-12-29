@@ -17,19 +17,23 @@
 //! }
 //! ```
 use crate::core::border::{self, Border};
+use crate::core::keyboard;
+use crate::core::keyboard::key::{self, Key};
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
 use crate::core::renderer;
 use crate::core::theme;
 use crate::core::touch;
-use crate::core::widget::Operation;
+use crate::core::widget::Id as WidgetId;
+use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
     Background, Clipboard, Color, Element, Event, Layout, Length, Padding, Rectangle, Shadow,
     Shell, Size, Theme, Vector, Widget,
 };
+use crate::focus::FocusRing;
 
 /// A generic widget that produces a message when pressed.
 ///
@@ -73,6 +77,7 @@ where
     Renderer: crate::core::Renderer,
     Theme: Catalog,
 {
+    id: Option<WidgetId>,
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Option<OnPress<'a, Message>>,
     width: Length,
@@ -108,6 +113,7 @@ where
         let size = content.as_widget().size_hint();
 
         Button {
+            id: None,
             content,
             on_press: None,
             width: size.width.fluid(),
@@ -117,6 +123,12 @@ where
             class: Theme::default(),
             status: None,
         }
+    }
+
+    /// Sets the unique identifier of the [`Button`].
+    pub fn id(mut self, id: impl Into<WidgetId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// Sets the width of the [`Button`].
@@ -196,6 +208,25 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct State {
     is_pressed: bool,
+    is_focused: bool,
+}
+
+impl operation::Focusable for State {
+    fn is_focused(&self) -> bool {
+        self.is_focused
+    }
+
+    fn focus(&mut self) {
+        self.is_focused = true;
+    }
+
+    fn unfocus(&mut self) {
+        self.is_focused = false;
+    }
+
+    fn focus_tier(&self) -> operation::FocusTier {
+        operation::FocusTier::Control
+    }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -249,6 +280,10 @@ where
         operation: &mut dyn Operation,
     ) {
         operation.container(None, layout.bounds());
+
+        let state = tree.state.downcast_mut::<State>();
+        operation.focusable(self.id.as_ref(), layout.bounds(), state);
+
         operation.traverse(&mut |operation| {
             self.content.as_widget_mut().operate(
                 &mut tree.children[0],
@@ -298,6 +333,7 @@ where
                         let state = tree.state.downcast_mut::<State>();
 
                         state.is_pressed = true;
+                        state.is_focused = true;
 
                         shell.capture_event();
                     }
@@ -328,6 +364,19 @@ where
                 let state = tree.state.downcast_mut::<State>();
 
                 state.is_pressed = false;
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::Space | key::Named::Enter),
+                ..
+            }) => {
+                if let Some(on_press) = &self.on_press {
+                    let state = tree.state.downcast_ref::<State>();
+
+                    if state.is_focused {
+                        shell.publish(on_press.get());
+                        shell.capture_event();
+                    }
+                }
             }
             _ => {}
         }
@@ -396,6 +445,12 @@ where
                     .background
                     .unwrap_or(Background::Color(Color::TRANSPARENT)),
             );
+        }
+
+        // Draw focus ring when focused
+        let state = tree.state.downcast_ref::<State>();
+        if state.is_focused && self.on_press.is_some() {
+            FocusRing::default().draw(renderer, bounds);
         }
 
         let viewport = if self.clip {

@@ -32,18 +32,23 @@
 //! ```
 //! ![Checkbox drawn by `iced_wgpu`](https://github.com/iced-rs/iced/blob/7760618fb112074bc40b148944521f312152012a/docs/images/checkbox.png?raw=true)
 use crate::core::alignment;
+use crate::core::keyboard;
+use crate::core::keyboard::key::{self, Key};
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::text;
 use crate::core::touch;
 use crate::core::widget;
+use crate::core::widget::Id as WidgetId;
+use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
     Background, Border, Clipboard, Color, Element, Event, Layout, Length, Pixels, Rectangle, Shell,
     Size, Theme, Widget,
 };
+use crate::focus::FocusRing;
 
 /// A box that can be checked.
 ///
@@ -83,6 +88,7 @@ where
     Renderer: text::Renderer,
     Theme: Catalog,
 {
+    id: Option<WidgetId>,
     is_checked: bool,
     on_toggle: Option<Box<dyn Fn(bool) -> Message + 'a>>,
     label: Option<text::Fragment<'a>>,
@@ -113,6 +119,7 @@ where
     ///   * a boolean describing whether the [`Checkbox`] is checked or not
     pub fn new(is_checked: bool) -> Self {
         Checkbox {
+            id: None,
             is_checked,
             on_toggle: None,
             label: None,
@@ -134,6 +141,12 @@ where
             class: Theme::default(),
             last_status: None,
         }
+    }
+
+    /// Sets the unique identifier of the [`Checkbox`].
+    pub fn id(mut self, id: impl Into<WidgetId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// Sets the label of the [`Checkbox`].
@@ -242,6 +255,39 @@ where
     }
 }
 
+/// Internal state of a [`Checkbox`].
+struct State<P: text::Paragraph> {
+    is_focused: bool,
+    paragraph: widget::text::State<P>,
+}
+
+impl<P: text::Paragraph> Default for State<P> {
+    fn default() -> Self {
+        Self {
+            is_focused: false,
+            paragraph: widget::text::State::default(),
+        }
+    }
+}
+
+impl<P: text::Paragraph> operation::Focusable for State<P> {
+    fn is_focused(&self) -> bool {
+        self.is_focused
+    }
+
+    fn focus(&mut self) {
+        self.is_focused = true;
+    }
+
+    fn unfocus(&mut self) {
+        self.is_focused = false;
+    }
+
+    fn focus_tier(&self) -> operation::FocusTier {
+        operation::FocusTier::Control
+    }
+}
+
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for Checkbox<'_, Message, Theme, Renderer>
 where
@@ -249,11 +295,11 @@ where
     Theme: Catalog,
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<widget::text::State<Renderer::Paragraph>>()
+        tree::Tag::of::<State<Renderer::Paragraph>>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(widget::text::State::<Renderer::Paragraph>::default())
+        tree::State::new(State::<Renderer::Paragraph>::default())
     }
 
     fn size(&self) -> Size<Length> {
@@ -279,12 +325,10 @@ where
             |_| layout::Node::new(Size::new(self.size, self.size)),
             |limits| {
                 if let Some(label) = self.label.as_deref() {
-                    let state = tree
-                        .state
-                        .downcast_mut::<widget::text::State<Renderer::Paragraph>>();
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
 
                     widget::text::layout(
-                        state,
+                        &mut state.paragraph,
                         renderer,
                         limits,
                         label,
@@ -309,7 +353,7 @@ where
 
     fn update(
         &mut self,
-        _tree: &mut Tree,
+        tree: &mut Tree,
         event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
@@ -326,9 +370,27 @@ where
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 let mouse_over = cursor.is_over(layout.bounds());
 
-                if mouse_over && let Some(on_toggle) = &self.on_toggle {
-                    shell.publish((on_toggle)(!self.is_checked));
-                    shell.capture_event();
+                if mouse_over {
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+                    state.is_focused = true;
+
+                    if let Some(on_toggle) = &self.on_toggle {
+                        shell.publish((on_toggle)(!self.is_checked));
+                        shell.capture_event();
+                    }
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::Space),
+                ..
+            }) => {
+                if let Some(on_toggle) = &self.on_toggle {
+                    let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+
+                    if state.is_focused {
+                        shell.publish((on_toggle)(!self.is_checked));
+                        shell.capture_event();
+                    }
                 }
             }
             _ => {}
@@ -384,6 +446,7 @@ where
         viewport: &Rectangle,
     ) {
         let mut children = layout.children();
+        let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
 
         let style = theme.style(
             &self.class,
@@ -404,6 +467,11 @@ where
                 },
                 style.background,
             );
+
+            // Draw focus ring when focused
+            if state.is_focused && self.on_toggle.is_some() {
+                FocusRing::default().draw(renderer, bounds);
+            }
 
             let Icon {
                 font,
@@ -441,13 +509,12 @@ where
 
         {
             let label_layout = children.next().unwrap();
-            let state: &widget::text::State<Renderer::Paragraph> = tree.state.downcast_ref();
 
             crate::text::draw(
                 renderer,
                 defaults,
                 label_layout.bounds(),
-                state.raw(),
+                state.paragraph.raw(),
                 crate::text::Style {
                     color: style.text_color,
                 },
@@ -458,11 +525,14 @@ where
 
     fn operate(
         &mut self,
-        _tree: &mut Tree,
+        tree: &mut Tree,
         layout: Layout<'_>,
         _renderer: &Renderer,
-        operation: &mut dyn widget::Operation,
+        operation: &mut dyn Operation,
     ) {
+        let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+        operation.focusable(self.id.as_ref(), layout.bounds(), state);
+
         if let Some(label) = self.label.as_deref() {
             operation.text(None, layout.bounds(), label);
         }

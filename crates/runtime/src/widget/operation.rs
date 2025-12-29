@@ -4,6 +4,7 @@ use crate::core::widget::operation;
 use crate::task;
 use crate::{Action, Task};
 
+pub use crate::core::widget::operation::focusable::{FocusLevel, FocusTier};
 pub use crate::core::widget::operation::scrollable::{AbsoluteOffset, RelativeOffset};
 
 /// Snaps the scrollable with the given [`Id`] to the provided [`RelativeOffset`].
@@ -57,6 +58,25 @@ pub fn focus_previous<T>() -> Task<T> {
 /// Focuses the next focusable widget.
 pub fn focus_next<T>() -> Task<T> {
     task::effect(Action::widget(operation::focusable::focus_next()))
+}
+
+/// Focuses the previous focusable widget that matches the given [`FocusLevel`].
+pub fn focus_previous_filtered<T>(level: FocusLevel) -> Task<T> {
+    task::effect(Action::widget(
+        operation::focusable::focus_previous_filtered(level),
+    ))
+}
+
+/// Focuses the next focusable widget that matches the given [`FocusLevel`].
+pub fn focus_next_filtered<T>(level: FocusLevel) -> Task<T> {
+    task::effect(Action::widget(operation::focusable::focus_next_filtered(
+        level,
+    )))
+}
+
+/// Unfocuses the currently focused widget.
+pub fn unfocus<T>() -> Task<T> {
+    task::effect(Action::widget(operation::focusable::unfocus()))
 }
 
 /// Returns whether the widget with the given [`Id`] is focused or not.
