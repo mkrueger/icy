@@ -1284,19 +1284,19 @@ fn run_action<'a, P, C>(
             }
             clipboard::Action::Read {
                 target,
-                mime_types,
+                formats,
                 channel,
             } => {
-                let mime_refs: Vec<&str> = mime_types.iter().map(String::as_str).collect();
-                let _ = channel.send(clipboard.read(target, &mime_refs));
+                let format_refs: Vec<&str> = formats.iter().map(String::as_str).collect();
+                let _ = channel.send(clipboard.read(target, &format_refs));
             }
             clipboard::Action::Write {
                 target,
                 data,
-                mime_types,
+                formats,
             } => {
-                let mime_refs: Vec<&str> = mime_types.iter().map(String::as_str).collect();
-                clipboard.write(target, Cow::Owned(data), &mime_refs);
+                let format_refs: Vec<&str> = formats.iter().map(String::as_str).collect();
+                clipboard.write(target, Cow::Owned(data), &format_refs);
             }
             clipboard::Action::WriteMulti { target, formats } => {
                 // Keep the original strings alive while we build the references
@@ -1316,8 +1316,8 @@ fn run_action<'a, P, C>(
                     .collect();
                 clipboard.write_multi(target, &format_slices);
             }
-            clipboard::Action::AvailableMimeTypes { target, channel } => {
-                let _ = channel.send(clipboard.available_mime_types(target));
+            clipboard::Action::AvailableFormats { target, channel } => {
+                let _ = channel.send(clipboard.available_formats(target));
             }
             clipboard::Action::ReadFiles { target, channel } => {
                 let _ = channel.send(clipboard.read_files(target));
@@ -1327,6 +1327,14 @@ fn run_action<'a, P, C>(
             }
             clipboard::Action::Clear { target } => {
                 clipboard.clear(target);
+            }
+            clipboard::Action::ReadAll {
+                target,
+                formats,
+                channel,
+            } => {
+                let format_refs: Vec<&str> = formats.iter().map(String::as_str).collect();
+                let _ = channel.send(clipboard.read_all(target, &format_refs));
             }
         },
         Action::Window(action) => match action {

@@ -561,7 +561,32 @@ pub mod task {
 
 pub mod clipboard {
     //! Access the clipboard.
-    pub use crate::runtime::clipboard::{read, read_primary, write, write_primary};
+    //!
+    //! # Example
+    //!
+    //! ```no_run
+    //! use iced::clipboard::{STANDARD, PRIMARY, Format};
+    //!
+    //! // Read text from the standard clipboard
+    //! let task = STANDARD.read_text();
+    //!
+    //! // Write text to the primary clipboard
+    //! let task = PRIMARY.write_text("Hello".to_string());
+    //!
+    //! // Use format constants
+    //! let task = STANDARD.read_format(Format::Image.formats());
+    //!
+    //! // Use the builder pattern
+    //! let task = STANDARD.write()
+    //!     .html("<b>Hello</b>".to_string())
+    //!     .text("Hello".to_string())
+    //!     .finish();
+    //! ```
+
+    pub use crate::runtime::clipboard::{
+        Target, STANDARD, PRIMARY,
+        Format, Error, WriteBuilder,
+    };
 }
 
 pub mod executor {

@@ -1,19 +1,10 @@
 //! Access the clipboard.
 
-use crate::core::clipboard::{ClipboardData, Kind};
+use crate::core::clipboard::{ClipboardData, Format, Kind};
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 use winit::window::{Window, WindowId};
-
-/// MIME types used for text clipboard operations.
-const TEXT_MIME_TYPES: &[&str] = &[
-    "text/plain;charset=utf-8",
-    "text/plain",
-    "UTF8_STRING",
-    "STRING",
-    "TEXT",
-];
 
 /// A buffer for short-term storage and transfer within and between
 /// applications.
@@ -149,13 +140,13 @@ impl Clipboard {
 
     /// Reads the current content of the [`Clipboard`] as text.
     pub fn read_text(&self, kind: Kind) -> Option<String> {
-        self.read(kind, TEXT_MIME_TYPES)
+        self.read(kind, Format::Text.formats())
             .and_then(|data| data.into_text())
     }
 
     /// Writes the given text contents to the [`Clipboard`].
     pub fn write_text(&mut self, kind: Kind, contents: String) {
-        self.write(kind, Cow::Owned(contents.into_bytes()), TEXT_MIME_TYPES);
+        self.write(kind, Cow::Owned(contents.into_bytes()), Format::Text.formats());
     }
 
     /// Read data with preferred MIME types (first match wins).
@@ -187,7 +178,7 @@ impl Clipboard {
                 // Fall back to text if text MIME types were requested
                 if mime_types.iter().any(|m| m.contains("text")) {
                     if let Ok(text) = clipboard.get_text() {
-                        return Some(ClipboardData::new("text/plain", text.into_bytes()));
+                        return Some(ClipboardData::new(Format::Text.primary(), text.into_bytes()));
                     }
                 }
 
@@ -207,7 +198,7 @@ impl Clipboard {
                 // Fall back to text if text MIME types were requested
                 if mime_types.iter().any(|m| m.contains("text")) {
                     if let Ok(text) = clipboard.get_text() {
-                        return Some(ClipboardData::new("text/plain", text.into_bytes()));
+                        return Some(ClipboardData::new(Format::Text.primary(), text.into_bytes()));
                     }
                 }
 
@@ -324,8 +315,8 @@ impl Clipboard {
         }
     }
 
-    /// Get all available MIME types in the clipboard.
-    pub fn available_mime_types(&self, kind: Kind) -> Vec<String> {
+    /// Get all available formats in the clipboard.
+    pub fn available_formats(&self, kind: Kind) -> Vec<String> {
         match &self.state {
             #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
             State::Wayland { clipboard } => {
@@ -458,7 +449,7 @@ impl Clipboard {
             State::Wayland { clipboard: _ } => {
                 // smithay-clipboard doesn't have a clear method,
                 // so we write empty data
-                self.write(kind, Cow::Borrowed(&[]), &["text/plain"]);
+                self.write(kind, Cow::Borrowed(&[]), Format::Text.formats());
             }
 
             #[cfg(all(feature = "x11", unix, not(target_os = "macos")))]
@@ -485,6 +476,22 @@ impl Clipboard {
 
             State::Unavailable => {}
         }
+    }
+
+    /// Read all available data for the specified MIME types.
+    ///
+    /// Unlike [`read`] which returns the first match, this returns
+    /// data for all requested MIME types that are available.
+    pub fn read_all(&self, kind: Kind, mime_types: &[&str]) -> Vec<ClipboardData> {
+        let mut results = Vec::new();
+
+        for mime in mime_types {
+            if let Some(data) = self.read(kind, &[*mime]) {
+                results.push(data);
+            }
+        }
+
+        results
     }
 
     /// Returns the identifier of the window used to create the [`Clipboard`], if any.
@@ -566,7 +573,7 @@ impl crate::core::Clipboard for Clipboard {
     }
 
     fn available_mime_types(&self, kind: Kind) -> Vec<String> {
-        self.available_mime_types(kind)
+        self.available_formats(kind)
     }
 
     fn read_files(&self, kind: Kind) -> Option<Vec<PathBuf>> {

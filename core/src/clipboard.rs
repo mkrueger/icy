@@ -2,6 +2,171 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 
+// ============================================================================
+// Format Constants
+// ============================================================================
+
+/// Common clipboard format identifiers.
+///
+/// These provide platform-appropriate format strings for common content types.
+/// The actual format strings vary by platform:
+///
+/// - **Linux/X11/Wayland**: MIME types (e.g., `text/plain`, `text/html`, `image/png`)
+/// - **macOS**: UTI strings (e.g., `public.utf8-plain-text`, `public.rtf`, `public.html`)
+/// - **Windows**: Registered format names (e.g., `CF_UNICODETEXT`, `Rich Text Format`, `HTML Format`)
+///
+/// Using these constants abstracts away platform differences.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    /// Plain text (UTF-8).
+    Text,
+    /// Rich Text Format (RTF).
+    Rtf,
+    /// HTML content.
+    Html,
+    /// PNG image.
+    Png,
+    /// JPEG image.
+    Jpeg,
+    /// Any image format (PNG, JPEG, BMP, GIF, TIFF).
+    Image,
+    /// File paths/URIs.
+    Files,
+}
+
+impl Format {
+    /// Get the format strings for this format.
+    ///
+    /// Returns a slice of format identifiers that the clipboard backend
+    /// will understand. The strings are platform-appropriate.
+    #[cfg(target_os = "macos")]
+    pub const fn formats(self) -> &'static [&'static str] {
+        // macOS uses UTI (Uniform Type Identifier) strings
+        match self {
+            Format::Text => &["public.utf8-plain-text", "public.plain-text"],
+            Format::Rtf => &["public.rtf"],
+            Format::Html => &["public.html"],
+            Format::Png => &["public.png"],
+            Format::Jpeg => &["public.jpeg"],
+            Format::Image => &["public.png", "public.tiff", "public.jpeg"],
+            Format::Files => &["public.file-url"],
+        }
+    }
+
+    /// Get the format strings for this format.
+    ///
+    /// Returns a slice of format identifiers that the clipboard backend
+    /// will understand. The strings are platform-appropriate.
+    #[cfg(target_os = "windows")]
+    pub const fn formats(self) -> &'static [&'static str] {
+        // Windows uses registered format names
+        match self {
+            Format::Text => &["CF_UNICODETEXT"],
+            Format::Rtf => &["Rich Text Format"],
+            Format::Html => &["HTML Format"],
+            Format::Png => &["PNG"],
+            Format::Jpeg => &["JFIF"],
+            Format::Image => &["PNG", "CF_DIBV5"],
+            Format::Files => &["CF_HDROP"],
+        }
+    }
+
+    /// Get the format strings for this format.
+    ///
+    /// Returns a slice of format identifiers that the clipboard backend
+    /// will understand. The strings are platform-appropriate.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    pub const fn formats(self) -> &'static [&'static str] {
+        // Linux/X11/Wayland use MIME types and X11 atom names
+        match self {
+            Format::Text => &[
+                "text/plain;charset=utf-8",
+                "text/plain",
+                "UTF8_STRING",
+                "STRING",
+            ],
+            Format::Rtf => &["text/rtf", "application/rtf"],
+            Format::Html => &["text/html"],
+            Format::Png => &["image/png"],
+            Format::Jpeg => &["image/jpeg"],
+            Format::Image => &["image/png", "image/jpeg", "image/bmp", "image/gif"],
+            Format::Files => &["text/uri-list", "x-special/gnome-copied-files"],
+        }
+    }
+
+    /// Get the format strings for this format.
+    ///
+    /// Fallback for other platforms.
+    #[cfg(not(any(target_os = "macos", target_os = "windows", unix)))]
+    pub const fn formats(self) -> &'static [&'static str] {
+        match self {
+            Format::Text => &["text/plain"],
+            Format::Rtf => &["text/rtf"],
+            Format::Html => &["text/html"],
+            Format::Png => &["image/png"],
+            Format::Jpeg => &["image/jpeg"],
+            Format::Image => &["image/png", "image/jpeg"],
+            Format::Files => &["text/uri-list"],
+        }
+    }
+
+    /// Get the primary format string for this format (for writing).
+    #[cfg(target_os = "macos")]
+    pub const fn primary(self) -> &'static str {
+        match self {
+            Format::Text => "public.utf8-plain-text",
+            Format::Rtf => "public.rtf",
+            Format::Html => "public.html",
+            Format::Png => "public.png",
+            Format::Jpeg => "public.jpeg",
+            Format::Image => "public.png",
+            Format::Files => "public.file-url",
+        }
+    }
+
+    /// Get the primary format string for this format (for writing).
+    #[cfg(target_os = "windows")]
+    pub const fn primary(self) -> &'static str {
+        match self {
+            Format::Text => "CF_UNICODETEXT",
+            Format::Rtf => "Rich Text Format",
+            Format::Html => "HTML Format",
+            Format::Png => "PNG",
+            Format::Jpeg => "JFIF",
+            Format::Image => "PNG",
+            Format::Files => "CF_HDROP",
+        }
+    }
+
+    /// Get the primary format string for this format (for writing).
+    #[cfg(all(unix, not(target_os = "macos")))]
+    pub const fn primary(self) -> &'static str {
+        match self {
+            Format::Text => "text/plain;charset=utf-8",
+            Format::Rtf => "text/rtf",
+            Format::Html => "text/html",
+            Format::Png => "image/png",
+            Format::Jpeg => "image/jpeg",
+            Format::Image => "image/png",
+            Format::Files => "text/uri-list",
+        }
+    }
+
+    /// Get the primary format string for this format (for writing).
+    #[cfg(not(any(target_os = "macos", target_os = "windows", unix)))]
+    pub const fn primary(self) -> &'static str {
+        match self {
+            Format::Text => "text/plain",
+            Format::Rtf => "text/rtf",
+            Format::Html => "text/html",
+            Format::Png => "image/png",
+            Format::Jpeg => "image/jpeg",
+            Format::Image => "image/png",
+            Format::Files => "text/uri-list",
+        }
+    }
+}
+
 /// The kind of [`Clipboard`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -86,19 +251,19 @@ pub trait Clipboard {
 
     /// Read image data (PNG preferred).
     fn read_image(&self, kind: Kind) -> Option<ClipboardData> {
-        self.read(kind, &["image/png", "image/jpeg", "image/bmp", "image/gif"])
+        self.read(kind, Format::Image.formats())
     }
 
     /// Write PNG image data.
     fn write_image(&mut self, kind: Kind, png_data: Cow<'_, [u8]>) {
-        self.write(kind, png_data, &["image/png"]);
+        self.write(kind, png_data, Format::Png.formats());
     }
 
     // ========== HTML (convenience) ==========
 
     /// Read HTML from clipboard.
     fn read_html(&self, kind: Kind) -> Option<String> {
-        self.read(kind, &["text/html"])
+        self.read(kind, Format::Html.formats())
             .and_then(|d| d.into_text())
     }
 
@@ -108,15 +273,12 @@ pub trait Clipboard {
             self.write_multi(
                 kind,
                 &[
-                    (Cow::Borrowed(html.as_bytes()), &["text/html"]),
-                    (
-                        Cow::Borrowed(alt.as_bytes()),
-                        &["text/plain;charset=utf-8", "text/plain", "UTF8_STRING", "STRING"],
-                    ),
+                    (Cow::Borrowed(html.as_bytes()), Format::Html.formats()),
+                    (Cow::Borrowed(alt.as_bytes()), Format::Text.formats()),
                 ],
             );
         } else {
-            self.write(kind, Cow::Borrowed(html.as_bytes()), &["text/html"]);
+            self.write(kind, Cow::Borrowed(html.as_bytes()), Format::Html.formats());
         }
     }
 
