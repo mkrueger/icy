@@ -1088,7 +1088,7 @@ impl Style {
             inline_code_color: Color::WHITE,
             inline_code_font: Font::MONOSPACE,
             code_block_font: Font::MONOSPACE,
-            link_color: palette.primary,
+            link_color: palette.accent_blue,
         }
     }
 }
@@ -1101,13 +1101,13 @@ impl From<theme::Palette> for Style {
 
 impl From<&Theme> for Style {
     fn from(theme: &Theme) -> Self {
-        Self::from_palette(theme.palette())
+        Self::from_palette(theme.palette.clone())
     }
 }
 
 impl From<Theme> for Style {
     fn from(theme: Theme) -> Self {
-        Self::from_palette(theme.palette())
+        Self::from_palette(theme.palette.clone())
     }
 }
 

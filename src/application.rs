@@ -178,6 +178,34 @@ pub struct Application<P: Program> {
 
 impl<P: Program> Application<P> {
     /// Runs the [`Application`].
+    #[cfg(all(
+        feature = "debug",
+        not(feature = "tester"),
+        not(target_arch = "wasm32")
+    ))]
+    pub fn run(self) -> Result
+    where
+        Self: 'static,
+        P::Message: message::MaybeDebug + message::MaybeClone,
+        P: Program<Theme = Theme>,
+    {
+        iced_debug::init(iced_debug::Metadata {
+            name: P::name(),
+            theme: None,
+            can_time_travel: cfg!(feature = "time-travel"),
+        });
+
+        let program = iced_devtools::attach(self);
+
+        Ok(shell::run(program)?)
+    }
+
+    /// Runs the [`Application`].
+    #[cfg(not(all(
+        feature = "debug",
+        not(feature = "tester"),
+        not(target_arch = "wasm32")
+    )))]
     pub fn run(self) -> Result
     where
         Self: 'static,
@@ -193,17 +221,7 @@ impl<P: Program> Application<P> {
         #[cfg(feature = "tester")]
         let program = iced_tester::attach(self);
 
-        #[cfg(all(
-            feature = "debug",
-            not(feature = "tester"),
-            not(target_arch = "wasm32")
-        ))]
-        let program = iced_devtools::attach(self);
-
-        #[cfg(not(any(
-            feature = "tester",
-            all(feature = "debug", not(target_arch = "wasm32"))
-        )))]
+        #[cfg(not(feature = "tester"))]
         let program = self;
 
         Ok(shell::run(program)?)

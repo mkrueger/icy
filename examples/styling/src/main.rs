@@ -46,23 +46,24 @@ impl Styling {
             Message::CheckboxToggled(value) => self.checkbox_value = value,
             Message::TogglerToggled(value) => self.toggler_value = value,
             Message::PreviousTheme | Message::NextTheme => {
-                let current = Theme::ALL
+                let all_themes = Theme::all();
+                let current = all_themes
                     .iter()
                     .position(|candidate| self.theme.as_ref() == Some(candidate));
 
                 self.theme = Some(if matches!(message, Message::NextTheme) {
-                    Theme::ALL[current.map(|current| current + 1).unwrap_or(0) % Theme::ALL.len()]
+                    all_themes[current.map(|current| current + 1).unwrap_or(0) % all_themes.len()]
                         .clone()
                 } else {
                     let current = current.unwrap_or(0);
 
                     if current == 0 {
-                        Theme::ALL
+                        all_themes
                             .last()
-                            .expect("Theme::ALL must not be empty")
+                            .expect("Theme::all() must not be empty")
                             .clone()
                     } else {
-                        Theme::ALL[current - 1].clone()
+                        all_themes[current - 1].clone()
                     }
                 });
             }
@@ -75,7 +76,7 @@ impl Styling {
     fn view(&self) -> Element<'_, Message> {
         let choose_theme = column![
             text("Theme:"),
-            pick_list(Theme::ALL, self.theme.as_ref(), Message::ThemeChanged)
+            pick_list(Theme::all(), self.theme.as_ref(), Message::ThemeChanged)
                 .width(Fill)
                 .placeholder("System"),
         ]

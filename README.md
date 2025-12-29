@@ -8,6 +8,7 @@ Which is IMHO a very good UI library that just need some core things changed to 
 + Clipboard handling that works and isn't just a lackluster
 + Scrollbar that's not from 1998 and works on long view areas as well
 + Menus 
++ Extended theming
 - Basic support for focus/keyboard input for all controls
 - Drag & drop support
 

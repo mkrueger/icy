@@ -142,7 +142,7 @@ async fn run(
                         name: metadata.name.to_owned(),
                         version: version.clone(),
                         can_time_travel: metadata.can_time_travel,
-                        theme: metadata.theme,
+                        theme: metadata.theme.clone(),
                     },
                 )
                 .await;
@@ -177,16 +177,16 @@ async fn run(
 
                 while let Some(action) = receiver.recv().await {
                     match action {
-                        Action::Send(message) => {
+                        Action::Send(ref message) => {
                             if let Message::EventLogged {
                                 event: Event::ThemeChanged(palette),
                                 ..
                             } = message
                             {
-                                metadata.theme = Some(palette);
+                                metadata.theme = Some(palette.clone());
                             }
 
-                            match send(&mut writer, message).await {
+                            match send(&mut writer, message.clone()).await {
                                 Ok(()) => {}
                                 Err(error) => {
                                     if error.kind() != io::ErrorKind::BrokenPipe {

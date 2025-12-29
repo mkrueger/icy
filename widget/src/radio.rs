@@ -522,21 +522,19 @@ impl Catalog for Theme {
 
 /// The default style of a [`Radio`] button.
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     let active = Style {
         background: Color::TRANSPARENT.into(),
-        dot_color: palette.primary.strong.color,
+        dot_color: theme.accent.base,
         border_width: 1.0,
-        border_color: palette.primary.strong.color,
+        border_color: theme.accent.base,
         text_color: None,
     };
 
     match status {
         Status::Active { .. } => active,
         Status::Hovered { .. } => Style {
-            dot_color: palette.primary.strong.color,
-            background: palette.primary.weak.color.into(),
+            dot_color: theme.accent.hover,
+            background: theme.accent.hover.scale_alpha(0.2).into(),
             ..active
         },
     }

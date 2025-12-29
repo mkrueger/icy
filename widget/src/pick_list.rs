@@ -862,17 +862,15 @@ impl Catalog for Theme {
 
 /// The default style of the field of a [`PickList`].
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     let active = Style {
-        text_color: palette.background.weak.text,
-        background: palette.background.weak.color.into(),
-        placeholder_color: palette.secondary.base.color,
-        handle_color: palette.background.weak.text,
+        text_color: theme.background.on,
+        background: theme.background.small_widget.into(),
+        placeholder_color: theme.secondary.on,
+        handle_color: theme.background.on,
         border: Border {
             radius: 2.0.into(),
             width: 1.0,
-            color: palette.background.strong.color,
+            color: theme.background.divider,
         },
     };
 
@@ -880,7 +878,7 @@ pub fn default(theme: &Theme, status: Status) -> Style {
         Status::Active => active,
         Status::Hovered | Status::Opened { .. } => Style {
             border: Border {
-                color: palette.primary.strong.color,
+                color: theme.accent.hover,
                 ..active.border
             },
             ..active

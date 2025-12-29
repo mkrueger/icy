@@ -529,6 +529,9 @@ name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+dependencies = [
+ "serde_core",
+]
 
 [[package]]
 name = "bitstream-io"
@@ -2381,6 +2384,7 @@ dependencies = [
  "lilt",
  "log",
  "num-traits",
+ "ron",
  "rustc-hash 2.1.1",
  "serde",
  "smol_str",
@@ -4960,6 +4964,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ron"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beceb6f7bf81c73e73aeef6dd1356d9a1b2b4909e1f0fc3e59b034f9572d7b7f"
+dependencies = [
+ "base64 0.22.1",
+ "bitflags 2.10.0",
+ "serde",
+ "serde_derive",
+ "unicode-ident",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5811,6 +5828,13 @@ dependencies = [
  "iced",
  "rand 0.8.5",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "theme2"
+version = "0.1.0"
+dependencies = [
+ "iced",
 ]
 
 [[package]]

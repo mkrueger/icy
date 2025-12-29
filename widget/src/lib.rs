@@ -15,7 +15,6 @@ mod mouse_area;
 mod pin;
 mod responsive;
 mod stack;
-mod themer;
 
 pub mod button;
 pub mod checkbox;
@@ -110,8 +109,6 @@ pub use text::Text;
 pub use text_editor::TextEditor;
 #[doc(no_inline)]
 pub use text_input::TextInput;
-#[doc(no_inline)]
-pub use themer::Themer;
 #[doc(no_inline)]
 pub use toggler::Toggler;
 #[doc(no_inline)]

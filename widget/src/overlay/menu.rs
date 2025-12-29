@@ -613,18 +613,16 @@ impl Catalog for Theme {
 
 /// The default style of the list of a [`Menu`].
 pub fn default(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
-        background: palette.background.weak.color.into(),
+        background: theme.primary.base.into(),
         border: Border {
             width: 1.0,
             radius: 0.0.into(),
-            color: palette.background.strong.color,
+            color: theme.background.divider,
         },
-        text_color: palette.background.weak.text,
-        selected_text_color: palette.primary.strong.text,
-        selected_background: palette.primary.strong.color.into(),
+        text_color: theme.primary.on,
+        selected_text_color: theme.accent.on,
+        selected_background: theme.accent.base.into(),
         shadow: Shadow::default(),
     }
 }

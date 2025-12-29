@@ -412,10 +412,8 @@ impl Catalog for Theme {
 
 /// The default style of a [`QRCode`].
 pub fn default(theme: &Theme) -> Style {
-    let palette = theme.palette();
-
     Style {
-        cell: palette.text,
-        background: palette.background,
+        cell: theme.background.on,
+        background: theme.background.base,
     }
 }

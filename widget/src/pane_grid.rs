@@ -1244,26 +1244,24 @@ impl Catalog for Theme {
 
 /// The default style of a [`PaneGrid`].
 pub fn default(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
         hovered_region: Highlight {
             background: Background::Color(Color {
                 a: 0.5,
-                ..palette.primary.base.color
+                ..theme.accent.base
             }),
             border: Border {
                 width: 2.0,
-                color: palette.primary.strong.color,
+                color: theme.accent.hover,
                 radius: 0.0.into(),
             },
         },
         hovered_split: Line {
-            color: palette.primary.base.color,
+            color: theme.accent.base,
             width: 2.0,
         },
         picked_split: Line {
-            color: palette.primary.strong.color,
+            color: theme.accent.hover,
             width: 2.0,
         },
     }

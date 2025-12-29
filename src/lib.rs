@@ -718,6 +718,29 @@ pub type Result = std::result::Result<(), Error>;
 ///     ]
 /// }
 /// ```
+#[cfg(all(
+    feature = "debug",
+    not(feature = "tester"),
+    not(target_arch = "wasm32")
+))]
+pub fn run<State, Message, Renderer>(
+    update: impl application::UpdateFn<State, Message> + 'static,
+    view: impl for<'a> application::ViewFn<'a, State, Message, Theme, Renderer> + 'static,
+) -> Result
+where
+    State: Default + 'static,
+    Message: Send + message::MaybeDebug + message::MaybeClone + 'static,
+    Renderer: program::Renderer + 'static,
+{
+    application(State::default, update, view).run()
+}
+
+/// A simple iced application.
+#[cfg(not(all(
+    feature = "debug",
+    not(feature = "tester"),
+    not(target_arch = "wasm32")
+)))]
 pub fn run<State, Message, Theme, Renderer>(
     update: impl application::UpdateFn<State, Message> + 'static,
     view: impl for<'a> application::ViewFn<'a, State, Message, Theme, Renderer> + 'static,

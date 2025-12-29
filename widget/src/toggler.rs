@@ -567,21 +567,19 @@ impl Catalog for Theme {
 
 /// The default style of a [`Toggler`].
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     let background = match status {
         Status::Active { is_toggled } | Status::Hovered { is_toggled } => {
             if is_toggled {
-                palette.primary.base.color
+                theme.accent.base
             } else {
-                palette.background.strong.color
+                theme.background.component.base
             }
         }
         Status::Disabled { is_toggled } => {
             if is_toggled {
-                palette.background.strong.color
+                theme.accent.base.scale_alpha(0.5)
             } else {
-                palette.background.weak.color
+                theme.background.component.base.scale_alpha(0.5)
             }
         }
     };
@@ -589,22 +587,19 @@ pub fn default(theme: &Theme, status: Status) -> Style {
     let foreground = match status {
         Status::Active { is_toggled } => {
             if is_toggled {
-                palette.primary.base.text
+                theme.accent.on
             } else {
-                palette.background.base.color
+                theme.background.on
             }
         }
         Status::Hovered { is_toggled } => {
             if is_toggled {
-                Color {
-                    a: 0.5,
-                    ..palette.primary.base.text
-                }
+                theme.accent.on.scale_alpha(0.5)
             } else {
-                palette.background.weak.color
+                theme.background.on.scale_alpha(0.7)
             }
         }
-        Status::Disabled { .. } => palette.background.weakest.color,
+        Status::Disabled { .. } => theme.background.on.scale_alpha(0.3),
     };
 
     Style {

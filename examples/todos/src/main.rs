@@ -456,7 +456,7 @@ fn delete_icon() -> Text<'static> {
 
 fn subtle(theme: &Theme) -> text::Style {
     text::Style {
-        color: Some(theme.extended_palette().background.strongest.color),
+        color: Some(theme.background.on.scale_alpha(0.6)),
     }
 }
 

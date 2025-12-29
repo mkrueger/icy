@@ -22,13 +22,12 @@ use crate::runtime::task::{self, Task};
 use crate::time_machine::TimeMachine;
 use crate::widget::{
     bottom_right, button, center, column, container, opaque, row, scrollable, space, stack, text,
-    themer,
 };
 
 use std::fmt;
 use std::thread;
 
-pub fn attach<P: Program + 'static>(program: P) -> Attach<P> {
+pub fn attach<P: Program<Theme = Theme> + 'static>(program: P) -> Attach<P> {
     Attach { program }
 }
 
@@ -41,7 +40,7 @@ pub struct Attach<P> {
 
 impl<P> Program for Attach<P>
 where
-    P: Program + 'static,
+    P: Program<Theme = Theme> + 'static,
     P::Message: std::fmt::Debug + message::MaybeClone,
 {
     type State = DevTools<P>;
@@ -143,7 +142,7 @@ enum Goal {
 
 impl<P> DevTools<P>
 where
-    P: Program + 'static,
+    P: Program<Theme = Theme> + 'static,
     P::Message: std::fmt::Debug + message::MaybeClone,
 {
     pub fn new(state: P::State) -> (Self, Task<Message>) {
@@ -305,14 +304,6 @@ where
             }
         };
 
-        let theme = || {
-            program
-                .theme(state, window)
-                .as_ref()
-                .and_then(theme::Base::palette)
-                .map(|palette| Theme::custom("iced devtools", palette))
-        };
-
         let setup = if let Mode::Setup(setup) = &self.mode {
             let stage: Element<'_, _, Theme, P::Renderer> = match setup {
                 Setup::Idle { goal } => self::setup(goal),
@@ -328,7 +319,7 @@ where
             .padding(10)
             .style(|_theme| container::Style::default().background(Color::BLACK.scale_alpha(0.8)));
 
-            Some(themer(theme(), opaque(setup).map(Event::Message)))
+            Some(opaque(setup).map(Event::Message))
         } else {
             None
         };
@@ -341,12 +332,9 @@ where
                     .then(|| text("Types have changed. Restart to re-enable hotpatching."))
             })
             .map(|notification| {
-                themer(
-                    theme(),
-                    bottom_right(opaque(
-                        container(notification).padding(10).style(container::dark),
-                    )),
-                )
+                bottom_right(opaque(
+                    container(notification).padding(10).style(container::dark),
+                ))
             });
 
         stack![view, setup, notification]

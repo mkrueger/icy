@@ -675,17 +675,15 @@ impl Catalog for Theme {
 
 /// The default style of a [`Slider`].
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     let color = match status {
-        Status::Active => palette.primary.base.color,
-        Status::Hovered => palette.primary.strong.color,
-        Status::Dragged => palette.primary.weak.color,
+        Status::Active => theme.accent.base,
+        Status::Hovered => theme.accent.hover,
+        Status::Dragged => theme.accent.pressed,
     };
 
     Style {
         rail: Rail {
-            backgrounds: (color.into(), palette.background.strong.color.into()),
+            backgrounds: (color.into(), theme.background.small_widget.into()),
             width: 4.0,
             border: Border {
                 radius: 2.0.into(),

@@ -36,7 +36,6 @@ use crate::core::layout;
 use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::text;
-use crate::core::theme::palette;
 use crate::core::touch;
 use crate::core::widget;
 use crate::core::widget::tree::{self, Tree};
@@ -563,28 +562,29 @@ impl Catalog for Theme {
 
 /// A primary checkbox; denoting a main toggle.
 pub fn primary(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     match status {
         Status::Active { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.base,
-            palette.primary.base.text,
-            palette.primary.base,
+            theme.background.divider,
+            theme.background.base,
+            theme.background.on,
+            theme.accent.on,
+            theme.accent.base,
             is_checked,
         ),
         Status::Hovered { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.weak,
-            palette.primary.base.text,
-            palette.primary.strong,
+            theme.background.divider,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.accent.on,
+            theme.accent.hover,
             is_checked,
         ),
         Status::Disabled { is_checked } => styled(
-            palette.background.weak.color,
-            palette.background.weaker,
-            palette.primary.base.text,
-            palette.background.strong,
+            theme.background.small_widget,
+            theme.background.component.disabled,
+            theme.background.on,
+            theme.accent.on,
+            theme.background.divider,
             is_checked,
         ),
     }
@@ -592,28 +592,29 @@ pub fn primary(theme: &Theme, status: Status) -> Style {
 
 /// A secondary checkbox; denoting a complementary toggle.
 pub fn secondary(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     match status {
         Status::Active { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.base,
-            palette.background.base.text,
-            palette.background.strong,
+            theme.background.divider,
+            theme.background.base,
+            theme.background.on,
+            theme.background.on,
+            theme.background.divider,
             is_checked,
         ),
         Status::Hovered { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.weak,
-            palette.background.base.text,
-            palette.background.strong,
+            theme.background.divider,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.background.on,
+            theme.background.divider,
             is_checked,
         ),
         Status::Disabled { is_checked } => styled(
-            palette.background.weak.color,
-            palette.background.weak,
-            palette.background.base.text,
-            palette.background.weak,
+            theme.background.small_widget,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.background.on,
+            theme.background.small_widget,
             is_checked,
         ),
     }
@@ -621,28 +622,29 @@ pub fn secondary(theme: &Theme, status: Status) -> Style {
 
 /// A success checkbox; denoting a positive toggle.
 pub fn success(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     match status {
         Status::Active { is_checked } => styled(
-            palette.background.weak.color,
-            palette.background.base,
-            palette.success.base.text,
-            palette.success.base,
+            theme.background.small_widget,
+            theme.background.base,
+            theme.background.on,
+            theme.success.on,
+            theme.success.base,
             is_checked,
         ),
         Status::Hovered { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.weak,
-            palette.success.base.text,
-            palette.success.strong,
+            theme.background.divider,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.success.on,
+            theme.success.hover,
             is_checked,
         ),
         Status::Disabled { is_checked } => styled(
-            palette.background.weak.color,
-            palette.background.weak,
-            palette.success.base.text,
-            palette.success.weak,
+            theme.background.small_widget,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.success.on,
+            theme.success.disabled,
             is_checked,
         ),
     }
@@ -650,28 +652,29 @@ pub fn success(theme: &Theme, status: Status) -> Style {
 
 /// A danger checkbox; denoting a negative toggle.
 pub fn danger(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     match status {
         Status::Active { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.base,
-            palette.danger.base.text,
-            palette.danger.base,
+            theme.background.divider,
+            theme.background.base,
+            theme.background.on,
+            theme.destructive.on,
+            theme.destructive.base,
             is_checked,
         ),
         Status::Hovered { is_checked } => styled(
-            palette.background.strong.color,
-            palette.background.weak,
-            palette.danger.base.text,
-            palette.danger.strong,
+            theme.background.divider,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.destructive.on,
+            theme.destructive.hover,
             is_checked,
         ),
         Status::Disabled { is_checked } => styled(
-            palette.background.weak.color,
-            palette.background.weak,
-            palette.danger.base.text,
-            palette.danger.weak,
+            theme.background.small_widget,
+            theme.background.small_widget,
+            theme.background.on,
+            theme.destructive.on,
+            theme.destructive.disabled,
             is_checked,
         ),
     }
@@ -679,20 +682,27 @@ pub fn danger(theme: &Theme, status: Status) -> Style {
 
 fn styled(
     border_color: Color,
-    base: palette::Pair,
+    base_color: Color,
     icon_color: Color,
-    accent: palette::Pair,
+    accent_text_color: Color,
+    accent_color: Color,
     is_checked: bool,
 ) -> Style {
     let (background, border) = if is_checked {
-        (accent, accent.color)
+        (accent_color, accent_color)
     } else {
-        (base, border_color)
+        (base_color, border_color)
+    };
+
+    let icon = if is_checked {
+        accent_text_color
+    } else {
+        icon_color
     };
 
     Style {
-        background: Background::Color(background.color),
-        icon_color,
+        background: Background::Color(background),
+        icon_color: icon,
         border: Border {
             radius: 2.0.into(),
             width: 1.0,

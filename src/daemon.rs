@@ -122,6 +122,26 @@ pub struct Daemon<P: Program> {
 
 impl<P: Program> Daemon<P> {
     /// Runs the [`Daemon`].
+    #[cfg(all(feature = "debug", not(feature = "tester")))]
+    pub fn run(self) -> Result
+    where
+        Self: 'static,
+        P::Message: message::MaybeDebug + message::MaybeClone,
+        P: Program<Theme = Theme>,
+    {
+        iced_debug::init(iced_debug::Metadata {
+            name: P::name(),
+            theme: None,
+            can_time_travel: cfg!(feature = "time-travel"),
+        });
+
+        let program = iced_devtools::attach(self);
+
+        Ok(shell::run(program)?)
+    }
+
+    /// Runs the [`Daemon`].
+    #[cfg(not(all(feature = "debug", not(feature = "tester"))))]
     pub fn run(self) -> Result
     where
         Self: 'static,
@@ -137,10 +157,7 @@ impl<P: Program> Daemon<P> {
         #[cfg(feature = "tester")]
         let program = iced_tester::attach(self);
 
-        #[cfg(all(feature = "debug", not(feature = "tester")))]
-        let program = iced_devtools::attach(self);
-
-        #[cfg(not(any(feature = "tester", feature = "debug")))]
+        #[cfg(not(feature = "tester"))]
         let program = self;
 
         Ok(shell::run(program)?)

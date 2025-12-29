@@ -733,8 +733,7 @@ impl Catalog for crate::Theme {
 
 /// The default style of a [`Table`].
 pub fn default(theme: &crate::Theme) -> Style {
-    let palette = theme.extended_palette();
-    let separator = palette.background.strong.color.into();
+    let separator = theme.background.divider.into();
 
     Style {
         separator_x: separator,

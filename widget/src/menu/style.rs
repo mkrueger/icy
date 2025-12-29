@@ -73,11 +73,9 @@ impl StyleSheet for crate::Theme {
     type Style = Style;
 
     fn appearance(&self, style: &Self::Style) -> Appearance {
-        let palette = self.extended_palette();
-
         match style {
             Style::Default => {
-                let background = palette.background.base.color;
+                let background = self.background.base;
 
                 Appearance {
                     background,
@@ -86,13 +84,13 @@ impl StyleSheet for crate::Theme {
                     menu_border_radius: [8.0; 4],
                     border_color: Color {
                         a: 0.3,
-                        ..palette.background.base.text
+                        ..self.background.on
                     },
                     background_expand: [1; 4],
                     // Use primary color for popup menu highlights
-                    path: palette.primary.weak.color,
+                    path: self.accent.hover,
                     // Use subtle color for menu bar highlights
-                    bar_path: palette.background.weak.color,
+                    bar_path: self.primary.base,
                     path_border_radius: [4.0; 4],
                     menu_content_padding: [2.0, 4.0, 1.0, 4.0],
                     menu_inner_content_padding: [4.0, 4.0, 4.0, 4.0],
@@ -106,18 +104,16 @@ impl StyleSheet for crate::Theme {
 /// Note: The hover effect is handled by the menu's path highlight,
 /// so we don't add a hover background here.
 pub fn menu_item(theme: &Theme, status: Status) -> button::Style {
-    let palette = theme.extended_palette();
-
     let base = button::Style {
         background: None,
-        text_color: palette.background.base.text,
+        text_color: theme.background.on,
         ..button::Style::default()
     };
 
     match status {
         Status::Active | Status::Hovered | Status::Pressed => base,
         Status::Disabled => button::Style {
-            text_color: palette.background.base.text.scale_alpha(0.5),
+            text_color: theme.background.on.scale_alpha(0.5),
             ..base
         },
     }
@@ -127,11 +123,9 @@ pub fn menu_item(theme: &Theme, status: Status) -> button::Style {
 /// Note: The hover/selected highlight is handled by the menu bar's path highlight,
 /// so we don't add a hover background here.
 pub fn menu_root_style(theme: &Theme, status: Status) -> button::Style {
-    let palette = theme.extended_palette();
-
     let base = button::Style {
         background: None,
-        text_color: palette.background.base.text,
+        text_color: theme.background.on,
         ..button::Style::default()
     };
 

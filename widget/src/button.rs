@@ -21,7 +21,7 @@ use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
 use crate::core::renderer;
-use crate::core::theme::palette;
+use crate::core::theme;
 use crate::core::touch;
 use crate::core::widget::Operation;
 use crate::core::widget::tree::{self, Tree};
@@ -602,13 +602,16 @@ impl Catalog for Theme {
 
 /// A primary button; denoting a main action.
 pub fn primary(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.primary.base);
+    let component = &theme.accent_button;
+    let base = styled_component(component);
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active | Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.primary.strong.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -617,13 +620,16 @@ pub fn primary(theme: &Theme, status: Status) -> Style {
 
 /// A secondary button; denoting a complementary action.
 pub fn secondary(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.secondary.base);
+    let component = &theme.button;
+    let base = styled_component(component);
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active | Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.secondary.strong.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -632,13 +638,16 @@ pub fn secondary(theme: &Theme, status: Status) -> Style {
 
 /// A success button; denoting a good outcome.
 pub fn success(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.success.base);
+    let component = &theme.success_button;
+    let base = styled_component(component);
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active | Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.success.strong.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -647,13 +656,16 @@ pub fn success(theme: &Theme, status: Status) -> Style {
 
 /// A warning button; denoting a risky action.
 pub fn warning(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.warning.base);
+    let component = &theme.warning_button;
+    let base = styled_component(component);
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active | Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.warning.strong.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -662,13 +674,16 @@ pub fn warning(theme: &Theme, status: Status) -> Style {
 
 /// A danger button; denoting a destructive action.
 pub fn danger(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.danger.base);
+    let component = &theme.destructive_button;
+    let base = styled_component(component);
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active | Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.danger.strong.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -677,17 +692,17 @@ pub fn danger(theme: &Theme, status: Status) -> Style {
 
 /// A text button; useful for links.
 pub fn text(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
+    let component = &theme.text_button;
 
     let base = Style {
-        text_color: palette.background.base.text,
+        text_color: component.on,
         ..Style::default()
     };
 
     match status {
         Status::Active | Status::Pressed => base,
         Status::Hovered => Style {
-            text_color: palette.background.base.text.scale_alpha(0.8),
+            text_color: component.on.scale_alpha(0.8),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -696,17 +711,17 @@ pub fn text(theme: &Theme, status: Status) -> Style {
 
 /// A button using background shades.
 pub fn background(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.background.base);
+    let component = &theme.button;
+    let base = styled_component(component);
 
     match status {
         Status::Active => base,
         Status::Pressed => Style {
-            background: Some(Background::Color(palette.background.strong.color)),
+            background: Some(Background::Color(component.pressed)),
             ..base
         },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.background.weak.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -715,27 +730,27 @@ pub fn background(theme: &Theme, status: Status) -> Style {
 
 /// A subtle button using weak background shades.
 pub fn subtle(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-    let base = styled(palette.background.weakest);
+    let component = &theme.icon_button;
+    let base = styled_component(component);
 
     match status {
         Status::Active => base,
         Status::Pressed => Style {
-            background: Some(Background::Color(palette.background.strong.color)),
+            background: Some(Background::Color(component.pressed)),
             ..base
         },
         Status::Hovered => Style {
-            background: Some(Background::Color(palette.background.weaker.color)),
+            background: Some(Background::Color(component.hover)),
             ..base
         },
         Status::Disabled => disabled(base),
     }
 }
 
-fn styled(pair: palette::Pair) -> Style {
+fn styled_component(component: &theme::Component) -> Style {
     Style {
-        background: Some(Background::Color(pair.color)),
-        text_color: pair.text,
+        background: Some(Background::Color(component.base)),
+        text_color: component.on,
         border: border::rounded(2),
         ..Style::default()
     }

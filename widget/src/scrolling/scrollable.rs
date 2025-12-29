@@ -2663,8 +2663,6 @@ impl Catalog for Theme {
 
 /// The default style of a [`Scrollable`].
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     // Get the hover factor from any status variant
     let hover_factor = match status {
         Status::Active { hover_factor, .. } => hover_factor,
@@ -2697,10 +2695,10 @@ pub fn default(theme: &Theme, status: Status) -> Style {
 
     // Create base scroll style with theme colors
     let mut scroll_style = ScrollStyle::floating();
-    scroll_style.rail_background = Some(palette.background.weak.color);
-    scroll_style.handle_color = palette.background.strongest.color;
-    scroll_style.handle_color_hovered = palette.primary.strong.color;
-    scroll_style.handle_color_dragged = palette.primary.base.color;
+    scroll_style.rail_background = Some(theme.background.small_widget);
+    scroll_style.handle_color = theme.button.base;
+    scroll_style.handle_color_hovered = theme.accent.hover;
+    scroll_style.handle_color_dragged = theme.accent.pressed;
 
     // Adjust handle color based on interaction state
     let handle_color = if is_interacting {
@@ -2730,16 +2728,16 @@ pub fn default(theme: &Theme, status: Status) -> Style {
     }
 
     let auto_scroll = AutoScroll {
-        background: palette.background.base.color.scale_alpha(0.9).into(),
+        background: theme.background.base.scale_alpha(0.9).into(),
         border: border::rounded(u32::MAX)
             .width(1)
-            .color(palette.background.base.text.scale_alpha(0.8)),
+            .color(theme.background.on.scale_alpha(0.8)),
         shadow: Shadow {
             color: Color::BLACK.scale_alpha(0.7),
             offset: Vector::ZERO,
             blur_radius: 2.0,
         },
-        icon: palette.background.base.text.scale_alpha(0.8),
+        icon: theme.background.on.scale_alpha(0.8),
     };
 
     Style {

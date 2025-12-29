@@ -7,7 +7,7 @@ use crate::futures::Subscription;
 
 pub use internal::Span;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Metadata {
     pub name: &'static str,
     pub theme: Option<theme::Palette>,
@@ -170,7 +170,7 @@ mod internal {
         };
 
         if METADATA.read().expect("Read last palette").theme.as_ref() != Some(&palette) {
-            log(client::Event::ThemeChanged(palette));
+            log(client::Event::ThemeChanged(palette.clone()));
 
             METADATA.write().expect("Write last palette").theme = Some(palette);
         }

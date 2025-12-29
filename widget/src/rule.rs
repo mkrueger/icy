@@ -305,10 +305,8 @@ impl Catalog for Theme {
 
 /// The default styling of a [`Rule`].
 pub fn default(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
-        color: palette.background.strong.color,
+        color: theme.background.divider,
         radius: 0.0.into(),
         fill_mode: FillMode::Full,
         snap: true,
@@ -317,10 +315,8 @@ pub fn default(theme: &Theme) -> Style {
 
 /// A [`Rule`] styling using the weak background color.
 pub fn weak(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
-        color: palette.background.weak.color,
+        color: theme.background.divider.scale_alpha(0.5),
         radius: 0.0.into(),
         fill_mode: FillMode::Full,
         snap: true,

@@ -26,7 +26,6 @@ use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
 use crate::core::renderer;
-use crate::core::theme;
 use crate::core::widget::tree::{self, Tree};
 use crate::core::widget::{self, Operation};
 use crate::core::{
@@ -558,11 +557,9 @@ pub fn background(background: impl Into<Background>) -> Style {
 
 /// A rounded [`Container`] with a background.
 pub fn rounded_box(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
-        background: Some(palette.background.weak.color.into()),
-        text_color: Some(palette.background.weak.text),
+        background: Some(theme.primary.base.into()),
+        text_color: Some(theme.primary.on),
         border: border::rounded(2),
         ..Style::default()
     }
@@ -570,15 +567,13 @@ pub fn rounded_box(theme: &Theme) -> Style {
 
 /// A bordered [`Container`] with a background.
 pub fn bordered_box(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
     Style {
-        background: Some(palette.background.weakest.color.into()),
-        text_color: Some(palette.background.weakest.text),
+        background: Some(theme.background.base.into()),
+        text_color: Some(theme.background.on),
         border: Border {
             width: 1.0,
             radius: 5.0.into(),
-            color: palette.background.weak.color,
+            color: theme.background.divider,
         },
         ..Style::default()
     }
@@ -586,51 +581,59 @@ pub fn bordered_box(theme: &Theme) -> Style {
 
 /// A [`Container`] with a dark background and white text.
 pub fn dark(_theme: &Theme) -> Style {
-    style(theme::palette::Pair {
-        color: color!(0x111111),
-        text: Color::WHITE,
-    })
+    Style {
+        background: Some(color!(0x111111).into()),
+        text_color: Some(Color::WHITE),
+        border: border::rounded(2),
+        ..Style::default()
+    }
 }
 
 /// A [`Container`] with a primary background color.
 pub fn primary(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
-    style(palette.primary.base)
+    Style {
+        background: Some(theme.accent.base.into()),
+        text_color: Some(theme.accent.on),
+        border: border::rounded(2),
+        ..Style::default()
+    }
 }
 
 /// A [`Container`] with a secondary background color.
 pub fn secondary(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
-    style(palette.secondary.base)
+    Style {
+        background: Some(theme.secondary.base.into()),
+        text_color: Some(theme.secondary.on),
+        border: border::rounded(2),
+        ..Style::default()
+    }
 }
 
 /// A [`Container`] with a success background color.
 pub fn success(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
-    style(palette.success.base)
+    Style {
+        background: Some(theme.success.base.into()),
+        text_color: Some(theme.success.on),
+        border: border::rounded(2),
+        ..Style::default()
+    }
 }
 
 /// A [`Container`] with a warning background color.
 pub fn warning(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
-    style(palette.warning.base)
+    Style {
+        background: Some(theme.warning.base.into()),
+        text_color: Some(theme.warning.on),
+        border: border::rounded(2),
+        ..Style::default()
+    }
 }
 
 /// A [`Container`] with a danger background color.
 pub fn danger(theme: &Theme) -> Style {
-    let palette = theme.extended_palette();
-
-    style(palette.danger.base)
-}
-
-fn style(pair: theme::palette::Pair) -> Style {
     Style {
-        background: Some(pair.color.into()),
-        text_color: Some(pair.text),
+        background: Some(theme.destructive.base.into()),
+        text_color: Some(theme.destructive.on),
         border: border::rounded(2),
         ..Style::default()
     }

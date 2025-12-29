@@ -1383,40 +1383,38 @@ impl Catalog for Theme {
 
 /// The default style of a [`TextEditor`].
 pub fn default(theme: &Theme, status: Status) -> Style {
-    let palette = theme.extended_palette();
-
     let active = Style {
-        background: Background::Color(palette.background.base.color),
+        background: Background::Color(theme.background.base),
         border: Border {
             radius: 2.0.into(),
             width: 1.0,
-            color: palette.background.strong.color,
+            color: theme.background.divider,
         },
-        placeholder: palette.secondary.base.color,
-        value: palette.background.base.text,
-        selection: palette.primary.weak.color,
+        placeholder: theme.background.on.scale_alpha(0.5),
+        value: theme.background.on,
+        selection: theme.accent.base.scale_alpha(0.3),
     };
 
     match status {
         Status::Active => active,
         Status::Hovered => Style {
             border: Border {
-                color: palette.background.base.text,
+                color: theme.background.on,
                 ..active.border
             },
             ..active
         },
         Status::Focused { .. } => Style {
             border: Border {
-                color: palette.primary.strong.color,
+                color: theme.accent.base,
                 ..active.border
             },
             ..active
         },
         Status::Disabled => Style {
-            background: Background::Color(palette.background.weak.color),
+            background: Background::Color(theme.background.small_widget),
             value: active.placeholder,
-            placeholder: palette.background.strongest.color,
+            placeholder: theme.background.on.scale_alpha(0.3),
             ..active
         },
     }

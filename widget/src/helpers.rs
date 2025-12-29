@@ -4,7 +4,6 @@ use crate::checkbox::{self, Checkbox};
 use crate::combo_box::{self, ComboBox};
 use crate::container::{self, Container};
 use crate::core;
-use crate::core::theme;
 use crate::core::widget::operation::{self, Operation};
 use crate::core::window;
 use crate::core::{Element, Length, Size, Widget};
@@ -24,7 +23,7 @@ use crate::text_input::{self, TextInput};
 use crate::toggler::{self, Toggler};
 use crate::tooltip::{self, Tooltip};
 use crate::vertical_slider::{self, VerticalSlider};
-use crate::{Column, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack, Themer};
+use crate::{Column, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack};
 
 use std::borrow::Borrow;
 use std::ops::RangeInclusive;
@@ -2020,18 +2019,6 @@ where
     Renderer: core::Renderer,
 {
     MouseArea::new(widget)
-}
-
-/// A widget that applies any `Theme` to its contents.
-pub fn themer<'a, Message, Theme, Renderer>(
-    theme: Option<Theme>,
-    content: impl Into<Element<'a, Message, Theme, Renderer>>,
-) -> Themer<'a, Message, Theme, Renderer>
-where
-    Theme: theme::Base,
-    Renderer: core::Renderer,
-{
-    Themer::new(theme, content)
 }
 
 /// Creates a [`PaneGrid`] with the given [`pane_grid::State`] and view function.
