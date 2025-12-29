@@ -1378,6 +1378,72 @@ where
     Radio::new(label, value, selected, on_click)
 }
 
+/// Creates a new [`RadioGroup`].
+///
+/// Radio groups allow users to select a single option from a list with
+/// proper keyboard navigation:
+/// - **Tab**: Focus enters/leaves the group (single tab stop)
+/// - **Arrow Up/Down**: Navigate between options within the group
+/// - **Space/Enter**: Select the currently focused option
+///
+/// [`RadioGroup`]: crate::RadioGroup
+///
+/// # Example
+/// ```no_run
+/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
+/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// #
+/// use iced::widget::radio_group;
+///
+/// struct State {
+///    selection: Option<Choice>,
+/// }
+///
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// enum Message {
+///     Selected(Choice),
+/// }
+///
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// enum Choice {
+///     A,
+///     B,
+///     C,
+/// }
+///
+/// impl std::fmt::Display for Choice {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+///         match self {
+///             Choice::A => write!(f, "Option A"),
+///             Choice::B => write!(f, "Option B"),
+///             Choice::C => write!(f, "Option C"),
+///         }
+///     }
+/// }
+///
+/// fn view(state: &State) -> Element<'_, Message> {
+///     radio_group(
+///         [Choice::A, Choice::B, Choice::C],
+///         state.selection,
+///         Message::Selected,
+///     )
+///     .into()
+/// }
+/// ```
+pub fn radio_group<'a, T, Message, Theme, Renderer, F>(
+    options: impl IntoIterator<Item = T>,
+    selected: Option<T>,
+    on_select: F,
+) -> crate::RadioGroup<'a, T, Message, Theme, Renderer>
+where
+    T: Clone + Eq + ToString,
+    Theme: crate::radio_group::Catalog + 'a,
+    Renderer: core::text::Renderer,
+    F: Fn(T) -> Message + 'a,
+{
+    crate::RadioGroup::new(options, selected, on_select)
+}
+
 /// Creates a new [`Toggler`].
 ///
 /// Togglers let users make binary choices by toggling a switch.

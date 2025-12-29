@@ -142,6 +142,8 @@ where
     id: Option<WidgetId>,
     is_selected: bool,
     on_click: Message,
+    on_up: Option<Message>,
+    on_down: Option<Message>,
     label: String,
     width: Length,
     size: f32,
@@ -184,6 +186,8 @@ where
             id: None,
             is_selected: Some(value) == selected,
             on_click: f(value),
+            on_up: None,
+            on_down: None,
             label: label.into(),
             width: Length::Shrink,
             size: Self::DEFAULT_SIZE,
@@ -201,6 +205,22 @@ where
     /// Sets the unique identifier of the [`Radio`].
     pub fn id(mut self, id: impl Into<WidgetId>) -> Self {
         self.id = Some(id.into());
+        self
+    }
+
+    /// Sets the message to emit when ArrowUp is pressed while focused.
+    ///
+    /// This is typically used to select the previous radio button in a group.
+    pub fn on_up(mut self, message: Message) -> Self {
+        self.on_up = Some(message);
+        self
+    }
+
+    /// Sets the message to emit when ArrowDown is pressed while focused.
+    ///
+    /// This is typically used to select the next radio button in a group.
+    pub fn on_down(mut self, message: Message) -> Self {
+        self.on_down = Some(message);
         self
     }
 
@@ -274,6 +294,7 @@ where
 /// Internal state of a [`Radio`].
 struct State<P: text::Paragraph> {
     is_focused: bool,
+    last_is_focused: bool,
     paragraph: widget::text::State<P>,
 }
 
@@ -281,6 +302,7 @@ impl<P: text::Paragraph> Default for State<P> {
     fn default() -> Self {
         Self {
             is_focused: false,
+            last_is_focused: false,
             paragraph: widget::text::State::default(),
         }
     }
@@ -378,8 +400,6 @@ where
             })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if cursor.is_over(layout.bounds()) {
-                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
-                    state.is_focused = true;
                     shell.publish(self.on_click.clone());
                     shell.capture_event();
                 }
@@ -393,6 +413,32 @@ where
                 if state.is_focused {
                     shell.publish(self.on_click.clone());
                     shell.capture_event();
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::ArrowUp),
+                ..
+            }) => {
+                let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+
+                if state.is_focused {
+                    if let Some(on_up) = &self.on_up {
+                        shell.publish(on_up.clone());
+                        shell.capture_event();
+                    }
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::ArrowDown),
+                ..
+            }) => {
+                let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+
+                if state.is_focused {
+                    if let Some(on_down) = &self.on_down {
+                        shell.publish(on_down.clone());
+                        shell.capture_event();
+                    }
                 }
             }
             _ => {}
@@ -409,11 +455,14 @@ where
             }
         };
 
+        let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         if let Event::Window(window::Event::RedrawRequested(_now)) = event {
             self.last_status = Some(current_status);
+            state.last_is_focused = state.is_focused;
         } else if self
             .last_status
             .is_some_and(|last_status| last_status != current_status)
+            || state.last_is_focused != state.is_focused
         {
             shell.request_redraw();
         }

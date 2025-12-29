@@ -9,10 +9,10 @@ use crate::widget::operation::{self, Operation, Outcome};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FocusLevel {
     /// Only text inputs and editors receive Tab focus (macOS default behavior).
-    #[default]
     TextOnly,
 
     /// All interactive widgets receive Tab focus (full keyboard access).
+    #[default]
     AllControls,
 
     /// No automatic Tab navigation (app handles focus manually).
@@ -416,6 +416,12 @@ where
                     eprintln!("[focus.op] prev/apply: -> unfocus first");
                     state.unfocus()
                 }
+                // Wrap: first element focused, now focus last
+                Some(0) if self.current == self.count.total - 1 => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] prev/apply: -> wrap to last");
+                    state.focus()
+                }
                 Some(0) => {}
                 Some(focused) if focused == self.current => {
                     #[cfg(debug_assertions)]
@@ -539,6 +545,12 @@ where
                 None if self.current == 0 => {
                     #[cfg(debug_assertions)]
                     eprintln!("[focus.op] next/apply: -> focus first");
+                    state.focus()
+                }
+                // Wrap: last element focused, now focus first
+                Some(focused) if focused == self.count.total - 1 && self.current == 0 => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("[focus.op] next/apply: -> wrap to first");
                     state.focus()
                 }
                 Some(focused) if focused == self.current => {

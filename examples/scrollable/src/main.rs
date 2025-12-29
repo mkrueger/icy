@@ -1,6 +1,6 @@
 use iced::widget::{
-    button, column, container, pick_list, progress_bar, radio, row, rule, scroll_area, scrollable,
-    slider, space, text,
+    button, column, container, pick_list, progress_bar, radio_group, row, rule, scroll_area,
+    scrollable, slider, space, text,
 };
 use iced::{Border, Center, Color, Element, Fill, Length, Rectangle, Size, Task, Theme};
 
@@ -67,6 +67,42 @@ enum Direction {
     Both,
 }
 
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Direction::Vertical => write!(f, "Vertical"),
+            Direction::Horizontal => write!(f, "Horizontal"),
+            Direction::Both => write!(f, "Both"),
+        }
+    }
+}
+
+/// Anchor position for scrollable content
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum AnchorPosition {
+    #[default]
+    Start,
+    End,
+}
+
+impl std::fmt::Display for AnchorPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnchorPosition::Start => write!(f, "Start"),
+            AnchorPosition::End => write!(f, "End"),
+        }
+    }
+}
+
+impl From<AnchorPosition> for scrollable::Anchor {
+    fn from(pos: AnchorPosition) -> Self {
+        match pos {
+            AnchorPosition::Start => scrollable::Anchor::Start,
+            AnchorPosition::End => scrollable::Anchor::End,
+        }
+    }
+}
+
 struct ScrollableDemo {
     active_tab: Tab,
     // Long list settings
@@ -77,7 +113,7 @@ struct ScrollableDemo {
     scrollbar_width: u32,
     scrollbar_margin: u32,
     scroller_width: u32,
-    anchor: scrollable::Anchor,
+    anchor: AnchorPosition,
     // Scroll state
     current_scroll_offset: scrollable::RelativeOffset,
 }
@@ -95,7 +131,7 @@ enum Message {
     ScrollbarWidthChanged(u32),
     ScrollbarMarginChanged(u32),
     ScrollerWidthChanged(u32),
-    AnchorChanged(scrollable::Anchor),
+    AnchorChanged(AnchorPosition),
     Scrolled(scrollable::Viewport),
 }
 
@@ -109,7 +145,7 @@ impl Default for ScrollableDemo {
             scrollbar_width: 10,
             scrollbar_margin: 0,
             scroller_width: 10,
-            anchor: scrollable::Anchor::Start,
+            anchor: AnchorPosition::Start,
             current_scroll_offset: scrollable::RelativeOffset::START,
         }
     }
@@ -394,16 +430,11 @@ impl ScrollableDemo {
     fn view_style_options(&self) -> Element<'_, Message> {
         let preset_section = column![
             text("Style Preset").size(16),
-            row(ScrollStylePreset::ALL.iter().map(|preset| {
-                radio(
-                    format!("{}", preset),
-                    *preset,
-                    Some(self.style_preset),
-                    Message::StylePresetChanged,
-                )
-                .into()
-            }))
-            .spacing(20),
+            radio_group(
+                ScrollStylePreset::ALL,
+                Some(self.style_preset),
+                Message::StylePresetChanged,
+            ),
             text(match self.style_preset {
                 ScrollStylePreset::Floating => {
                     "Floating: Scrollbars fade in on hover, float over content"
@@ -422,27 +453,11 @@ impl ScrollableDemo {
 
         let direction_section = column![
             text("Scroll Direction").size(16),
-            row![
-                radio(
-                    "Vertical",
-                    Direction::Vertical,
-                    Some(self.direction),
-                    Message::DirectionChanged,
-                ),
-                radio(
-                    "Horizontal",
-                    Direction::Horizontal,
-                    Some(self.direction),
-                    Message::DirectionChanged,
-                ),
-                radio(
-                    "Both",
-                    Direction::Both,
-                    Some(self.direction),
-                    Message::DirectionChanged,
-                ),
-            ]
-            .spacing(20),
+            radio_group(
+                [Direction::Vertical, Direction::Horizontal, Direction::Both],
+                Some(self.direction),
+                Message::DirectionChanged,
+            ),
         ]
         .spacing(10);
 
@@ -485,21 +500,11 @@ impl ScrollableDemo {
 
         let anchor_section = column![
             text("Anchor Position").size(16),
-            row![
-                radio(
-                    "Start",
-                    scrollable::Anchor::Start,
-                    Some(self.anchor),
-                    Message::AnchorChanged,
-                ),
-                radio(
-                    "End",
-                    scrollable::Anchor::End,
-                    Some(self.anchor),
-                    Message::AnchorChanged,
-                ),
-            ]
-            .spacing(20),
+            radio_group(
+                [AnchorPosition::Start, AnchorPosition::End],
+                Some(self.anchor),
+                Message::AnchorChanged,
+            ),
         ]
         .spacing(10);
 
@@ -538,7 +543,7 @@ impl ScrollableDemo {
             .width(self.scrollbar_width)
             .margin(self.scrollbar_margin)
             .scroller_width(self.scroller_width)
-            .anchor(self.anchor);
+            .anchor(self.anchor.into());
 
         let direction = match self.direction {
             Direction::Vertical => scrollable::Direction::Vertical(scrollbar),
@@ -653,7 +658,6 @@ impl ScrollableDemo {
 
     fn scrollable_style(&self, theme: &Theme, status: scrollable::Status) -> scrollable::Style {
         let base = scrollable::default(theme, status);
-        let palette = theme.extended_palette();
 
         let scroll = match self.style_preset {
             ScrollStylePreset::Floating => scrollable::ScrollStyle::floating(),
@@ -693,20 +697,20 @@ impl ScrollableDemo {
 
         let handle_color = if is_interacting {
             if matches!(status, scrollable::Status::Dragged { .. }) {
-                palette.primary.base.color
+                theme.accent.base
             } else {
-                palette.primary.strong.color
+                theme.accent.hover
             }
         } else {
-            palette.background.strongest.color
+            theme.background.on
         };
 
         scrollable::Style {
             scroll: scrollable::ScrollStyle {
-                rail_background: Some(palette.background.weak.color.scale_alpha(bg_opacity)),
+                rail_background: Some(theme.background.base.scale_alpha(bg_opacity)),
                 handle_color: handle_color.scale_alpha(handle_opacity),
-                handle_color_hovered: palette.primary.strong.color.scale_alpha(handle_opacity),
-                handle_color_dragged: palette.primary.base.color.scale_alpha(handle_opacity),
+                handle_color_hovered: theme.accent.hover.scale_alpha(handle_opacity),
+                handle_color_dragged: theme.accent.base.scale_alpha(handle_opacity),
                 ..scroll
             },
             ..base
@@ -715,13 +719,14 @@ impl ScrollableDemo {
 
     fn view_progress(&self) -> Element<'_, Message> {
         let y_bar = progress_bar(0.0..=1.0, self.current_scroll_offset.y);
-        let x_bar = progress_bar(0.0..=1.0, self.current_scroll_offset.x).style(|theme: &Theme| {
-            progress_bar::Style {
-                background: theme.extended_palette().background.strong.color.into(),
-                bar: Color::from_rgb8(250, 85, 134).into(),
-                border: Border::default(),
-            }
-        });
+        let x_bar =
+            progress_bar(0.0..=1.0, self.current_scroll_offset.x).style(|_theme: &Theme| {
+                progress_bar::Style {
+                    background: Color::from_rgb(0.3, 0.3, 0.3).into(),
+                    bar: Color::from_rgb8(250, 85, 134).into(),
+                    border: Border::default(),
+                }
+            });
 
         match self.active_tab {
             Tab::LargeCanvas | Tab::StyleOptions if self.direction == Direction::Both => {
@@ -746,7 +751,7 @@ impl ScrollableDemo {
     }
 
     fn theme(&self) -> Theme {
-        Theme::Dark
+        Theme::dark()
     }
 }
 

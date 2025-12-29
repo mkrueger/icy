@@ -258,6 +258,7 @@ where
 /// Internal state of a [`Checkbox`].
 struct State<P: text::Paragraph> {
     is_focused: bool,
+    last_is_focused: bool,
     paragraph: widget::text::State<P>,
 }
 
@@ -265,6 +266,7 @@ impl<P: text::Paragraph> Default for State<P> {
     fn default() -> Self {
         Self {
             is_focused: false,
+            last_is_focused: false,
             paragraph: widget::text::State::default(),
         }
     }
@@ -371,9 +373,6 @@ where
                 let mouse_over = cursor.is_over(layout.bounds());
 
                 if mouse_over {
-                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
-                    state.is_focused = true;
-
                     if let Some(on_toggle) = &self.on_toggle {
                         shell.publish((on_toggle)(!self.is_checked));
                         shell.capture_event();
@@ -410,11 +409,14 @@ where
             }
         };
 
+        let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         if let Event::Window(window::Event::RedrawRequested(_now)) = event {
             self.last_status = Some(current_status);
+            state.last_is_focused = state.is_focused;
         } else if self
             .last_status
             .is_some_and(|status| status != current_status)
+            || state.last_is_focused != state.is_focused
         {
             shell.request_redraw();
         }

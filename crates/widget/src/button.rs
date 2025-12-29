@@ -333,7 +333,6 @@ where
                         let state = tree.state.downcast_mut::<State>();
 
                         state.is_pressed = true;
-                        state.is_focused = true;
 
                         shell.capture_event();
                     }

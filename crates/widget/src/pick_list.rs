@@ -61,6 +61,9 @@
 //! }
 //! ```
 use crate::core::alignment;
+use crate::core::keyboard;
+use crate::core::keyboard::Key;
+use crate::core::keyboard::key;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -68,12 +71,15 @@ use crate::core::renderer;
 use crate::core::text::paragraph;
 use crate::core::text::{self, Text};
 use crate::core::touch;
+use crate::core::widget::Id;
+use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
     Background, Border, Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Point,
     Rectangle, Shell, Size, Theme, Vector, Widget,
 };
+use crate::focus::FocusRing;
 use crate::overlay::menu::{self, Menu};
 
 use std::borrow::Borrow;
@@ -149,6 +155,7 @@ where
     Theme: Catalog,
     Renderer: text::Renderer,
 {
+    id: Option<Id>,
     on_select: Box<dyn Fn(T) -> Message + 'a>,
     on_open: Option<Message>,
     on_close: Option<Message>,
@@ -181,6 +188,7 @@ where
     /// selected value, and the message to produce when an option is selected.
     pub fn new(options: L, selected: Option<V>, on_select: impl Fn(T) -> Message + 'a) -> Self {
         Self {
+            id: None,
             on_select: Box::new(on_select),
             on_open: None,
             on_close: None,
@@ -199,6 +207,12 @@ where
             last_status: None,
             menu_height: Length::Shrink,
         }
+    }
+
+    /// Sets the [`Id`] of the [`PickList`].
+    pub fn id(mut self, id: impl Into<Id>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// Sets the placeholder of the [`PickList`].
@@ -493,6 +507,115 @@ where
                     shell.capture_event();
                 }
             }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::Space),
+                ..
+            }) => {
+                if state.is_focused && !state.is_open {
+                    let selected = self.selected.as_ref().map(Borrow::borrow);
+
+                    state.is_open = true;
+                    state.hovered_option = self
+                        .options
+                        .borrow()
+                        .iter()
+                        .position(|option| Some(option) == selected);
+
+                    if let Some(on_open) = &self.on_open {
+                        shell.publish(on_open.clone());
+                    }
+
+                    shell.capture_event();
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::Enter),
+                ..
+            }) => {
+                if state.is_focused {
+                    if state.is_open {
+                        // Select the hovered option
+                        if let Some(index) = state.hovered_option {
+                            if let Some(option) = self.options.borrow().get(index) {
+                                shell.publish((self.on_select)(option.clone()));
+                            }
+                        }
+                        state.is_open = false;
+
+                        if let Some(on_close) = &self.on_close {
+                            shell.publish(on_close.clone());
+                        }
+
+                        shell.capture_event();
+                    } else {
+                        // Open the menu
+                        let selected = self.selected.as_ref().map(Borrow::borrow);
+
+                        state.is_open = true;
+                        state.hovered_option = self
+                            .options
+                            .borrow()
+                            .iter()
+                            .position(|option| Some(option) == selected);
+
+                        if let Some(on_open) = &self.on_open {
+                            shell.publish(on_open.clone());
+                        }
+
+                        shell.capture_event();
+                    }
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::ArrowUp),
+                ..
+            }) => {
+                if state.is_focused && state.is_open {
+                    let options_len = self.options.borrow().len();
+                    if options_len > 0 {
+                        state.hovered_option = Some(
+                            state
+                                .hovered_option
+                                .map(|i| if i == 0 { options_len - 1 } else { i - 1 })
+                                .unwrap_or(options_len - 1),
+                        );
+                        shell.request_redraw();
+                    }
+                    shell.capture_event();
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::ArrowDown),
+                ..
+            }) => {
+                if state.is_focused && state.is_open {
+                    let options_len = self.options.borrow().len();
+                    if options_len > 0 {
+                        state.hovered_option = Some(
+                            state
+                                .hovered_option
+                                .map(|i| (i + 1) % options_len)
+                                .unwrap_or(0),
+                        );
+                        shell.request_redraw();
+                    }
+                    shell.capture_event();
+                }
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Named(key::Named::Escape),
+                ..
+            }) => {
+                if state.is_focused && state.is_open {
+                    state.is_open = false;
+
+                    if let Some(on_close) = &self.on_close {
+                        shell.publish(on_close.clone());
+                    }
+
+                    shell.capture_event();
+                }
+            }
             _ => {}
         };
 
@@ -510,9 +633,11 @@ where
 
         if let Event::Window(window::Event::RedrawRequested(_now)) = event {
             self.last_status = Some(status);
+            state.last_is_focused = state.is_focused;
         } else if self
             .last_status
             .is_some_and(|last_status| last_status != status)
+            || state.last_is_focused != state.is_focused
         {
             shell.request_redraw();
         }
@@ -659,6 +784,22 @@ where
                 *viewport,
             );
         }
+
+        // Draw focus ring when focused
+        if state.is_focused {
+            FocusRing::default().draw(renderer, bounds);
+        }
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        _renderer: &Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+        operation.focusable(self.id.as_ref(), layout.bounds(), state);
     }
 
     fn overlay<'b>(
@@ -729,6 +870,8 @@ where
 struct State<P: text::Paragraph> {
     menu: menu::State,
     is_open: bool,
+    is_focused: bool,
+    last_is_focused: bool,
     hovered_option: Option<usize>,
     options: Vec<paragraph::Plain<P>>,
     placeholder: paragraph::Plain<P>,
@@ -740,6 +883,8 @@ impl<P: text::Paragraph> State<P> {
         Self {
             menu: menu::State::default(),
             is_open: bool::default(),
+            is_focused: false,
+            last_is_focused: false,
             hovered_option: Option::default(),
             options: Vec::new(),
             placeholder: paragraph::Plain::default(),
@@ -750,6 +895,24 @@ impl<P: text::Paragraph> State<P> {
 impl<P: text::Paragraph> Default for State<P> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<P: text::Paragraph> operation::Focusable for State<P> {
+    fn is_focused(&self) -> bool {
+        self.is_focused
+    }
+
+    fn focus(&mut self) {
+        self.is_focused = true;
+    }
+
+    fn unfocus(&mut self) {
+        self.is_focused = false;
+    }
+
+    fn focus_tier(&self) -> operation::FocusTier {
+        operation::FocusTier::Control
     }
 }
 

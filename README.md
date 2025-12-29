@@ -12,7 +12,8 @@ Which is IMHO a very good UI library that just need some core things changed to 
 + Support for focus/keyboard input for all controls
 - Drag & drop support
 
-Unfortunately iced isn't moving and/or unwilling to move forward. So I was forced to fork it.
+Unfortunately iced isn't moving and/or unwilling to move forward. So I was 
+forced to fork it.
 
 I don't intend to break much away from iced to be able to port/take upstream changes.
 Icy is just ment to be used by my own tool suite for now.

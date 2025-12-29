@@ -3,11 +3,11 @@
 //! Use Tab to move focus forward, Shift+Tab to move focus backward.
 //! The focus mode can be toggled between TextOnly and AllControls.
 
-use iced::keyboard::{self, Key, key::Named};
-use iced::widget::operation::{FocusLevel, focus_next_filtered, focus_previous_filtered};
+use iced::keyboard::{self, key::Named, Key};
+use iced::widget::operation::{focus_next_filtered, focus_previous_filtered, FocusLevel};
 use iced::widget::{
-    Space, button, checkbox, column, container, pick_list, radio, row, slider, text, text_input,
-    toggler,
+    button, checkbox, column, container, pick_list, radio_group, row, scrollable, slider, text,
+    text_input, toggler, Space,
 };
 use iced::{Center, Element, Fill, Subscription, Task};
 
@@ -196,30 +196,19 @@ impl Focus {
         ]
         .spacing(10);
 
-        // Radio buttons
+        // Radio buttons (using RadioGroup for proper keyboard navigation)
         let radio_section = column![
-            text("Radio Buttons (focusable with All Controls):").size(18),
-            radio(
-                "Option 1 (Space to select)",
-                RadioChoice::Option1,
+            text("Radio Group (Arrow Up/Down to navigate, single Tab stop):").size(18),
+            radio_group(
+                [
+                    RadioChoice::Option1,
+                    RadioChoice::Option2,
+                    RadioChoice::Option3
+                ],
                 self.radio_choice,
                 Message::RadioSelected
             )
-            .id("radio-1"),
-            radio(
-                "Option 2",
-                RadioChoice::Option2,
-                self.radio_choice,
-                Message::RadioSelected
-            )
-            .id("radio-2"),
-            radio(
-                "Option 3",
-                RadioChoice::Option3,
-                self.radio_choice,
-                Message::RadioSelected
-            )
-            .id("radio-3"),
+            .id("radio-group-1"),
         ]
         .spacing(5);
 
@@ -245,13 +234,14 @@ impl Focus {
             "Choice C".to_string(),
         ];
         let pick_list_section = column![
-            text("Pick List:").size(18),
+            text("Pick List (focusable with All Controls):").size(18),
             pick_list(
                 pick_list_options,
                 self.pick_list_selection.clone(),
                 Message::PickListSelected
             )
-            .placeholder("Select an option..."),
+            .placeholder("Select an option...")
+            .id("pick-list-1"),
         ]
         .spacing(10);
 
@@ -270,11 +260,15 @@ impl Focus {
             slider_section,
             Space::new().height(10),
             pick_list_section,
+            Space::new().height(20),
         ]
         .spacing(5)
         .padding(20);
 
-        container(content).width(Fill).height(Fill).into()
+        container(scrollable(content))
+            .width(Fill)
+            .height(Fill)
+            .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {

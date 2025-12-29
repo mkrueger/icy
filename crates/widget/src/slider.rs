@@ -361,7 +361,6 @@ where
                             let _ = locate(cursor_position, modifiers).map(change);
                             state.is_dragging = true;
                         }
-                        state.is_focused = true;
 
                         shell.capture_event();
                     }
