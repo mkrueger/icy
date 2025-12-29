@@ -3,9 +3,9 @@
 
 //! Styling for menu bars.
 
-use crate::core::Color;
-use crate::button::{self, Status};
 use crate::Theme;
+use crate::button::{self, Status};
+use crate::core::Color;
 
 /// The appearance of a menu bar and its menus.
 #[derive(Debug, Clone, Copy)]
@@ -74,11 +74,11 @@ impl StyleSheet for crate::Theme {
 
     fn appearance(&self, style: &Self::Style) -> Appearance {
         let palette = self.extended_palette();
-        
+
         match style {
             Style::Default => {
                 let background = palette.background.base.color;
-                
+
                 Appearance {
                     background,
                     border_width: 1.0,
@@ -107,13 +107,13 @@ impl StyleSheet for crate::Theme {
 /// so we don't add a hover background here.
 pub fn menu_item(theme: &Theme, status: Status) -> button::Style {
     let palette = theme.extended_palette();
-    
+
     let base = button::Style {
         background: None,
         text_color: palette.background.base.text,
         ..button::Style::default()
     };
-    
+
     match status {
         Status::Active | Status::Hovered | Status::Pressed => base,
         Status::Disabled => button::Style {
@@ -128,13 +128,13 @@ pub fn menu_item(theme: &Theme, status: Status) -> button::Style {
 /// so we don't add a hover background here.
 pub fn menu_root_style(theme: &Theme, status: Status) -> button::Style {
     let palette = theme.extended_palette();
-    
+
     let base = button::Style {
         background: None,
         text_color: palette.background.base.text,
         ..button::Style::default()
     };
-    
+
     match status {
         Status::Active | Status::Hovered | Status::Pressed => base,
         Status::Disabled => base, // Menu roots should not appear disabled

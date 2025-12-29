@@ -32,7 +32,7 @@ pub mod progress_bar;
 pub mod radio;
 pub mod row;
 pub mod rule;
-pub mod scrollable;
+pub mod scrolling;
 pub mod sensor;
 pub mod slider;
 pub mod space;
@@ -43,6 +43,10 @@ pub mod text_input;
 pub mod toggler;
 pub mod tooltip;
 pub mod vertical_slider;
+
+// Re-export scrolling modules at the top level for backwards compatibility
+pub use scrolling::scroll_area;
+pub use scrolling::scrollable;
 
 mod helpers;
 
@@ -89,7 +93,9 @@ pub use row::Row;
 #[doc(no_inline)]
 pub use rule::Rule;
 #[doc(no_inline)]
-pub use scrollable::Scrollable;
+pub use scrolling::ScrollArea;
+#[doc(no_inline)]
+pub use scrolling::Scrollable;
 #[doc(no_inline)]
 pub use sensor::Sensor;
 #[doc(no_inline)]

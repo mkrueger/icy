@@ -179,8 +179,12 @@ pub fn window_event(
             let modifiers = self::modifiers(modifiers);
 
             Some(Event::Mouse(match state {
-                winit::event::ElementState::Pressed => mouse::Event::ButtonPressed { button, modifiers },
-                winit::event::ElementState::Released => mouse::Event::ButtonReleased { button, modifiers },
+                winit::event::ElementState::Pressed => {
+                    mouse::Event::ButtonPressed { button, modifiers }
+                }
+                winit::event::ElementState::Released => {
+                    mouse::Event::ButtonReleased { button, modifiers }
+                }
             }))
         }
         WindowEvent::MouseWheel { delta, .. } => match delta {

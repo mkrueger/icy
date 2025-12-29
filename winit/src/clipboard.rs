@@ -24,7 +24,12 @@ enum State {
     Unavailable,
 }
 
-#[cfg(all(not(feature = "wayland"), feature = "x11", unix, not(target_os = "macos")))]
+#[cfg(all(
+    not(feature = "wayland"),
+    feature = "x11",
+    unix,
+    not(target_os = "macos")
+))]
 enum State {
     X11 {
         clipboard: clipboard_rs::ClipboardContext,
@@ -89,7 +94,12 @@ impl Clipboard {
             }
         }
 
-        #[cfg(all(not(feature = "wayland"), feature = "x11", unix, not(target_os = "macos")))]
+        #[cfg(all(
+            not(feature = "wayland"),
+            feature = "x11",
+            unix,
+            not(target_os = "macos")
+        ))]
         {
             use clipboard_rs::ClipboardContext;
 
@@ -146,7 +156,11 @@ impl Clipboard {
 
     /// Writes the given text contents to the [`Clipboard`].
     pub fn write_text(&mut self, kind: Kind, contents: String) {
-        self.write(kind, Cow::Owned(contents.into_bytes()), Format::Text.formats());
+        self.write(
+            kind,
+            Cow::Owned(contents.into_bytes()),
+            Format::Text.formats(),
+        );
     }
 
     /// Read data with preferred MIME types (first match wins).
@@ -178,7 +192,10 @@ impl Clipboard {
                 // Fall back to text if text MIME types were requested
                 if mime_types.iter().any(|m| m.contains("text")) {
                     if let Ok(text) = clipboard.get_text() {
-                        return Some(ClipboardData::new(Format::Text.primary(), text.into_bytes()));
+                        return Some(ClipboardData::new(
+                            Format::Text.primary(),
+                            text.into_bytes(),
+                        ));
                     }
                 }
 
@@ -198,7 +215,10 @@ impl Clipboard {
                 // Fall back to text if text MIME types were requested
                 if mime_types.iter().any(|m| m.contains("text")) {
                     if let Ok(text) = clipboard.get_text() {
-                        return Some(ClipboardData::new(Format::Text.primary(), text.into_bytes()));
+                        return Some(ClipboardData::new(
+                            Format::Text.primary(),
+                            text.into_bytes(),
+                        ));
                     }
                 }
 
@@ -277,9 +297,9 @@ impl Clipboard {
                 let contents: Vec<ClipboardContent> = formats
                     .iter()
                     .filter_map(|(data, mimes)| {
-                        mimes.first().map(|mime| {
-                            ClipboardContent::Other(mime.to_string(), data.to_vec())
-                        })
+                        mimes
+                            .first()
+                            .map(|mime| ClipboardContent::Other(mime.to_string(), data.to_vec()))
                     })
                     .collect();
 
@@ -300,9 +320,9 @@ impl Clipboard {
                 let contents: Vec<ClipboardContent> = formats
                     .iter()
                     .filter_map(|(data, mimes)| {
-                        mimes.first().map(|mime| {
-                            ClipboardContent::Other(mime.to_string(), data.to_vec())
-                        })
+                        mimes
+                            .first()
+                            .map(|mime| ClipboardContent::Other(mime.to_string(), data.to_vec()))
                     })
                     .collect();
 
@@ -361,18 +381,19 @@ impl Clipboard {
                     Kind::Primary => clipboard.load_primary(mime_types),
                 };
 
-                result.ok().and_then(|data| {
-                    data.as_text().map(|text| parse_file_uri_list(text))
-                })
+                result
+                    .ok()
+                    .and_then(|data| data.as_text().map(|text| parse_file_uri_list(text)))
             }
 
             #[cfg(all(feature = "x11", unix, not(target_os = "macos")))]
             State::X11 { clipboard } => {
                 use clipboard_rs::Clipboard as _;
 
-                clipboard.get_files().ok().map(|files| {
-                    files.into_iter().map(PathBuf::from).collect()
-                })
+                clipboard
+                    .get_files()
+                    .ok()
+                    .map(|files| files.into_iter().map(PathBuf::from).collect())
             }
 
             #[cfg(any(windows, target_os = "macos"))]
@@ -383,9 +404,10 @@ impl Clipboard {
                     return None;
                 }
 
-                clipboard.get_files().ok().map(|files| {
-                    files.into_iter().map(PathBuf::from).collect()
-                })
+                clipboard
+                    .get_files()
+                    .ok()
+                    .map(|files| files.into_iter().map(PathBuf::from).collect())
             }
 
             State::Unavailable => None,

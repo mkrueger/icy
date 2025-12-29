@@ -662,14 +662,18 @@ where
         };
 
         match &event {
-            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 // Extract modifiers - for touch events, use default (no modifiers)
-                let modifiers = if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) = event {
-                    *modifiers
-                } else {
-                    keyboard::Modifiers::default()
-                };
+                let modifiers =
+                    if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) = event {
+                        *modifiers
+                    } else {
+                        keyboard::Modifiers::default()
+                    };
                 let state = state::<Renderer>(tree);
                 let cursor_before = state.cursor;
 
@@ -767,7 +771,10 @@ where
                     shell.capture_event();
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
+            Event::Mouse(mouse::Event::ButtonReleased {
+                button: mouse::Button::Left,
+                ..
+            })
             | Event::Touch(touch::Event::FingerLifted { .. })
             | Event::Touch(touch::Event::FingerLost { .. }) => {
                 state::<Renderer>(tree).is_dragging = None;
@@ -883,10 +890,7 @@ where
                             update_cache(state, &self.value);
                             return;
                         }
-                        Some('v')
-                            if modifiers.command()
-                                && !modifiers.alt() =>
-                        {
+                        Some('v') if modifiers.command() && !modifiers.alt() => {
                             let Some(on_input) = &self.on_input else {
                                 return;
                             };

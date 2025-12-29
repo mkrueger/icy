@@ -15,7 +15,8 @@ use crate::pane_grid::{self, PaneGrid};
 use crate::pick_list::{self, PickList};
 use crate::progress_bar::{self, ProgressBar};
 use crate::radio::{self, Radio};
-use crate::scrollable::{self, Scrollable};
+use crate::scrolling::scroll_area::ScrollArea;
+use crate::scrolling::scrollable::{self, Scrollable};
 use crate::slider::{self, Slider};
 use crate::text::{self, Text};
 use crate::text_editor::{self, TextEditor};
@@ -666,8 +667,10 @@ where
             shell: &mut Shell<'_, Message>,
             viewport: &Rectangle,
         ) {
-            let is_mouse_press =
-                matches!(event, core::Event::Mouse(mouse::Event::ButtonPressed { .. }));
+            let is_mouse_press = matches!(
+                event,
+                core::Event::Mouse(mouse::Event::ButtonPressed { .. })
+            );
 
             self.content.as_widget_mut().update(
                 tree, event, layout, cursor, renderer, clipboard, shell, viewport,
@@ -891,7 +894,9 @@ where
 
             if matches!(
                 event,
-                Event::Mouse(mouse::Event::CursorMoved { .. } | mouse::Event::ButtonReleased { .. })
+                Event::Mouse(
+                    mouse::Event::CursorMoved { .. } | mouse::Event::ButtonReleased { .. }
+                )
             ) || is_visible
             {
                 let redraw_request = shell.redraw_request();
@@ -993,6 +998,48 @@ where
     Renderer: core::Renderer,
 {
     Sensor::new(content)
+}
+
+/// Creates a new [`ScrollArea`] builder for scrollable content.
+///
+/// This provides a unified API for both regular and virtualized scrolling:
+/// - [`show`](ScrollArea::show) - Regular scrolling with measured content
+/// - [`show_viewport`](ScrollArea::show_viewport) - Virtual scrolling with a viewport callback
+/// - [`show_rows`](ScrollArea::show_rows) - Virtual scrolling for uniform-height rows
+///
+/// # Example
+/// ```no_run
+/// # mod iced { pub mod widget { pub use iced_widget::*; } }
+/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// use iced::widget::{column, scroll_area, text};
+///
+/// enum Message {}
+///
+/// // Regular scrolling
+/// fn view_regular() -> Element<'static, Message> {
+///     scroll_area()
+///         .show(column![
+///             text("Line 1"),
+///             text("Line 2"),
+///         ])
+///         .into()
+/// }
+///
+/// // Virtual scrolling for large lists
+/// fn view_virtual(items: &[String]) -> Element<'_, Message> {
+///     scroll_area()
+///         .show_rows(30.0, items.len(), |range| {
+///             column(items[range].iter().map(|i| text(i).into())).into()
+///         })
+///         .into()
+/// }
+/// ```
+pub fn scroll_area<'a, Message, Theme, Renderer>() -> ScrollArea<'a, Message, Theme, Renderer>
+where
+    Theme: scrollable::Catalog + 'a,
+    Renderer: core::text::Renderer,
+{
+    ScrollArea::new()
 }
 
 /// Creates a new [`Scrollable`] with the provided content.

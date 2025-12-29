@@ -8,8 +8,7 @@ use std::rc::Rc;
 
 use super::{
     menu_inner::{
-        CloseCondition, Direction, ItemHeight, ItemWidth, Menu, MenuState,
-        PathHighlight,
+        CloseCondition, Direction, ItemHeight, ItemWidth, Menu, MenuState, PathHighlight,
     },
     menu_tree::MenuTree,
     style::StyleSheet,
@@ -17,16 +16,12 @@ use super::{
 
 use crate::core::{Border, Shadow};
 use crate::core::{
-    event,
-    keyboard,
+    Clipboard, Element, Layout, Length, Padding, Point, Rectangle, Shell, Size, Vector, Widget,
+    event, keyboard,
     layout::{Limits, Node},
     mouse::{self, Cursor},
-    overlay,
-    renderer,
-    touch,
-    widget::{tree, Tree},
-    Clipboard, Element, Layout, Length, Padding, Point, Rectangle, Shell, Size,
-    Vector, Widget,
+    overlay, renderer, touch,
+    widget::{Tree, tree},
 };
 
 /// A `MenuBar` collects `MenuTree`s and handles all the layout, event processing, and drawing.
@@ -154,11 +149,8 @@ pub(super) fn menu_roots_diff<'a, Message, Theme, Renderer>(
     }
 
     for (t, root) in tree.children.iter_mut().zip(menu_roots.iter()) {
-        let flat: Vec<&Element<'_, Message, Theme, Renderer>> = root
-            .flatten()
-            .iter()
-            .map(|mt| &mt.item)
-            .collect();
+        let flat: Vec<&Element<'_, Message, Theme, Renderer>> =
+            root.flatten().iter().map(|mt| &mt.item).collect();
         t.diff_children(&flat);
     }
 
@@ -354,56 +346,57 @@ where
 
     fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
         let limits = limits.width(self.width).height(self.height);
-        
+
         // Layout each menu root item directly
         let padding = self.padding;
         let spacing = self.spacing;
-        
+
         let max_size = limits.max();
         let available_width = max_size.width - padding.x();
         let available_height = max_size.height - padding.y();
-        
+
         let mut children_nodes = Vec::with_capacity(self.menu_roots.len());
         let mut x = padding.left;
         let mut max_height: f32 = 0.0;
-        
+
         for (i, root) in self.menu_roots.iter_mut().enumerate() {
             if let Some(child_tree) = tree.children.get_mut(i) {
-                let child_limits = Limits::new(
-                    Size::ZERO,
-                    Size::new(available_width - x, available_height),
-                );
-                
+                let child_limits =
+                    Limits::new(Size::ZERO, Size::new(available_width - x, available_height));
+
                 let mut node = root.item.as_widget_mut().layout(
                     &mut child_tree.children[root.index],
                     renderer,
                     &child_limits,
                 );
-                
+
                 let node_size = node.size();
                 max_height = max_height.max(node_size.height);
                 node = node.move_to(Point::new(x, padding.top));
-                
+
                 x += node_size.width + spacing;
                 children_nodes.push(node);
             }
         }
-        
+
         // Align children vertically in center
         for node in &mut children_nodes {
             let node_height = node.size().height;
             let y_offset = (max_height - node_height) / 2.0;
-            *node = node.clone().move_to(Point::new(
-                node.bounds().x,
-                padding.top + y_offset,
-            ));
+            *node = node
+                .clone()
+                .move_to(Point::new(node.bounds().x, padding.top + y_offset));
         }
-        
+
         let total_width = x - spacing + padding.right;
         let total_height = max_height + padding.y();
-        
+
         Node::with_children(
-            limits.resolve(self.width, self.height, Size::new(total_width, total_height)),
+            limits.resolve(
+                self.width,
+                self.height,
+                Size::new(total_width, total_height),
+            ),
             children_nodes,
         )
     }
@@ -458,8 +451,11 @@ where
             }
 
             // Left/Right arrow key navigation is handled by the overlay (menu_inner.rs)
-
-            Mouse(ButtonReleased { button: mouse::Button::Left, .. }) | Touch(FingerLifted { .. } | FingerLost { .. }) => {
+            Mouse(ButtonReleased {
+                button: mouse::Button::Left,
+                ..
+            })
+            | Touch(FingerLifted { .. } | FingerLost { .. }) => {
                 my_state.inner.with_data_mut(|state| {
                     if state.menu_states.is_empty() && view_cursor.is_over(layout.bounds()) {
                         state.view_cursor = view_cursor;
@@ -490,7 +486,7 @@ where
     ) {
         let state = tree.state.downcast_ref::<MenuBarState>();
         let cursor_pos = view_cursor.position().unwrap_or_default();
-        
+
         state.inner.with_data_mut(|state| {
             let position = if state.open && (cursor_pos.x < 0.0 || cursor_pos.y < 0.0) {
                 state.view_cursor
@@ -501,7 +497,7 @@ where
             // draw path highlight
             if self.path_highlight.is_some() {
                 let styling = theme.appearance(&self.style);
-                
+
                 // Determine which item to highlight: either active (menu open) or hovered
                 let highlight_index = if let Some(active) = state.active_root.first() {
                     Some(*active)
@@ -515,11 +511,11 @@ where
                         }
                     })
                 };
-                
+
                 if let Some(index) = highlight_index {
                     if let Some(item_layout) = layout.children().nth(index) {
                         let item_bounds = item_layout.bounds();
-                        
+
                         // Apply vertical padding to shrink the highlight
                         let [p_top, p_right, p_bottom, p_left] = styling.menu_content_padding;
                         let highlight_bounds = Rectangle {
@@ -529,8 +525,11 @@ where
                             height: item_bounds.height - p_top - p_bottom,
                         };
 
-                        println!("Highlighting menu item at index p_top={} p_bottom={}", p_top, p_bottom);
-                        
+                        println!(
+                            "Highlighting menu item at index p_top={} p_bottom={}",
+                            p_top, p_bottom
+                        );
+
                         let [tl, tr, br, bl] = styling.path_border_radius;
                         let path_quad = renderer::Quad {
                             bounds: highlight_bounds,
@@ -629,8 +628,7 @@ fn process_root_events<'a, Message, Theme, Renderer>(
     clipboard: &mut dyn Clipboard,
     shell: &mut Shell<'_, Message>,
     viewport: &Rectangle,
-)
-where
+) where
     Message: Clone,
     Renderer: renderer::Renderer,
 {

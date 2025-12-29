@@ -583,10 +583,7 @@ pub mod clipboard {
     //!     .finish();
     //! ```
 
-    pub use crate::runtime::clipboard::{
-        Target, STANDARD, PRIMARY,
-        Format, Error, WriteBuilder,
-    };
+    pub use crate::runtime::clipboard::{Error, Format, PRIMARY, STANDARD, Target, WriteBuilder};
 }
 
 pub mod executor {

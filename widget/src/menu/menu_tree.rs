@@ -6,11 +6,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use crate::core::{renderer, Alignment, Element, Length};
+use crate::core::{Alignment, Element, Length, renderer};
 
 use super::action::MenuAction;
 use super::key_bind::KeyBind;
-use crate::{button, text, Space, Row, Button};
+use crate::{Button, Row, Space, button, text};
 
 /// Nested menu is essentially a tree of items, a menu is a collection of items
 /// a menu itself can also be an item of another menu.
@@ -114,8 +114,10 @@ where
     /// Set the index of each item
     pub(super) fn set_index(&mut self) {
         /// inner counting function.
-        fn rec<Message, Theme, Renderer>(mt: &mut MenuTree<'_, Message, Theme, Renderer>, count: &mut usize)
-        where
+        fn rec<Message, Theme, Renderer>(
+            mt: &mut MenuTree<'_, Message, Theme, Renderer>,
+            count: &mut usize,
+        ) where
             Renderer: renderer::Renderer,
         {
             // keep items under the same menu line up
@@ -139,8 +141,7 @@ where
         fn rec<'a, 'b, Message, Theme, Renderer>(
             mt: &'a MenuTree<'b, Message, Theme, Renderer>,
             flat: &mut Vec<&'a MenuTree<'b, Message, Theme, Renderer>>,
-        )
-        where
+        ) where
             Renderer: renderer::Renderer,
         {
             mt.children.iter().for_each(|c| {
@@ -271,10 +272,8 @@ where
                 }
                 MenuItem::ButtonDisabled(label, _action) => {
                     let l: Cow<'static, str> = label.into();
-                    let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        text(l).into(),
-                        Space::new().width(Length::Fill).into(),
-                    ];
+                    let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> =
+                        vec![text(l).into(), Space::new().width(Length::Fill).into()];
 
                     let menu_button = menu_button(items);
                     trees.push(MenuTree::new(menu_button));
@@ -282,9 +281,9 @@ where
                 MenuItem::CheckBox(label, value, action) => {
                     let key = find_key(&action, key_binds);
                     let l: Cow<'static, str> = label.into();
-                    
+
                     let check_mark = if value { "✓ " } else { "   " };
-                    
+
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
                         text(check_mark).into(),
                         text(l).into(),
@@ -292,9 +291,7 @@ where
                         text(key).into(),
                     ];
 
-                    trees.push(MenuTree::new(
-                        menu_button(items).on_press(action.message()),
-                    ));
+                    trees.push(MenuTree::new(menu_button(items).on_press(action.message())));
                 }
                 MenuItem::Folder(label, sub_children) => {
                     let l: Cow<'static, str> = label.clone().into();
@@ -311,8 +308,7 @@ where
                 MenuItem::Divider => {
                     if i != size - 1 {
                         trees.push(MenuTree::separator(
-                            crate::container(crate::rule::horizontal(1))
-                                .padding([4, 8])
+                            crate::container(crate::rule::horizontal(1)).padding([4, 8]),
                         ));
                     }
                 }

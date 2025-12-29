@@ -782,7 +782,9 @@ where
                                 }
                             }
                             Binding::Paste => {
-                                if let Some(contents) = clipboard.read_text(clipboard::Kind::Standard) {
+                                if let Some(contents) =
+                                    clipboard.read_text(clipboard::Kind::Standard)
+                                {
                                     publish(Action::Edit(Edit::Paste(Arc::new(contents))));
                                 }
                             }
@@ -1207,7 +1209,10 @@ impl<Message> Update<Message> {
 
         match event {
             Event::Mouse(event) => match event {
-                mouse::Event::ButtonPressed { button: mouse::Button::Left, .. } => {
+                mouse::Event::ButtonPressed {
+                    button: mouse::Button::Left,
+                    ..
+                } => {
                     if let Some(cursor_position) = cursor.position_in(bounds) {
                         let cursor_position =
                             cursor_position - Vector::new(padding.left, padding.top);
@@ -1225,7 +1230,10 @@ impl<Message> Update<Message> {
                         None
                     }
                 }
-                mouse::Event::ButtonReleased { button: mouse::Button::Left, .. } => Some(Update::Release),
+                mouse::Event::ButtonReleased {
+                    button: mouse::Button::Left,
+                    ..
+                } => Some(Update::Release),
                 mouse::Event::CursorMoved { .. } => match state.drag_click {
                     Some(mouse::click::Kind::Single) => {
                         let cursor_position =

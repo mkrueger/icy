@@ -202,20 +202,26 @@ impl Interaction {
     /// The `find_target` closure must convert a [`Target`] into its screen
     /// coordinates.
     pub fn events(&self, find_target: impl FnOnce(&Target) -> Option<Point>) -> Option<Vec<Event>> {
-        let mouse_move_ = |to| Event::Mouse(mouse::Event::CursorMoved {
-            position: to,
-            modifiers: keyboard::Modifiers::default(),
-        });
+        let mouse_move_ = |to| {
+            Event::Mouse(mouse::Event::CursorMoved {
+                position: to,
+                modifiers: keyboard::Modifiers::default(),
+            })
+        };
 
-        let mouse_press = |button| Event::Mouse(mouse::Event::ButtonPressed {
-            button,
-            modifiers: keyboard::Modifiers::default(),
-        });
+        let mouse_press = |button| {
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button,
+                modifiers: keyboard::Modifiers::default(),
+            })
+        };
 
-        let mouse_release = |button| Event::Mouse(mouse::Event::ButtonReleased {
-            button,
-            modifiers: keyboard::Modifiers::default(),
-        });
+        let mouse_release = |button| {
+            Event::Mouse(mouse::Event::ButtonReleased {
+                button,
+                modifiers: keyboard::Modifiers::default(),
+            })
+        };
 
         let key_press = |key| simulator::press_key(key, None);
 

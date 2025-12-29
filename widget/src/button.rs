@@ -286,7 +286,10 @@ where
         }
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 if self.on_press.is_some() {
                     let bounds = layout.bounds();
@@ -300,7 +303,10 @@ where
                     }
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
+            Event::Mouse(mouse::Event::ButtonReleased {
+                button: mouse::Button::Left,
+                ..
+            })
             | Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if let Some(on_press) = &self.on_press {
                     let state = tree.state.downcast_mut::<State>();
@@ -359,7 +365,7 @@ where
     ) {
         let bounds = layout.bounds();
         let content_layout = layout.children().next().unwrap();
-        
+
         // Compute status dynamically if not yet set
         let status = self.status.unwrap_or_else(|| {
             if self.on_press.is_none() {
@@ -375,7 +381,7 @@ where
                 Status::Active
             }
         });
-        
+
         let style = theme.style(&self.class, status);
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {

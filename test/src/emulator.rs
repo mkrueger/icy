@@ -542,9 +542,9 @@ impl core::Clipboard for Clipboard {
         _kind: core::clipboard::Kind,
         _mime_types: &[&str],
     ) -> Option<core::clipboard::ClipboardData> {
-        self.content.as_ref().map(|text| {
-            core::clipboard::ClipboardData::new("text/plain", text.as_bytes().to_vec())
-        })
+        self.content
+            .as_ref()
+            .map(|text| core::clipboard::ClipboardData::new("text/plain", text.as_bytes().to_vec()))
     }
 
     fn write(

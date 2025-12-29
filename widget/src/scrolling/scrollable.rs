@@ -34,8 +34,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    self, Background, Clipboard, Color, Element, Event, InputMethod, Layout, Length, Padding,
-    Pixels, Point, Rectangle, Shadow, Shell, Size, Theme, Vector, Widget,
+    self, Animation, Background, Clipboard, Color, Element, Event, InputMethod, Layout, Length,
+    Padding, Pixels, Point, Rectangle, Shadow, Shell, Size, Theme, Vector, Widget,
 };
 
 pub use operation::scrollable::{AbsoluteOffset, RelativeOffset};
@@ -281,7 +281,8 @@ impl Direction {
         }
     }
 
-    fn align(&self, delta: Vector) -> Vector {
+    /// Aligns a scroll delta according to the anchor configuration.
+    pub fn align(&self, delta: Vector) -> Vector {
         let horizontal_alignment = self.horizontal().map(|p| p.alignment).unwrap_or_default();
 
         let vertical_alignment = self.vertical().map(|p| p.alignment).unwrap_or_default();
@@ -307,11 +308,16 @@ impl Default for Direction {
 /// A scrollbar within a [`Scrollable`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Scrollbar {
-    width: f32,
-    margin: f32,
-    scroller_width: f32,
-    alignment: Anchor,
-    spacing: Option<f32>,
+    /// The width of the scrollbar.
+    pub(crate) width: f32,
+    /// The margin around the scrollbar.
+    pub(crate) margin: f32,
+    /// The width of the scroller (the draggable part).
+    pub(crate) scroller_width: f32,
+    /// The alignment/anchor of the scrollbar.
+    pub alignment: Anchor,
+    /// The spacing when embedded.
+    pub(crate) spacing: Option<f32>,
 }
 
 impl Default for Scrollbar {
@@ -622,7 +628,10 @@ where
                 }
             } else if mouse_over_y_scrollbar {
                 match event {
-                    Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
+                    Event::Mouse(mouse::Event::ButtonPressed {
+                        button: mouse::Button::Left,
+                        ..
+                    })
                     | Event::Touch(touch::Event::FingerPressed { .. }) => {
                         let Some(cursor_position) = cursor.position() else {
                             return;
@@ -684,7 +693,10 @@ where
                 }
             } else if mouse_over_x_scrollbar {
                 match event {
-                    Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
+                    Event::Mouse(mouse::Event::ButtonPressed {
+                        button: mouse::Button::Left,
+                        ..
+                    })
                     | Event::Touch(touch::Event::FingerPressed { .. }) => {
                         let Some(cursor_position) = cursor.position() else {
                             return;
@@ -772,11 +784,23 @@ where
 
             if matches!(
                 event,
-                Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
-                    | Event::Touch(
-                        touch::Event::FingerLifted { .. } | touch::Event::FingerLost { .. }
-                    )
+                Event::Mouse(mouse::Event::ButtonReleased {
+                    button: mouse::Button::Left,
+                    ..
+                }) | Event::Touch(
+                    touch::Event::FingerLifted { .. } | touch::Event::FingerLost { .. }
+                )
             ) {
+                // Start kinetic scrolling if we were touch scrolling
+                if matches!(state.interaction, Interaction::TouchScrolling { .. }) {
+                    // Apply direction constraints to velocity
+                    state.velocity = self.direction.align(state.velocity);
+                    state.last_kinetic_update = Some(Instant::now());
+                    // Request redraw to animate kinetic scrolling
+                    if state.is_kinetic_active() {
+                        shell.request_redraw();
+                    }
+                }
                 state.interaction = Interaction::None;
                 return;
             }
@@ -790,6 +814,11 @@ where
                     if cursor_over_scrollable.is_none() {
                         return;
                     }
+
+                    // Stop kinetic scrolling and animated scroll-to when user scrolls with wheel
+                    state.velocity = Vector::new(0.0, 0.0);
+                    state.scroll_to_target = None;
+                    state.scroll_to_animation = None;
 
                     let delta = match *delta {
                         mouse::ScrollDelta::Lines { x, y } => {
@@ -825,9 +854,10 @@ where
                         shell.capture_event();
                     }
                 }
-                Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Middle, .. })
-                    if self.auto_scroll && matches!(state.interaction, Interaction::None) =>
-                {
+                Event::Mouse(mouse::Event::ButtonPressed {
+                    button: mouse::Button::Middle,
+                    ..
+                }) if self.auto_scroll && matches!(state.interaction, Interaction::None) => {
                     let Some(origin) = cursor_over_scrollable else {
                         return;
                     };
@@ -843,7 +873,7 @@ where
                     shell.request_redraw();
                 }
                 Event::Touch(event)
-                    if matches!(state.interaction, Interaction::TouchScrolling(_))
+                    if matches!(state.interaction, Interaction::TouchScrolling { .. })
                         || (!mouse_over_y_scrollbar && !mouse_over_x_scrollbar) =>
                 {
                     match event {
@@ -852,11 +882,23 @@ where
                                 return;
                             };
 
-                            state.interaction = Interaction::TouchScrolling(position);
+                            // Stop any kinetic scrolling
+                            state.velocity = Vector::new(0.0, 0.0);
+                            state.last_kinetic_update = None;
+                            // Cancel any animated scroll
+                            state.scroll_to_target = None;
+                            state.scroll_to_animation = None;
+
+                            state.interaction = Interaction::TouchScrolling {
+                                last_position: position,
+                                last_time: Instant::now(),
+                            };
                         }
                         touch::Event::FingerMoved { .. } => {
-                            let Interaction::TouchScrolling(scroll_box_touched_at) =
-                                state.interaction
+                            let Interaction::TouchScrolling {
+                                last_position,
+                                last_time,
+                            } = state.interaction
                             else {
                                 return;
                             };
@@ -865,14 +907,28 @@ where
                                 return;
                             };
 
+                            let now = Instant::now();
+                            let dt = (now - last_time).as_secs_f32().max(0.001);
+
                             let delta = Vector::new(
-                                scroll_box_touched_at.x - cursor_position.x,
-                                scroll_box_touched_at.y - cursor_position.y,
+                                last_position.x - cursor_position.x,
+                                last_position.y - cursor_position.y,
                             );
+
+                            // Update velocity with exponential smoothing
+                            let instant_velocity = Vector::new(-delta.x / dt, -delta.y / dt);
+                            let smoothing = 0.3; // Lower = smoother
+                            state.velocity.x = state.velocity.x * (1.0 - smoothing)
+                                + instant_velocity.x * smoothing;
+                            state.velocity.y = state.velocity.y * (1.0 - smoothing)
+                                + instant_velocity.y * smoothing;
 
                             state.scroll(self.direction.align(delta), bounds, content_bounds);
 
-                            state.interaction = Interaction::TouchScrolling(cursor_position);
+                            state.interaction = Interaction::TouchScrolling {
+                                last_position: cursor_position,
+                                last_time: now,
+                            };
 
                             // TODO: bubble up touch movements if not consumed.
                             let _ = notify_scroll(
@@ -981,6 +1037,36 @@ where
                         }
                     }
 
+                    // Update kinetic scrolling
+                    if state.is_kinetic_active() {
+                        if state.update_kinetic(*now, bounds, content_bounds) {
+                            let _ = notify_scroll(
+                                state,
+                                &self.on_scroll,
+                                bounds,
+                                content_bounds,
+                                shell,
+                            );
+                            if state.is_kinetic_active() {
+                                shell.request_redraw();
+                            }
+                        }
+                    }
+
+                    // Update scroll-to animation
+                    if state.is_scroll_to_animating(*now) {
+                        if state.update_scroll_to_animation(*now, bounds, content_bounds) {
+                            let _ = notify_scroll(
+                                state,
+                                &self.on_scroll,
+                                bounds,
+                                content_bounds,
+                                shell,
+                            );
+                            shell.request_redraw();
+                        }
+                    }
+
                     let _ = notify_viewport(state, &self.on_scroll, bounds, content_bounds, shell);
                 }
                 _ => {}
@@ -989,8 +1075,26 @@ where
 
         update();
 
+        // Update hover animation state
+        let is_mouse_over = cursor_over_scrollable.is_some();
+        let now = Instant::now();
+
+        if is_mouse_over != state.is_mouse_over_area {
+            state.is_mouse_over_area = is_mouse_over;
+            state.hover_animation.go_mut(is_mouse_over, now);
+        }
+
+        // Calculate hover factor from animation
+        let hover_factor = state.hover_animation.interpolate(0.0, 1.0, now);
+
+        // Request redraw while animating
+        if state.hover_animation.is_animating(now) {
+            shell.request_redraw();
+        }
+
         let status = if state.scrollers_grabbed() {
             Status::Dragged {
+                hover_factor,
                 is_horizontal_scrollbar_dragged: state.x_scroller_grabbed_at().is_some(),
                 is_vertical_scrollbar_dragged: state.y_scroller_grabbed_at().is_some(),
                 is_horizontal_scrollbar_disabled: scrollbars.is_x_disabled(),
@@ -998,6 +1102,7 @@ where
             }
         } else if cursor_over_scrollable.is_some() {
             Status::Hovered {
+                hover_factor,
                 is_horizontal_scrollbar_hovered: mouse_over_x_scrollbar,
                 is_vertical_scrollbar_hovered: mouse_over_y_scrollbar,
                 is_horizontal_scrollbar_disabled: scrollbars.is_x_disabled(),
@@ -1005,6 +1110,7 @@ where
             }
         } else {
             Status::Active {
+                hover_factor,
                 is_horizontal_scrollbar_disabled: scrollbars.is_x_disabled(),
                 is_vertical_scrollbar_disabled: scrollbars.is_y_disabled(),
             }
@@ -1057,13 +1163,13 @@ where
             _ => mouse::Cursor::Unavailable,
         };
 
-        let style = theme.style(
-            &self.class,
-            self.last_status.unwrap_or(Status::Active {
-                is_horizontal_scrollbar_disabled: false,
-                is_vertical_scrollbar_disabled: false,
-            }),
-        );
+        let status = self.last_status.unwrap_or(Status::Active {
+            hover_factor: 0.0,
+            is_horizontal_scrollbar_disabled: false,
+            is_vertical_scrollbar_disabled: false,
+        });
+
+        let style = theme.style(&self.class, status);
 
         container::draw_background(renderer, &style.container, layout.bounds());
 
@@ -1093,43 +1199,82 @@ where
                 );
             });
 
-            let draw_scrollbar =
-                |renderer: &mut Renderer, style: Rail, scrollbar: &internals::Scrollbar| {
-                    if scrollbar.bounds.width > 0.0
-                        && scrollbar.bounds.height > 0.0
-                        && (style.background.is_some()
-                            || (style.border.color != Color::TRANSPARENT
-                                && style.border.width > 0.0))
-                    {
+            let scroll_style = &style.scroll;
+            let corner_radius = border::rounded(scroll_style.corner_radius as u32);
+
+            let draw_scrollbar = |renderer: &mut Renderer,
+                                  scroll_style: &ScrollStyle,
+                                  scrollbar: &internals::Scrollbar,
+                                  is_hovered: bool,
+                                  is_dragged: bool| {
+                // Draw rail background
+                if scrollbar.bounds.width > 0.0
+                    && scrollbar.bounds.height > 0.0
+                    && scroll_style.rail_background.is_some()
+                {
+                    let bg_color = scroll_style.rail_background.unwrap_or(Color::TRANSPARENT);
+                    if bg_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: scrollbar.bounds,
-                                border: style.border,
+                                border: corner_radius,
                                 ..renderer::Quad::default()
                             },
-                            style
-                                .background
-                                .unwrap_or(Background::Color(Color::TRANSPARENT)),
+                            Background::Color(bg_color),
                         );
                     }
+                }
 
-                    if let Some(scroller) = scrollbar.scroller
-                        && scroller.bounds.width > 0.0
-                        && scroller.bounds.height > 0.0
-                        && (style.scroller.background != Background::Color(Color::TRANSPARENT)
-                            || (style.scroller.border.color != Color::TRANSPARENT
-                                && style.scroller.border.width > 0.0))
-                    {
+                // Draw handle/scroller
+                if let Some(scroller) = scrollbar.scroller
+                    && scroller.bounds.width > 0.0
+                    && scroller.bounds.height > 0.0
+                {
+                    let handle_color = if is_dragged {
+                        scroll_style.handle_color_dragged
+                    } else if is_hovered {
+                        scroll_style.handle_color_hovered
+                    } else {
+                        scroll_style.handle_color
+                    };
+
+                    if handle_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
                                 bounds: scroller.bounds,
-                                border: style.scroller.border,
+                                border: corner_radius,
                                 ..renderer::Quad::default()
                             },
-                            style.scroller.background,
+                            Background::Color(handle_color),
                         );
                     }
-                };
+                }
+            };
+
+            // Determine hover/drag state for each scrollbar
+            let (is_v_hovered, is_h_hovered) = match status {
+                Status::Hovered {
+                    is_vertical_scrollbar_hovered,
+                    is_horizontal_scrollbar_hovered,
+                    ..
+                } => (
+                    is_vertical_scrollbar_hovered,
+                    is_horizontal_scrollbar_hovered,
+                ),
+                _ => (false, false),
+            };
+
+            let (is_v_dragged, is_h_dragged) = match status {
+                Status::Dragged {
+                    is_vertical_scrollbar_dragged,
+                    is_horizontal_scrollbar_dragged,
+                    ..
+                } => (
+                    is_vertical_scrollbar_dragged,
+                    is_horizontal_scrollbar_dragged,
+                ),
+                _ => (false, false),
+            };
 
             renderer.with_layer(
                 Rectangle {
@@ -1139,11 +1284,23 @@ where
                 },
                 |renderer| {
                     if let Some(scrollbar) = scrollbars.y {
-                        draw_scrollbar(renderer, style.vertical_rail, &scrollbar);
+                        draw_scrollbar(
+                            renderer,
+                            scroll_style,
+                            &scrollbar,
+                            is_v_hovered,
+                            is_v_dragged,
+                        );
                     }
 
                     if let Some(scrollbar) = scrollbars.x {
-                        draw_scrollbar(renderer, style.horizontal_rail, &scrollbar);
+                        draw_scrollbar(
+                            renderer,
+                            scroll_style,
+                            &scrollbar,
+                            is_h_hovered,
+                            is_h_dragged,
+                        );
                     }
 
                     if let (Some(x), Some(y)) = (scrollbars.x, scrollbars.y) {
@@ -1312,6 +1469,7 @@ where
             .style(
                 self.class,
                 Status::Active {
+                    hover_factor: 0.0,
                     is_horizontal_scrollbar_disabled: false,
                     is_vertical_scrollbar_disabled: false,
                 },
@@ -1495,7 +1653,7 @@ fn notify_viewport<Message>(
     true
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct State {
     offset_y: Offset,
     offset_x: Offset,
@@ -1503,6 +1661,20 @@ struct State {
     last_notified: Option<Viewport>,
     last_scrolled: Option<Instant>,
     is_scrollbar_visible: bool,
+    /// Animation for scrollbar hover state (0.0 = dormant, 1.0 = fully visible)
+    hover_animation: Animation<bool>,
+    /// Whether the mouse is currently over the scroll area
+    is_mouse_over_area: bool,
+    /// Current scroll velocity for kinetic scrolling (pixels per second)
+    velocity: Vector<f32>,
+    /// Last time kinetic scrolling was updated
+    last_kinetic_update: Option<Instant>,
+    /// Target offset for smooth scroll-to animation
+    scroll_to_target: Option<AbsoluteOffset>,
+    /// Animation for smooth scroll-to
+    scroll_to_animation: Option<Animation<bool>>,
+    /// Starting offset for smooth scroll-to animation
+    scroll_to_start: Option<AbsoluteOffset>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1510,7 +1682,10 @@ enum Interaction {
     None,
     YScrollerGrabbed(f32),
     XScrollerGrabbed(f32),
-    TouchScrolling(Point),
+    TouchScrolling {
+        last_position: Point,
+        last_time: Instant,
+    },
     AutoScrolling {
         origin: Point,
         current: Point,
@@ -1527,6 +1702,13 @@ impl Default for State {
             last_notified: None,
             last_scrolled: None,
             is_scrollbar_visible: true,
+            hover_animation: Animation::new(false).quick(),
+            is_mouse_over_area: false,
+            velocity: Vector::new(0.0, 0.0),
+            last_kinetic_update: None,
+            scroll_to_target: None,
+            scroll_to_animation: None,
+            scroll_to_start: None,
         }
     }
 }
@@ -1542,6 +1724,23 @@ impl operation::Scrollable for State {
 
     fn scroll_by(&mut self, offset: AbsoluteOffset, bounds: Rectangle, content_bounds: Rectangle) {
         State::scroll_by(self, offset, bounds, content_bounds);
+    }
+
+    fn scroll_to_animated(
+        &mut self,
+        offset: AbsoluteOffset<Option<f32>>,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) {
+        let target = AbsoluteOffset {
+            x: offset
+                .x
+                .unwrap_or_else(|| self.offset_x.absolute(bounds.width, content_bounds.width)),
+            y: offset
+                .y
+                .unwrap_or_else(|| self.offset_y.absolute(bounds.height, content_bounds.height)),
+        };
+        State::scroll_to_animated(self, target, bounds, content_bounds);
     }
 }
 
@@ -1579,6 +1778,21 @@ pub struct Viewport {
 }
 
 impl Viewport {
+    /// Creates a new [`Viewport`] from absolute offset values.
+    /// This is used internally by the virtual scrollable.
+    pub(crate) fn from_absolute(
+        offset: AbsoluteOffset,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) -> Self {
+        Self {
+            offset_x: Offset::Absolute(offset.x),
+            offset_y: Offset::Absolute(offset.y),
+            bounds,
+            content_bounds,
+        }
+    }
+
     /// Returns the [`AbsoluteOffset`] of the current [`Viewport`].
     pub fn absolute_offset(&self) -> AbsoluteOffset {
         let x = self
@@ -1623,6 +1837,17 @@ impl Viewport {
     /// Returns the content bounds of the current [`Viewport`].
     pub fn content_bounds(&self) -> Rectangle {
         self.content_bounds
+    }
+
+    /// Returns the visible rectangle in content-local coordinates.
+    pub fn visible_rect(&self) -> Rectangle {
+        let offset = self.absolute_offset();
+        Rectangle {
+            x: offset.x,
+            y: offset.y,
+            width: self.bounds.width,
+            height: self.bounds.height,
+        }
     }
 }
 
@@ -1715,6 +1940,140 @@ impl State {
                 0.0
             },
         )
+    }
+
+    /// Starts an animated scroll to the given absolute offset.
+    fn scroll_to_animated(
+        &mut self,
+        target: AbsoluteOffset,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) {
+        // Get current absolute offset
+        let current = AbsoluteOffset {
+            x: self.offset_x.absolute(bounds.width, content_bounds.width),
+            y: self.offset_y.absolute(bounds.height, content_bounds.height),
+        };
+
+        // Clamp target to valid range
+        let target = AbsoluteOffset {
+            x: target
+                .x
+                .clamp(0.0, (content_bounds.width - bounds.width).max(0.0)),
+            y: target
+                .y
+                .clamp(0.0, (content_bounds.height - bounds.height).max(0.0)),
+        };
+
+        self.scroll_to_start = Some(current);
+        self.scroll_to_target = Some(target);
+        self.scroll_to_animation = Some(Animation::new(false).slow().go(true, Instant::now()));
+
+        // Stop any kinetic scrolling
+        self.velocity = Vector::new(0.0, 0.0);
+    }
+
+    /// Updates kinetic scrolling, returning true if the scroll position changed.
+    fn update_kinetic(
+        &mut self,
+        now: Instant,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) -> bool {
+        const FRICTION: f32 = 5.0; // Deceleration factor
+        const MIN_VELOCITY: f32 = 1.0; // Stop when velocity is below this (px/s)
+
+        // Skip if velocity is negligible
+        if self.velocity.x.abs() < MIN_VELOCITY && self.velocity.y.abs() < MIN_VELOCITY {
+            self.velocity = Vector::new(0.0, 0.0);
+            self.last_kinetic_update = None;
+            return false;
+        }
+
+        let dt = if let Some(last) = self.last_kinetic_update {
+            (now - last).as_secs_f32()
+        } else {
+            0.016 // ~60fps default
+        };
+
+        self.last_kinetic_update = Some(now);
+
+        // Apply velocity to scroll position
+        let delta = Vector::new(self.velocity.x * dt, self.velocity.y * dt);
+
+        let old_x = self.offset_x;
+        let old_y = self.offset_y;
+
+        self.scroll(delta, bounds, content_bounds);
+
+        // Apply friction (exponential decay)
+        let decay = (-FRICTION * dt).exp();
+        self.velocity.x *= decay;
+        self.velocity.y *= decay;
+
+        // Stop if we hit the edge
+        if self.offset_x == old_x {
+            self.velocity.x = 0.0;
+        }
+        if self.offset_y == old_y {
+            self.velocity.y = 0.0;
+        }
+
+        true
+    }
+
+    /// Updates animated scroll-to, returning true if still animating.
+    fn update_scroll_to_animation(
+        &mut self,
+        now: Instant,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) -> bool {
+        let (Some(target), Some(start), Some(animation)) = (
+            self.scroll_to_target,
+            self.scroll_to_start,
+            &self.scroll_to_animation,
+        ) else {
+            return false;
+        };
+
+        if !animation.is_animating(now) {
+            // Animation complete, snap to target
+            self.offset_x = Offset::Absolute(target.x);
+            self.offset_y = Offset::Absolute(target.y);
+            self.scroll_to_target = None;
+            self.scroll_to_start = None;
+            self.scroll_to_animation = None;
+            return false;
+        }
+
+        // Interpolate using ease-out
+        let t = animation.interpolate(0.0, 1.0, now);
+        // Apply ease-out cubic for smoother deceleration
+        let eased = 1.0 - (1.0 - t).powi(3);
+
+        let current_x = start.x + (target.x - start.x) * eased;
+        let current_y = start.y + (target.y - start.y) * eased;
+
+        self.offset_x =
+            Offset::Absolute(current_x.clamp(0.0, (content_bounds.width - bounds.width).max(0.0)));
+        self.offset_y = Offset::Absolute(
+            current_y.clamp(0.0, (content_bounds.height - bounds.height).max(0.0)),
+        );
+
+        true
+    }
+
+    /// Returns true if kinetic scrolling is active.
+    fn is_kinetic_active(&self) -> bool {
+        self.velocity.x.abs() > 1.0 || self.velocity.y.abs() > 1.0
+    }
+
+    /// Returns true if a scroll-to animation is active.
+    fn is_scroll_to_animating(&self, now: Instant) -> bool {
+        self.scroll_to_animation
+            .as_ref()
+            .is_some_and(|a| a.is_animating(now))
     }
 
     fn scrollers_grabbed(&self) -> bool {
@@ -2023,10 +2382,12 @@ pub(super) mod internals {
 }
 
 /// The possible status of a [`Scrollable`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Status {
     /// The [`Scrollable`] can be interacted with.
     Active {
+        /// The animated hover factor (0.0 = dormant, 1.0 = fully hovered).
+        hover_factor: f32,
         /// Whether or not the horizontal scrollbar is disabled meaning the content isn't overflowing.
         is_horizontal_scrollbar_disabled: bool,
         /// Whether or not the vertical scrollbar is disabled meaning the content isn't overflowing.
@@ -2034,6 +2395,8 @@ pub enum Status {
     },
     /// The [`Scrollable`] is being hovered.
     Hovered {
+        /// The animated hover factor (0.0 = dormant, 1.0 = fully hovered).
+        hover_factor: f32,
         /// Indicates if the horizontal scrollbar is being hovered.
         is_horizontal_scrollbar_hovered: bool,
         /// Indicates if the vertical scrollbar is being hovered.
@@ -2045,6 +2408,8 @@ pub enum Status {
     },
     /// The [`Scrollable`] is being dragged.
     Dragged {
+        /// The animated hover factor (0.0 = dormant, 1.0 = fully hovered).
+        hover_factor: f32,
         /// Indicates if the horizontal scrollbar is being dragged.
         is_horizontal_scrollbar_dragged: bool,
         /// Indicates if the vertical scrollbar is being dragged.
@@ -2061,34 +2426,199 @@ pub enum Status {
 pub struct Style {
     /// The [`container::Style`] of a scrollable.
     pub container: container::Style,
-    /// The vertical [`Rail`] appearance.
-    pub vertical_rail: Rail,
-    /// The horizontal [`Rail`] appearance.
-    pub horizontal_rail: Rail,
+    /// The scroll style configuration.
+    pub scroll: ScrollStyle,
     /// The [`Background`] of the gap between a horizontal and vertical scrollbar.
     pub gap: Option<Background>,
     /// The appearance of the [`AutoScroll`] overlay.
     pub auto_scroll: AutoScroll,
 }
 
-/// The appearance of the scrollbar of a scrollable.
+/// Controls the spacing and visuals of scrollbars.
+///
+/// There are three presets to choose from:
+/// * [`ScrollStyle::solid`] - Always visible, allocates space
+/// * [`ScrollStyle::thin`] - Thin bars that expand on hover
+/// * [`ScrollStyle::floating`] - Hidden until hover, floats over content
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rail {
-    /// The [`Background`] of a scrollbar.
-    pub background: Option<Background>,
-    /// The [`Border`] of a scrollbar.
-    pub border: Border,
-    /// The appearance of the [`Scroller`] of a scrollbar.
-    pub scroller: Scroller,
+pub struct ScrollStyle {
+    /// If `true`, scroll bars float above the content, partially covering it.
+    /// If `false`, the scroll bars allocate space, shrinking the area available to the contents.
+    pub floating: bool,
+
+    /// The width of the scroll bar at its largest.
+    pub bar_width: f32,
+
+    /// Make sure the scroll handle is at least this big.
+    pub handle_min_length: f32,
+
+    /// Margin between contents and scroll bar.
+    pub bar_inner_margin: f32,
+
+    /// Margin between scroll bar and the outer container (e.g. right of a vertical scroll bar).
+    pub bar_outer_margin: f32,
+
+    /// The thin width of floating scroll bars that the user is NOT hovering.
+    pub floating_width: f32,
+
+    /// How much space is allocated for a floating scroll bar?
+    /// Normally this is zero, but you could set this to something small.
+    pub floating_allocated_width: f32,
+
+    /// If true, use colors with more contrast. Good for floating scroll bars.
+    pub foreground_color: bool,
+
+    /// Corner radius of the scrollbar and handle.
+    pub corner_radius: f32,
+
+    /// The opaqueness of the background when the user is neither scrolling
+    /// nor hovering the scroll area. (Only for floating scroll bars.)
+    pub dormant_background_opacity: f32,
+
+    /// The opaqueness of the background when the user is hovering
+    /// the scroll area, but not the scroll bar. (Only for floating scroll bars.)
+    pub active_background_opacity: f32,
+
+    /// The opaqueness of the background when the user is hovering
+    /// over the scroll bars. (Only for floating scroll bars.)
+    pub interact_background_opacity: f32,
+
+    /// The opaqueness of the handle when the user is neither scrolling
+    /// nor hovering the scroll area. (Only for floating scroll bars.)
+    pub dormant_handle_opacity: f32,
+
+    /// The opaqueness of the handle when the user is hovering
+    /// the scroll area, but not the scroll bar. (Only for floating scroll bars.)
+    pub active_handle_opacity: f32,
+
+    /// The opaqueness of the handle when the user is hovering
+    /// over the scroll bars. (Only for floating scroll bars.)
+    pub interact_handle_opacity: f32,
+
+    /// The background color of the scrollbar rail.
+    pub rail_background: Option<Color>,
+
+    /// The color of the scrollbar handle.
+    pub handle_color: Color,
+
+    /// The color of the scrollbar handle when hovered.
+    pub handle_color_hovered: Color,
+
+    /// The color of the scrollbar handle when dragged.
+    pub handle_color_dragged: Color,
 }
 
-/// The appearance of the scroller of a scrollable.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Scroller {
-    /// The [`Background`] of the scroller.
-    pub background: Background,
-    /// The [`Border`] of the scroller.
-    pub border: Border,
+impl Default for ScrollStyle {
+    fn default() -> Self {
+        Self::floating()
+    }
+}
+
+impl ScrollStyle {
+    /// Solid scroll bars that always use up space.
+    pub fn solid() -> Self {
+        Self {
+            floating: false,
+            bar_width: 6.0,
+            handle_min_length: 12.0,
+            bar_inner_margin: 4.0,
+            bar_outer_margin: 0.0,
+            floating_width: 2.0,
+            floating_allocated_width: 0.0,
+            foreground_color: false,
+            corner_radius: 2.0,
+            dormant_background_opacity: 0.0,
+            active_background_opacity: 0.4,
+            interact_background_opacity: 0.7,
+            dormant_handle_opacity: 0.0,
+            active_handle_opacity: 0.6,
+            interact_handle_opacity: 1.0,
+            rail_background: None,
+            handle_color: Color::from_rgb(0.5, 0.5, 0.5),
+            handle_color_hovered: Color::from_rgb(0.6, 0.6, 0.6),
+            handle_color_dragged: Color::from_rgb(0.7, 0.7, 0.7),
+        }
+    }
+
+    /// Thin scroll bars that expand on hover.
+    pub fn thin() -> Self {
+        Self {
+            floating: true,
+            bar_width: 10.0,
+            floating_allocated_width: 6.0,
+            foreground_color: false,
+            dormant_background_opacity: 1.0,
+            dormant_handle_opacity: 1.0,
+            active_background_opacity: 1.0,
+            active_handle_opacity: 1.0,
+            // Be translucent when expanded so we can see the content
+            interact_background_opacity: 0.6,
+            interact_handle_opacity: 0.6,
+            ..Self::solid()
+        }
+    }
+
+    /// No scroll bars until you hover the scroll area,
+    /// at which time they appear faintly, and then expand
+    /// when you hover the scroll bars.
+    pub fn floating() -> Self {
+        Self {
+            floating: true,
+            bar_width: 10.0,
+            foreground_color: true,
+            floating_allocated_width: 0.0,
+            dormant_background_opacity: 0.0,
+            dormant_handle_opacity: 0.0,
+            ..Self::solid()
+        }
+    }
+
+    /// Width of a solid vertical scrollbar, or height of a horizontal scroll bar, when it is at its widest.
+    pub fn allocated_width(&self) -> f32 {
+        if self.floating {
+            self.floating_allocated_width
+        } else {
+            self.bar_inner_margin + self.bar_width + self.bar_outer_margin
+        }
+    }
+
+    /// Returns the current width based on the hover factor (0.0 = dormant, 1.0 = fully expanded).
+    pub fn current_width(&self, hover_factor: f32) -> f32 {
+        if self.floating {
+            self.floating_width + (self.bar_width - self.floating_width) * hover_factor
+        } else {
+            self.bar_width
+        }
+    }
+
+    /// Returns the background opacity based on the interaction state.
+    pub fn background_opacity(&self, hover_factor: f32, is_interacting: bool) -> f32 {
+        if self.floating {
+            if is_interacting {
+                self.interact_background_opacity
+            } else {
+                self.dormant_background_opacity
+                    + (self.active_background_opacity - self.dormant_background_opacity)
+                        * hover_factor
+            }
+        } else {
+            1.0
+        }
+    }
+
+    /// Returns the handle opacity based on the interaction state.
+    pub fn handle_opacity(&self, hover_factor: f32, is_interacting: bool) -> f32 {
+        if self.floating {
+            if is_interacting {
+                self.interact_handle_opacity
+            } else {
+                self.dormant_handle_opacity
+                    + (self.active_handle_opacity - self.dormant_handle_opacity) * hover_factor
+            }
+        } else {
+            1.0
+        }
+    }
 }
 
 /// The appearance of the autoscroll overlay of a scrollable.
@@ -2135,14 +2665,69 @@ impl Catalog for Theme {
 pub fn default(theme: &Theme, status: Status) -> Style {
     let palette = theme.extended_palette();
 
-    let scrollbar = Rail {
-        background: Some(palette.background.weak.color.into()),
-        border: border::rounded(2),
-        scroller: Scroller {
-            background: palette.background.strongest.color.into(),
-            border: border::rounded(2),
-        },
+    // Get the hover factor from any status variant
+    let hover_factor = match status {
+        Status::Active { hover_factor, .. } => hover_factor,
+        Status::Hovered { hover_factor, .. } => hover_factor,
+        Status::Dragged { hover_factor, .. } => hover_factor,
     };
+
+    // Determine if we're interacting (hovering scrollbar or dragging)
+    let (is_h_interacting, is_v_interacting) = match status {
+        Status::Active { .. } => (false, false),
+        Status::Hovered {
+            is_horizontal_scrollbar_hovered,
+            is_vertical_scrollbar_hovered,
+            ..
+        } => (
+            is_horizontal_scrollbar_hovered,
+            is_vertical_scrollbar_hovered,
+        ),
+        Status::Dragged {
+            is_horizontal_scrollbar_dragged,
+            is_vertical_scrollbar_dragged,
+            ..
+        } => (
+            is_horizontal_scrollbar_dragged,
+            is_vertical_scrollbar_dragged,
+        ),
+    };
+
+    let is_interacting = is_h_interacting || is_v_interacting;
+
+    // Create base scroll style with theme colors
+    let mut scroll_style = ScrollStyle::floating();
+    scroll_style.rail_background = Some(palette.background.weak.color);
+    scroll_style.handle_color = palette.background.strongest.color;
+    scroll_style.handle_color_hovered = palette.primary.strong.color;
+    scroll_style.handle_color_dragged = palette.primary.base.color;
+
+    // Adjust handle color based on interaction state
+    let handle_color = if is_interacting {
+        if matches!(status, Status::Dragged { .. }) {
+            scroll_style.handle_color_dragged
+        } else {
+            scroll_style.handle_color_hovered
+        }
+    } else {
+        scroll_style.handle_color
+    };
+
+    // Apply opacity based on hover state
+    let handle_opacity = scroll_style.handle_opacity(hover_factor, is_interacting);
+    let bg_opacity = scroll_style.background_opacity(hover_factor, is_interacting);
+
+    scroll_style.handle_color = handle_color.scale_alpha(handle_opacity);
+    scroll_style.handle_color_hovered = scroll_style
+        .handle_color_hovered
+        .scale_alpha(handle_opacity);
+    scroll_style.handle_color_dragged = scroll_style
+        .handle_color_dragged
+        .scale_alpha(handle_opacity);
+
+    if let Some(ref mut bg) = scroll_style.rail_background {
+        *bg = bg.scale_alpha(bg_opacity);
+    }
 
     let auto_scroll = AutoScroll {
         background: palette.background.base.color.scale_alpha(0.9).into(),
@@ -2157,71 +2742,10 @@ pub fn default(theme: &Theme, status: Status) -> Style {
         icon: palette.background.base.text.scale_alpha(0.8),
     };
 
-    match status {
-        Status::Active { .. } => Style {
-            container: container::Style::default(),
-            vertical_rail: scrollbar,
-            horizontal_rail: scrollbar,
-            gap: None,
-            auto_scroll,
-        },
-        Status::Hovered {
-            is_horizontal_scrollbar_hovered,
-            is_vertical_scrollbar_hovered,
-            ..
-        } => {
-            let hovered_scrollbar = Rail {
-                scroller: Scroller {
-                    background: palette.primary.strong.color.into(),
-                    ..scrollbar.scroller
-                },
-                ..scrollbar
-            };
-
-            Style {
-                container: container::Style::default(),
-                vertical_rail: if is_vertical_scrollbar_hovered {
-                    hovered_scrollbar
-                } else {
-                    scrollbar
-                },
-                horizontal_rail: if is_horizontal_scrollbar_hovered {
-                    hovered_scrollbar
-                } else {
-                    scrollbar
-                },
-                gap: None,
-                auto_scroll,
-            }
-        }
-        Status::Dragged {
-            is_horizontal_scrollbar_dragged,
-            is_vertical_scrollbar_dragged,
-            ..
-        } => {
-            let dragged_scrollbar = Rail {
-                scroller: Scroller {
-                    background: palette.primary.base.color.into(),
-                    ..scrollbar.scroller
-                },
-                ..scrollbar
-            };
-
-            Style {
-                container: container::Style::default(),
-                vertical_rail: if is_vertical_scrollbar_dragged {
-                    dragged_scrollbar
-                } else {
-                    scrollbar
-                },
-                horizontal_rail: if is_horizontal_scrollbar_dragged {
-                    dragged_scrollbar
-                } else {
-                    scrollbar
-                },
-                gap: None,
-                auto_scroll,
-            }
-        }
+    Style {
+        container: container::Style::default(),
+        scroll: scroll_style,
+        gap: None,
+        auto_scroll,
     }
 }

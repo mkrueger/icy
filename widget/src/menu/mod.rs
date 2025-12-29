@@ -61,16 +61,18 @@ pub mod key_bind;
 pub use key_bind::{KeyBind, Modifier};
 
 mod menu_bar;
-pub use menu_bar::{menu_bar as bar, MenuBar};
+pub use menu_bar::{MenuBar, menu_bar as bar};
 
 mod menu_inner;
 mod menu_tree;
-pub use menu_tree::{menu_button, menu_items as items, menu_root as root, MenuItem as Item, MenuTree as Tree};
+pub use menu_tree::{
+    MenuItem as Item, MenuTree as Tree, menu_button, menu_items as items, menu_root as root,
+};
 
 pub use menu_inner::{CloseCondition, ItemHeight, ItemWidth, PathHighlight};
 
 mod context_menu;
-pub use context_menu::{context_menu, ContextMenu};
+pub use context_menu::{ContextMenu, context_menu};
 
 mod style;
-pub use style::{Appearance, StyleSheet, Style, menu_item, menu_root_style, menu_folder};
+pub use style::{Appearance, Style, StyleSheet, menu_folder, menu_item, menu_root_style};

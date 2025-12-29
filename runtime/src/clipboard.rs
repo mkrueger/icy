@@ -180,11 +180,19 @@ impl Target {
             self.write_multi(vec![
                 (
                     html.into_bytes(),
-                    Format::Html.formats().iter().map(|s| s.to_string()).collect(),
+                    Format::Html
+                        .formats()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
                 ),
                 (
                     alt.into_bytes(),
-                    Format::Text.formats().iter().map(|s| s.to_string()).collect(),
+                    Format::Text
+                        .formats()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
                 ),
             ])
         } else {
@@ -206,11 +214,19 @@ impl Target {
             self.write_multi(vec![
                 (
                     rtf.into_bytes(),
-                    Format::Rtf.formats().iter().map(|s| s.to_string()).collect(),
+                    Format::Rtf
+                        .formats()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
                 ),
                 (
                     alt.into_bytes(),
-                    Format::Text.formats().iter().map(|s| s.to_string()).collect(),
+                    Format::Text
+                        .formats()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
                 ),
             ])
         } else {
@@ -242,9 +258,7 @@ impl Target {
 
     /// Clear this clipboard.
     pub fn clear<T>(self) -> Task<T> {
-        task::effect(crate::Action::Clipboard(Action::Clear {
-            target: self.0,
-        }))
+        task::effect(crate::Action::Clipboard(Action::Clear { target: self.0 }))
     }
 
     // ---- Availability checks ----
@@ -258,9 +272,8 @@ impl Target {
     ///
     /// Returns `true` if at least one of the requested formats is present.
     pub fn has_format(self, requested: Vec<String>) -> Task<bool> {
-        self.available_formats().map(move |available| {
-            requested.iter().any(|f| available.contains(f))
-        })
+        self.available_formats()
+            .map(move |available| requested.iter().any(|f| available.contains(f)))
     }
 
     // ---- Bulk read ----
@@ -321,7 +334,11 @@ impl WriteBuilder {
     pub fn text(mut self, text: String) -> Self {
         self.formats.push((
             text.into_bytes(),
-            Format::Text.formats().iter().map(|s| s.to_string()).collect(),
+            Format::Text
+                .formats()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         ));
         self
     }
@@ -330,7 +347,11 @@ impl WriteBuilder {
     pub fn html(mut self, html: String) -> Self {
         self.formats.push((
             html.into_bytes(),
-            Format::Html.formats().iter().map(|s| s.to_string()).collect(),
+            Format::Html
+                .formats()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         ));
         self
     }
@@ -339,7 +360,11 @@ impl WriteBuilder {
     pub fn rtf(mut self, rtf: String) -> Self {
         self.formats.push((
             rtf.into_bytes(),
-            Format::Rtf.formats().iter().map(|s| s.to_string()).collect(),
+            Format::Rtf
+                .formats()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         ));
         self
     }
@@ -348,7 +373,11 @@ impl WriteBuilder {
     pub fn png(mut self, data: Vec<u8>) -> Self {
         self.formats.push((
             data,
-            Format::Png.formats().iter().map(|s| s.to_string()).collect(),
+            Format::Png
+                .formats()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         ));
         self
     }
@@ -357,7 +386,11 @@ impl WriteBuilder {
     pub fn jpeg(mut self, data: Vec<u8>) -> Self {
         self.formats.push((
             data,
-            Format::Jpeg.formats().iter().map(|s| s.to_string()).collect(),
+            Format::Jpeg
+                .formats()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         ));
         self
     }

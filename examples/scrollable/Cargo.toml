@@ -5,6 +5,10 @@ authors = ["Clark Moody <clark@clarkmoody.com>"]
 edition = "2024"
 publish = false
 
+[[bin]]
+name = "scrollable"
+path = "src/main.rs"
+
 [dependencies]
 iced.workspace = true
 iced.features = ["debug"]

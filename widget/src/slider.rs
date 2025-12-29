@@ -328,15 +328,21 @@ where
             };
 
             match &event {
-                Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. })
+                Event::Mouse(mouse::Event::ButtonPressed {
+                    button: mouse::Button::Left,
+                    ..
+                })
                 | Event::Touch(touch::Event::FingerPressed { .. }) => {
                     if let Some(cursor_position) = cursor.position_over(layout.bounds()) {
                         // Extract modifiers - for touch events, use default (no modifiers)
-                        let modifiers = if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) = event {
-                            *modifiers
-                        } else {
-                            keyboard::Modifiers::default()
-                        };
+                        let modifiers =
+                            if let Event::Mouse(mouse::Event::ButtonPressed { modifiers, .. }) =
+                                event
+                            {
+                                *modifiers
+                            } else {
+                                keyboard::Modifiers::default()
+                            };
                         if modifiers.command() {
                             let _ = self.default.map(change);
                             state.is_dragging = false;
@@ -348,7 +354,10 @@ where
                         shell.capture_event();
                     }
                 }
-                Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
+                Event::Mouse(mouse::Event::ButtonReleased {
+                    button: mouse::Button::Left,
+                    ..
+                })
                 | Event::Touch(touch::Event::FingerLifted { .. })
                 | Event::Touch(touch::Event::FingerLost { .. }) => {
                     if state.is_dragging {
@@ -361,12 +370,20 @@ where
                 Event::Mouse(mouse::Event::CursorMoved { .. })
                 | Event::Touch(touch::Event::FingerMoved { .. }) => {
                     if state.is_dragging {
-                        let modifiers = if let Event::Mouse(mouse::Event::CursorMoved { modifiers, .. }) = event {
+                        let modifiers = if let Event::Mouse(mouse::Event::CursorMoved {
+                            modifiers,
+                            ..
+                        }) = event
+                        {
                             *modifiers
                         } else {
                             keyboard::Modifiers::default()
                         };
-                        let _ = cursor.land().position().and_then(|p| locate(p, modifiers)).map(change);
+                        let _ = cursor
+                            .land()
+                            .position()
+                            .and_then(|p| locate(p, modifiers))
+                            .map(change);
 
                         shell.capture_event();
                     }

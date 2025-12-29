@@ -56,7 +56,7 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        use iced::widget::menu::{context_menu, items, Item};
+        use iced::widget::menu::{Item, context_menu, items};
 
         let key_binds: HashMap<iced::widget::menu::KeyBind, ContextAction> = HashMap::new();
 
@@ -81,12 +81,9 @@ impl App {
 
         // Another widget with a different context menu
         let counter_display = context_menu(
-            container(
-                text(format!("Counter: {}", self.counter))
-                    .size(40)
-            )
-            .padding(20)
-            .style(container::rounded_box),
+            container(text(format!("Counter: {}", self.counter)).size(40))
+                .padding(20)
+                .style(container::rounded_box),
             Some(items(
                 &key_binds,
                 vec![

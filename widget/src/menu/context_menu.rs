@@ -4,17 +4,17 @@
 //! A context menu is a menu in a graphical user interface that appears upon
 //! user interaction, such as a right-click mouse operation.
 
-use super::menu_bar::{menu_roots_diff, MenuBarState};
+use super::menu_bar::{MenuBarState, menu_roots_diff};
 use super::menu_inner::{CloseCondition, ItemHeight, ItemWidth, Menu, PathHighlight};
 use super::menu_tree::MenuTree;
 use super::style::StyleSheet;
 
-use crate::core::{
-    keyboard, mouse, overlay, touch,
-    widget::{tree, Tree},
-    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
-};
 use crate::core::renderer;
+use crate::core::{
+    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
+    keyboard, mouse, overlay, touch,
+    widget::{Tree, tree},
+};
 
 use std::collections::HashSet;
 
@@ -358,14 +358,20 @@ where
 fn right_button_released(event: &Event) -> bool {
     matches!(
         event,
-        Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Right, .. })
+        Event::Mouse(mouse::Event::ButtonReleased {
+            button: mouse::Button::Right,
+            ..
+        })
     )
 }
 
 fn left_button_released(event: &Event) -> bool {
     matches!(
         event,
-        Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. })
+        Event::Mouse(mouse::Event::ButtonReleased {
+            button: mouse::Button::Left,
+            ..
+        })
     )
 }
 

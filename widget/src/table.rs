@@ -1,14 +1,19 @@
 //! Display tables.
+//!
+//! For tables with many rows, consider using [`virtual_table`] which only renders
+//! visible rows for better performance.
 use crate::core;
 use crate::core::alignment;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
 use crate::core::renderer;
+use crate::core::text;
 use crate::core::widget;
 use crate::core::{
     Alignment, Background, Element, Layout, Length, Pixels, Rectangle, Size, Widget,
 };
+use crate::scrolling::virtual_scrollable;
 
 /// Creates a new [`Table`] with the given columns and rows.
 ///
@@ -24,6 +29,55 @@ where
     Renderer: core::Renderer,
 {
     Table::new(columns, rows)
+}
+
+/// Creates a virtual scrolling table that only renders visible rows.
+///
+/// This is ideal for tables with many rows (thousands or more) where rendering
+/// all rows upfront would be slow. Only the visible rows are created and rendered.
+///
+/// # Arguments
+/// * `row_height` - The height of each row in pixels (must be uniform)
+/// * `columns` - The column definitions with headers and view functions
+/// * `rows` - The data rows (will be accessed by index)
+/// * `view_row` - A function that creates a table row for visible indices
+///
+/// # Example
+/// ```no_run
+/// # mod iced { pub mod widget { pub use iced_widget::*; } }
+/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// use iced::widget::{row, text, table};
+///
+/// enum Message {}
+///
+/// let items: Vec<(String, i32)> = (0..10_000)
+///     .map(|i| (format!("Item {}", i), i))
+///     .collect();
+///
+/// table::virtual_table(
+///     30.0,  // row height
+///     items.len(),
+///     |visible_range| {
+///         // Create table rows only for visible indices
+///         iced::widget::column(
+///             visible_range.map(|i| {
+///                 let (name, value) = &items[i];
+///                 row![text(name), text(value.to_string())].into()
+///             })
+///         ).into()
+///     }
+/// );
+/// ```
+pub fn virtual_table<'a, Message, Theme, Renderer>(
+    row_height: f32,
+    total_rows: usize,
+    view: impl Fn(std::ops::Range<usize>) -> Element<'a, Message, Theme, Renderer> + 'a,
+) -> virtual_scrollable::VirtualScrollable<'a, Message, Theme, Renderer>
+where
+    Theme: crate::scrolling::scrollable::Catalog,
+    Renderer: text::Renderer,
+{
+    virtual_scrollable::show_rows(row_height, total_rows, view)
 }
 
 /// Creates a new [`Column`] with the given header and view function.

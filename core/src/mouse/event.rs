@@ -1,5 +1,5 @@
-use crate::keyboard::Modifiers;
 use crate::Point;
+use crate::keyboard::Modifiers;
 
 use super::Button;
 

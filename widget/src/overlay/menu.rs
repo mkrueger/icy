@@ -14,7 +14,7 @@ use crate::core::{
     Theme, Vector,
 };
 use crate::core::{Element, Shell, Widget};
-use crate::scrollable::{self, Scrollable};
+use crate::scrolling::scrollable::{self, Scrollable};
 
 /// A list of selectable options.
 pub struct Menu<'a, 'b, T, Message, Theme = crate::Theme, Renderer = crate::Renderer>
@@ -391,7 +391,10 @@ where
         _viewport: &Rectangle,
     ) {
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. }) => {
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            }) => {
                 if cursor.is_over(layout.bounds())
                     && let Some(index) = *self.hovered_option
                     && let Some(option) = self.options.get(index)

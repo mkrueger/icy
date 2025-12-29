@@ -9,15 +9,11 @@ use super::style::StyleSheet;
 
 use crate::core::{Border, Shadow};
 use crate::core::{
-    keyboard,
+    Clipboard, Layout, Length, Padding, Point, Rectangle, Shell, Size, Vector, event, keyboard,
     layout::{Limits, Node},
     mouse::{self, Cursor},
-    overlay,
-    renderer,
-    touch,
+    overlay, renderer, touch,
     widget::Tree,
-    Clipboard, Layout, Length, Padding, Point, Rectangle, Shell, Size, Vector,
-    event,
 };
 
 /// The condition of when to close a menu
@@ -318,8 +314,7 @@ impl MenuState {
             })
             .collect::<Vec<_>>();
 
-        Node::with_children(children_bounds.size(), child_nodes)
-            .move_to(children_bounds.position())
+        Node::with_children(children_bounds.size(), child_nodes).move_to(children_bounds.position())
     }
 
     fn layout_single<'a, Message, Theme, Renderer>(
@@ -340,7 +335,10 @@ impl MenuState {
         let position = self.menu_bounds.child_positions[index];
         let limits = Limits::new(Size::ZERO, self.menu_bounds.child_sizes[index]);
         let parent_offset = children_bounds.position() - Point::ORIGIN;
-        let node = menu_tree.item.as_widget_mut().layout(tree, renderer, &limits);
+        let node = menu_tree
+            .item
+            .as_widget_mut()
+            .layout(tree, renderer, &limits);
         node.move_to(Point::new(
             parent_offset.x,
             parent_offset.y + position + self.scroll_offset,
@@ -371,8 +369,7 @@ impl MenuState {
         let (start_index, end_index) = match item_height {
             ItemHeight::Uniform(u) => {
                 let start_index = (lower_bound_rel / f32::from(u)).floor() as usize;
-                let end_index =
-                    ((upper_bound_rel / f32::from(u)).floor() as usize).min(max_index);
+                let end_index = ((upper_bound_rel / f32::from(u)).floor() as usize).min(max_index);
                 (start_index, end_index)
             }
             ItemHeight::Static(_) | ItemHeight::Dynamic(_) => {
@@ -514,7 +511,11 @@ where
         use mouse::Event::{ButtonPressed, ButtonReleased, CursorMoved, WheelScrolled};
         use touch::Event::{FingerLifted, FingerMoved, FingerPressed};
 
-        if !self.tree.inner.with_data(|data| data.open || !data.active_root.is_empty()) {
+        if !self
+            .tree
+            .inner
+            .with_data(|data| data.open || !data.active_root.is_empty())
+        {
             return Ignored;
         }
 
@@ -524,7 +525,14 @@ where
 
         // Handle keyboard events first
         if let Keyboard(_) = event {
-            return self.handle_keyboard_event(event, renderer, clipboard, shell, overlay_offset, viewport_size);
+            return self.handle_keyboard_event(
+                event,
+                renderer,
+                clipboard,
+                shell,
+                overlay_offset,
+                viewport_size,
+            );
         }
 
         let overlay_cursor = view_cursor.position().unwrap_or_default() - overlay_offset;
@@ -556,7 +564,11 @@ where
                     .merge(menu_status)
             }
 
-            Mouse(ButtonPressed { button: mouse::Button::Left, .. }) | Touch(FingerPressed { .. }) => {
+            Mouse(ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            })
+            | Touch(FingerPressed { .. }) => {
                 self.tree.inner.with_data_mut(|data| {
                     data.pressed = true;
                     data.view_cursor = view_cursor;
@@ -600,13 +612,16 @@ where
                             .menu_states
                             .iter()
                             .any(|ms| ms.menu_bounds.check_bounds.contains(overlay_cursor));
-                        
+
                         let mut needs_reset = false;
                         needs_reset |= self.close_condition.click_inside
                             && is_inside
                             && matches!(
                                 event,
-                                Mouse(ButtonReleased { button: mouse::Button::Left, .. }) | Touch(FingerLifted { .. })
+                                Mouse(ButtonReleased {
+                                    button: mouse::Button::Left,
+                                    ..
+                                }) | Touch(FingerLifted { .. })
                             );
                         needs_reset |= self.close_condition.click_outside && !is_inside;
 
@@ -639,7 +654,7 @@ where
         overlay_offset: Vector,
     ) {
         let menu_roots = &mut self.menu_roots;
-        
+
         self.tree.inner.with_data_mut(|state| {
             if !state.open || state.menu_states.is_empty() || state.active_root.is_empty() {
                 return;
@@ -660,7 +675,7 @@ where
             );
 
             let mt = &mut mt.children[hover_index];
-            
+
             // Skip if it's a separator
             if mt.is_separator {
                 return;
@@ -674,27 +689,21 @@ where
 
             // Get the layout for the selected item
             let tree = &mut state.tree.children[state.active_root[0]].children[mt.index];
-            
-            let child_node = hover.layout_single(
-                overlay_offset,
-                hover_index,
-                renderer,
-                mt,
-                tree,
-            );
+
+            let child_node = hover.layout_single(overlay_offset, hover_index, renderer, mt, tree);
             let child_layout = Layout::new(&child_node);
-            
+
             // Create a cursor position inside the item bounds
             let bounds = child_layout.bounds();
             let center = bounds.center();
             let cursor = Cursor::Available(center);
-            
+
             let modifiers = crate::core::keyboard::Modifiers::default();
             let press_event = event::Event::Mouse(mouse::Event::ButtonPressed {
                 button: mouse::Button::Left,
                 modifiers,
             });
-            
+
             // Send press event
             mt.item.as_widget_mut().update(
                 tree,
@@ -706,15 +715,15 @@ where
                 shell,
                 &Rectangle::default(),
             );
-            
+
             // Reset capture status so the release event can be processed
             shell.uncapture_event();
-            
+
             let release_event = event::Event::Mouse(mouse::Event::ButtonReleased {
                 button: mouse::Button::Left,
                 modifiers,
             });
-            
+
             // Send release event
             mt.item.as_widget_mut().update(
                 tree,
@@ -726,11 +735,11 @@ where
                 shell,
                 &Rectangle::default(),
             );
-            
+
             // Close the menu after activation
             state.reset();
         });
-        
+
         shell.request_redraw();
     }
 
@@ -750,36 +759,36 @@ where
         let bounds_expand = self.bounds_expand;
         let is_overlay = self.is_overlay;
         let main_offset = self.main_offset as f32;
-        
+
         self.tree.inner.with_data_mut(|state| {
             // Check if the index is valid
             if index >= menu_roots.len() || index >= root_bounds_list.len() {
                 return;
             }
-            
+
             let mt = &mut menu_roots[index];
-            
+
             // Skip if this root has no children
             if mt.children.is_empty() {
                 return;
             }
-            
+
             let root_bounds = root_bounds_list[index];
-            
+
             // Clear existing menu states
             state.menu_states.clear();
             state.active_root.clear();
-            
+
             // Determine direction based on position
             let view_center = viewport_size.width * 0.5;
             let rb_center = root_bounds.center_x();
-            
+
             state.horizontal_direction = if is_overlay && rb_center > view_center {
                 Direction::Negative
             } else {
                 Direction::Positive
             };
-            
+
             let aod = Aod {
                 horizontal: true,
                 vertical: true,
@@ -790,7 +799,7 @@ where
                 horizontal_offset: 0.0,
                 vertical_offset: main_offset,
             };
-            
+
             let menu_bounds = MenuBounds::new(
                 mt,
                 renderer,
@@ -804,7 +813,7 @@ where
                 &mut state.tree.children[0].children,
                 is_overlay,
             );
-            
+
             state.active_root.push(index);
             let ms = MenuState {
                 index: Some(0), // Start with first item selected
@@ -813,7 +822,7 @@ where
             };
             state.menu_states.push(ms);
         });
-        
+
         shell.invalidate_layout();
         shell.request_redraw();
     }
@@ -850,13 +859,17 @@ where
                 // Get the active menu items to check for separators
                 let menu_roots = &self.menu_roots;
                 self.tree.inner.with_data_mut(|state| {
-                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty() {
+                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
+                    {
                         // Get the current menu items
-                        let active_menu = state.active_root.iter().skip(1).fold(
-                            &menu_roots[state.active_root[0]].children,
-                            |mt, next| &mt[*next].children,
-                        );
-                        
+                        let active_menu = state
+                            .active_root
+                            .iter()
+                            .skip(1)
+                            .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                                &mt[*next].children
+                            });
+
                         if let Some(ms) = state.menu_states.last_mut() {
                             let count = ms.menu_bounds.child_positions.len();
                             if count > 0 {
@@ -865,17 +878,23 @@ where
                                     Some(_) => count - 1,
                                     None => count - 1,
                                 };
-                                
+
                                 // Skip separators (wrap around if needed)
                                 let mut iterations = 0;
                                 while iterations < count {
-                                    if new_index < active_menu.len() && !active_menu[new_index].is_separator {
+                                    if new_index < active_menu.len()
+                                        && !active_menu[new_index].is_separator
+                                    {
                                         break;
                                     }
-                                    new_index = if new_index == 0 { count - 1 } else { new_index - 1 };
+                                    new_index = if new_index == 0 {
+                                        count - 1
+                                    } else {
+                                        new_index - 1
+                                    };
                                     iterations += 1;
                                 }
-                                
+
                                 // Only update if we found a non-separator
                                 if iterations < count {
                                     ms.index = Some(new_index);
@@ -892,13 +911,17 @@ where
                 // Get the active menu items to check for separators
                 let menu_roots = &self.menu_roots;
                 self.tree.inner.with_data_mut(|state| {
-                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty() {
+                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
+                    {
                         // Get the current menu items
-                        let active_menu = state.active_root.iter().skip(1).fold(
-                            &menu_roots[state.active_root[0]].children,
-                            |mt, next| &mt[*next].children,
-                        );
-                        
+                        let active_menu = state
+                            .active_root
+                            .iter()
+                            .skip(1)
+                            .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                                &mt[*next].children
+                            });
+
                         if let Some(ms) = state.menu_states.last_mut() {
                             let count = ms.menu_bounds.child_positions.len();
                             if count > 0 {
@@ -907,17 +930,23 @@ where
                                     Some(_) => 0,
                                     None => 0,
                                 };
-                                
+
                                 // Skip separators (wrap around if needed)
                                 let mut iterations = 0;
                                 while iterations < count {
-                                    if new_index < active_menu.len() && !active_menu[new_index].is_separator {
+                                    if new_index < active_menu.len()
+                                        && !active_menu[new_index].is_separator
+                                    {
                                         break;
                                     }
-                                    new_index = if new_index >= count - 1 { 0 } else { new_index + 1 };
+                                    new_index = if new_index >= count - 1 {
+                                        0
+                                    } else {
+                                        new_index + 1
+                                    };
                                     iterations += 1;
                                 }
-                                
+
                                 // Only update if we found a non-separator
                                 if iterations < count {
                                     ms.index = Some(new_index);
@@ -932,10 +961,11 @@ where
 
             keyboard::Key::Named(Named::ArrowLeft) => {
                 // First check if we're in a submenu - if so, go back to parent
-                let in_submenu = self.tree.inner.with_data(|state| {
-                    state.open && state.menu_states.len() > 1
-                });
-                
+                let in_submenu = self
+                    .tree
+                    .inner
+                    .with_data(|state| state.open && state.menu_states.len() > 1);
+
                 if in_submenu {
                     self.tree.inner.with_data_mut(|state| {
                         let _ = state.menu_states.pop();
@@ -952,22 +982,36 @@ where
                             None
                         }
                     });
-                    
+
                     if let Some(current) = current_root {
                         let root_count = self.menu_roots.len();
                         // Find previous root that has children
-                        let mut new_root = if current == 0 { root_count - 1 } else { current - 1 };
+                        let mut new_root = if current == 0 {
+                            root_count - 1
+                        } else {
+                            current - 1
+                        };
                         let mut iterations = 0;
                         while iterations < root_count {
                             if !self.menu_roots[new_root].children.is_empty() {
                                 break;
                             }
-                            new_root = if new_root == 0 { root_count - 1 } else { new_root - 1 };
+                            new_root = if new_root == 0 {
+                                root_count - 1
+                            } else {
+                                new_root - 1
+                            };
                             iterations += 1;
                         }
-                        
+
                         if iterations < root_count && new_root != current {
-                            self.open_root_menu_by_index(new_root, renderer, shell, viewport_size, overlay_offset);
+                            self.open_root_menu_by_index(
+                                new_root,
+                                renderer,
+                                shell,
+                                viewport_size,
+                                overlay_offset,
+                            );
                         }
                         Captured
                     } else {
@@ -983,24 +1027,27 @@ where
                     if !state.open || state.menu_states.is_empty() || state.active_root.is_empty() {
                         return false;
                     }
-                    
+
                     let Some(hover) = state.menu_states.last() else {
                         return false;
                     };
-                    
+
                     let Some(hover_index) = hover.index else {
                         return false;
                     };
-                    
+
                     // Get the current menu items
-                    let active_menu = state.active_root.iter().skip(1).fold(
-                        &menu_roots[state.active_root[0]].children,
-                        |mt, next| &mt[*next].children,
-                    );
-                    
+                    let active_menu = state
+                        .active_root
+                        .iter()
+                        .skip(1)
+                        .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                            &mt[*next].children
+                        });
+
                     hover_index < active_menu.len() && !active_menu[hover_index].children.is_empty()
                 });
-                
+
                 if has_submenu {
                     // The submenu will be opened automatically by the hover logic
                     // We just need to trigger a "hover" on the submenu's first item
@@ -1015,22 +1062,36 @@ where
                             None
                         }
                     });
-                    
+
                     if let Some(current) = current_root {
                         let root_count = self.menu_roots.len();
                         // Find next root that has children
-                        let mut new_root = if current >= root_count - 1 { 0 } else { current + 1 };
+                        let mut new_root = if current >= root_count - 1 {
+                            0
+                        } else {
+                            current + 1
+                        };
                         let mut iterations = 0;
                         while iterations < root_count {
                             if !self.menu_roots[new_root].children.is_empty() {
                                 break;
                             }
-                            new_root = if new_root >= root_count - 1 { 0 } else { new_root + 1 };
+                            new_root = if new_root >= root_count - 1 {
+                                0
+                            } else {
+                                new_root + 1
+                            };
                             iterations += 1;
                         }
-                        
+
                         if iterations < root_count && new_root != current {
-                            self.open_root_menu_by_index(new_root, renderer, shell, viewport_size, overlay_offset);
+                            self.open_root_menu_by_index(
+                                new_root,
+                                renderer,
+                                shell,
+                                viewport_size,
+                                overlay_offset,
+                            );
                         }
                         Captured
                     } else {
@@ -1049,12 +1110,16 @@ where
                 // Select the first non-separator item
                 let menu_roots = &self.menu_roots;
                 self.tree.inner.with_data_mut(|state| {
-                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty() {
-                        let active_menu = state.active_root.iter().skip(1).fold(
-                            &menu_roots[state.active_root[0]].children,
-                            |mt, next| &mt[*next].children,
-                        );
-                        
+                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
+                    {
+                        let active_menu = state
+                            .active_root
+                            .iter()
+                            .skip(1)
+                            .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                                &mt[*next].children
+                            });
+
                         if let Some(ms) = state.menu_states.last_mut() {
                             let count = ms.menu_bounds.child_positions.len();
                             // Find first non-separator
@@ -1075,12 +1140,16 @@ where
                 // Select the last non-separator item
                 let menu_roots = &self.menu_roots;
                 self.tree.inner.with_data_mut(|state| {
-                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty() {
-                        let active_menu = state.active_root.iter().skip(1).fold(
-                            &menu_roots[state.active_root[0]].children,
-                            |mt, next| &mt[*next].children,
-                        );
-                        
+                    if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
+                    {
+                        let active_menu = state
+                            .active_root
+                            .iter()
+                            .skip(1)
+                            .fold(&menu_roots[state.active_root[0]].children, |mt, next| {
+                                &mt[*next].children
+                            });
+
                         if let Some(ms) = state.menu_states.last_mut() {
                             let count = ms.menu_bounds.child_positions.len();
                             // Find last non-separator
@@ -1134,11 +1203,8 @@ where
 
             let indices = state.get_trimmed_indices(0).collect::<Vec<_>>();
 
-            for (i, (ms, children_layout)) in state
-                .menu_states
-                .iter()
-                .zip(layout.children())
-                .enumerate()
+            for (i, (ms, children_layout)) in
+                state.menu_states.iter().zip(layout.children()).enumerate()
             {
                 if !self.is_overlay && i > 0 {
                     continue;
@@ -1213,7 +1279,8 @@ where
                             };
 
                             // Shrink the highlight bounds by the popup menu content padding
-                            let [p_top, p_right, p_bottom, p_left] = styling.menu_inner_content_padding;
+                            let [p_top, p_right, p_bottom, p_left] =
+                                styling.menu_inner_content_padding;
                             let item_bounds = active_layout.bounds();
                             let highlight_bounds = Rectangle {
                                 x: item_bounds.x + p_left,
@@ -1417,7 +1484,7 @@ where
 
     let menu_roots = &mut menu.menu_roots;
     let my_state = &mut menu.tree;
-    
+
     my_state.inner.with_data_mut(|state| {
         if state.active_root.is_empty() {
             return event::Status::Ignored;
@@ -1460,7 +1527,7 @@ where
             shell,
             &Rectangle::default(),
         );
-        
+
         if shell.is_event_captured() {
             Status::Captured
         } else {
@@ -1549,7 +1616,9 @@ where
         let last_parent_bounds = last_menu_bounds.parent_bounds;
         let last_children_bounds = last_menu_bounds.children_bounds;
 
-        if (menu.is_overlay && !menu.menu_overlays_parent && last_parent_bounds.contains(overlay_cursor))
+        if (menu.is_overlay
+            && !menu.menu_overlays_parent
+            && last_parent_bounds.contains(overlay_cursor))
             || menu.is_overlay && !last_children_bounds.contains(overlay_cursor)
         {
             last_menu_state.index = None;
@@ -1581,7 +1650,7 @@ where
 
         // Use overlay_cursor (in overlay space) to match the layout bounds
         let cursor_point = Point::new(overlay_cursor.x, overlay_cursor.y);
-        
+
         let mut hovered_index: Option<usize> = None;
         for (i, item_layout) in last_menu_layout.children().enumerate() {
             let bounds = item_layout.bounds();

@@ -215,7 +215,10 @@ where
                 shell.request_redraw();
                 shell.capture_event();
             }
-            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. }) => {
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            }) => {
                 let Some(cursor_position) = cursor.position_over(bounds) else {
                     return;
                 };
@@ -227,7 +230,10 @@ where
 
                 shell.capture_event();
             }
-            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. }) => {
+            Event::Mouse(mouse::Event::ButtonReleased {
+                button: mouse::Button::Left,
+                ..
+            }) => {
                 let state = tree.state.downcast_mut::<State>();
 
                 state.cursor_grabbed_at = None;

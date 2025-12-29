@@ -1,6 +1,6 @@
+use iced::keyboard::{Key, key::Named};
 use iced::widget::{column, container, text};
 use iced::{Center, Element, Fill};
-use iced::keyboard::{Key, key::Named};
 
 use std::collections::HashMap;
 
@@ -66,20 +66,22 @@ impl App {
 
     fn subscription(&self) -> iced::Subscription<Message> {
         use iced::keyboard;
-        
+
         fn handle_hotkey(event: keyboard::Event) -> Option<Message> {
             let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
                 return None;
             };
-            
+
             let ctrl = modifiers.control();
             let shift = modifiers.shift();
-            
+
             match key.as_ref() {
                 Key::Character("q") if ctrl => Some(Message::MenuAction(MenuAction::Exit)),
                 Key::Character("n") if ctrl => Some(Message::MenuAction(MenuAction::New)),
                 Key::Character("o") if ctrl => Some(Message::MenuAction(MenuAction::Open)),
-                Key::Character("s") if ctrl && shift => Some(Message::MenuAction(MenuAction::SaveAs)),
+                Key::Character("s") if ctrl && shift => {
+                    Some(Message::MenuAction(MenuAction::SaveAs))
+                }
                 Key::Character("s") if ctrl => Some(Message::MenuAction(MenuAction::Save)),
                 Key::Character("z") if ctrl => Some(Message::MenuAction(MenuAction::Undo)),
                 Key::Character("y") if ctrl => Some(Message::MenuAction(MenuAction::Redo)),
@@ -90,27 +92,95 @@ impl App {
                 _ => None,
             }
         }
-        
+
         keyboard::listen().filter_map(handle_hotkey)
     }
 
     fn view(&self) -> Element<'_, Message> {
-        use iced::widget::menu::{bar, items, root, Item, KeyBind, MenuBar, Modifier, Tree};
+        use iced::widget::menu::{Item, KeyBind, MenuBar, Modifier, Tree, bar, items, root};
 
         // Define key bindings for display in menu
         let key_binds: HashMap<KeyBind, MenuAction> = [
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("n".into()) }, MenuAction::New),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("o".into()) }, MenuAction::Open),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("s".into()) }, MenuAction::Save),
-            (KeyBind { modifiers: vec![Modifier::Ctrl, Modifier::Shift], key: Key::Character("s".into()) }, MenuAction::SaveAs),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("q".into()) }, MenuAction::Exit),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("z".into()) }, MenuAction::Undo),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("y".into()) }, MenuAction::Redo),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("x".into()) }, MenuAction::Cut),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("c".into()) }, MenuAction::Copy),
-            (KeyBind { modifiers: vec![Modifier::Ctrl], key: Key::Character("v".into()) }, MenuAction::Paste),
-            (KeyBind { modifiers: vec![], key: Key::Named(Named::F1) }, MenuAction::About),
-        ].into_iter().collect();
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("n".into()),
+                },
+                MenuAction::New,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("o".into()),
+                },
+                MenuAction::Open,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("s".into()),
+                },
+                MenuAction::Save,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl, Modifier::Shift],
+                    key: Key::Character("s".into()),
+                },
+                MenuAction::SaveAs,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("q".into()),
+                },
+                MenuAction::Exit,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("z".into()),
+                },
+                MenuAction::Undo,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("y".into()),
+                },
+                MenuAction::Redo,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("x".into()),
+                },
+                MenuAction::Cut,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("c".into()),
+                },
+                MenuAction::Copy,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![Modifier::Ctrl],
+                    key: Key::Character("v".into()),
+                },
+                MenuAction::Paste,
+            ),
+            (
+                KeyBind {
+                    modifiers: vec![],
+                    key: Key::Named(Named::F1),
+                },
+                MenuAction::About,
+            ),
+        ]
+        .into_iter()
+        .collect();
 
         // Build menu structure using Tree::with_children
         let file_menu = Tree::with_children(
@@ -157,10 +227,7 @@ impl App {
 
         let help_menu = Tree::with_children(
             root("Help", Message::NoOp),
-            items(
-                &key_binds,
-                vec![Item::Button("About", MenuAction::About)],
-            ),
+            items(&key_binds, vec![Item::Button("About", MenuAction::About)]),
         );
 
         // Create the menu bar
@@ -176,18 +243,24 @@ impl App {
                 text(format!("Last action: {}", self.last_action))
             },
             text("").size(20),
-            text(format!("Dark mode: {}", if self.dark_mode { "ON" } else { "OFF" })),
-            text(format!("Toolbar: {}", if self.show_toolbar { "Visible" } else { "Hidden" })),
+            text(format!(
+                "Dark mode: {}",
+                if self.dark_mode { "ON" } else { "OFF" }
+            )),
+            text(format!(
+                "Toolbar: {}",
+                if self.show_toolbar {
+                    "Visible"
+                } else {
+                    "Hidden"
+                }
+            )),
         ]
         .spacing(10)
         .align_x(Center);
 
-        let main_area = container(content)
-            .width(Fill)
-            .height(Fill)
-            .center(Fill);
+        let main_area = container(content).width(Fill).height(Fill).center(Fill);
 
         column![menu_bar, main_area].into()
     }
 }
-
