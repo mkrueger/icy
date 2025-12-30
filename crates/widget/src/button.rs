@@ -335,6 +335,13 @@ where
                         state.is_pressed = true;
 
                         shell.capture_event();
+                    } else {
+                        // Unfocus when clicked outside
+                        let state = tree.state.downcast_mut::<State>();
+                        if state.is_focused {
+                            state.is_focused = false;
+                            shell.request_redraw();
+                        }
                     }
                 }
             }

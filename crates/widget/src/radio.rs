@@ -402,6 +402,13 @@ where
                 if cursor.is_over(layout.bounds()) {
                     shell.publish(self.on_click.clone());
                     shell.capture_event();
+                } else {
+                    // Unfocus when clicked outside
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+                    if state.is_focused {
+                        state.is_focused = false;
+                        shell.request_redraw();
+                    }
                 }
             }
             Event::Keyboard(keyboard::Event::KeyPressed {

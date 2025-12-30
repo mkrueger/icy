@@ -418,14 +418,21 @@ where
             })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 // Check which option was clicked (don't set focus on mouse click)
+                let mut clicked_inside = false;
                 for (i, child) in layout.children().enumerate() {
                     if cursor.is_over(child.bounds()) {
                         if let Some(option) = self.options.get(i) {
                             shell.publish((self.on_select)(option.clone()));
                             shell.capture_event();
+                            clicked_inside = true;
                             break;
                         }
                     }
+                }
+                // Unfocus when clicked outside
+                if !clicked_inside && state.is_focused {
+                    state.is_focused = false;
+                    shell.request_redraw();
                 }
             }
             Event::Keyboard(keyboard::Event::KeyPressed {

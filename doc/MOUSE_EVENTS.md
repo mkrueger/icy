@@ -125,14 +125,8 @@ mouse::Event::ButtonPressed { modifiers, .. } => {
 
 ## Why This Change?
 
-In stock iced, modifier information is only available through separate keyboard events. This creates a timing problem:
-
-1. User holds Shift
-2. Keyboard event fires: `Modifiers::SHIFT`
-3. User clicks
-4. Mouse event fires: `ButtonPressed { button: Left }` — no modifier info!
-
-To handle this properly, you'd need to track modifier state manually:
+In stock iced, modifier information is only available through separate keyboard events. 
+To handle this properly, you'd need to track modifier state manually - which was error prone and hard to do (ModifiersChanged didn't contain the correct modifier mask, only the modifier that got pressed):
 
 ```rust
 // The old way (error-prone)

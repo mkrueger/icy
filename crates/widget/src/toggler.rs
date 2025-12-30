@@ -381,6 +381,13 @@ where
                 if mouse_over {
                     shell.publish(on_toggle(!self.is_toggled));
                     shell.capture_event();
+                } else {
+                    // Unfocus when clicked outside
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+                    if state.is_focused {
+                        state.is_focused = false;
+                        shell.request_redraw();
+                    }
                 }
             }
             Event::Keyboard(keyboard::Event::KeyPressed {

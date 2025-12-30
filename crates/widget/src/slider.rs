@@ -363,6 +363,12 @@ where
                         }
 
                         shell.capture_event();
+                    } else {
+                        // Unfocus when clicked outside
+                        if state.is_focused {
+                            state.is_focused = false;
+                            shell.request_redraw();
+                        }
                     }
                 }
                 Event::Mouse(mouse::Event::ButtonReleased {
