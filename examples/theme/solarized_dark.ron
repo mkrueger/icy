@@ -1,0 +1,69 @@
+// Solarized Dark Theme
+// Based on https://ethanschoonover.com/solarized/
+//
+// Solarized Colors:
+// base03:  #002b36  (darkest background)
+// base02:  #073642  (dark background)
+// base01:  #586e75  (optional emphasized content)
+// base00:  #657b83  (body text / default)
+// base0:   #839496  (body text)
+// base1:   #93a1a1  (optional emphasized content)
+// base2:   #eee8d5  (light background)
+// base3:   #fdf6e3  (lightest background)
+//
+// Accent colors:
+// yellow:  #b58900
+// orange:  #cb4b16
+// red:     #dc322f
+// magenta: #d33682
+// violet:  #6c71c4
+// blue:    #268bd2
+// cyan:    #2aa198
+// green:   #859900
+
+(
+    name: "Solarized Dark",
+
+    // Semantic colors
+    bright_red: (r: 0.863, g: 0.196, b: 0.184, a: 1.0),      // #dc322f
+    bright_green: (r: 0.522, g: 0.600, b: 0.000, a: 1.0),    // #859900
+    bright_orange: (r: 0.796, g: 0.294, b: 0.086, a: 1.0),   // #cb4b16
+
+    // Surface grays (solarized base02/base03)
+    gray_1: (r: 0.000, g: 0.169, b: 0.212, a: 1.0),  // #002b36
+    gray_2: (r: 0.027, g: 0.212, b: 0.259, a: 1.0),  // #073642
+
+    // Neutrals: Dark mode uses base03 as darkest, base3 as lightest
+    // Mapping: neutral_0 = black, neutral_10 = white-ish
+    neutral_0: (r: 0.000, g: 0.169, b: 0.212, a: 1.0),   // base03 #002b36
+    neutral_1: (r: 0.027, g: 0.212, b: 0.259, a: 1.0),   // base02 #073642
+    neutral_2: (r: 0.149, g: 0.271, b: 0.325, a: 1.0),   // interpolated
+    neutral_3: (r: 0.271, g: 0.365, b: 0.400, a: 1.0),   // interpolated
+    neutral_4: (r: 0.345, g: 0.431, b: 0.459, a: 1.0),   // base01 #586e75
+    neutral_5: (r: 0.396, g: 0.482, b: 0.514, a: 1.0),   // base00 #657b83
+    neutral_6: (r: 0.514, g: 0.580, b: 0.588, a: 1.0),   // base0 #839496
+    neutral_7: (r: 0.576, g: 0.631, b: 0.631, a: 1.0),   // base1 #93a1a1
+    neutral_8: (r: 0.933, g: 0.910, b: 0.835, a: 1.0),   // base2 #eee8d5
+    neutral_9: (r: 0.992, g: 0.965, b: 0.890, a: 1.0),   // base3 #fdf6e3
+    neutral_10: (r: 1.000, g: 1.000, b: 1.000, a: 1.0),  // white
+
+    // Accent colors from Solarized
+    accent_blue: (r: 0.149, g: 0.545, b: 0.824, a: 1.0),     // #268bd2
+    accent_indigo: (r: 0.424, g: 0.443, b: 0.769, a: 1.0),   // #6c71c4 (violet)
+    accent_purple: (r: 0.424, g: 0.443, b: 0.769, a: 1.0),   // #6c71c4 (violet)
+    accent_pink: (r: 0.827, g: 0.212, b: 0.510, a: 1.0),     // #d33682 (magenta)
+    accent_red: (r: 0.863, g: 0.196, b: 0.184, a: 1.0),      // #dc322f
+    accent_orange: (r: 0.796, g: 0.294, b: 0.086, a: 1.0),   // #cb4b16
+    accent_yellow: (r: 0.710, g: 0.537, b: 0.000, a: 1.0),   // #b58900
+    accent_green: (r: 0.522, g: 0.600, b: 0.000, a: 1.0),    // #859900
+    accent_warm_grey: (r: 0.576, g: 0.631, b: 0.631, a: 1.0), // base1 #93a1a1
+
+    // Extended colors (same as accents)
+    ext_warm_grey: (r: 0.576, g: 0.631, b: 0.631, a: 1.0),
+    ext_orange: (r: 0.796, g: 0.294, b: 0.086, a: 1.0),
+    ext_yellow: (r: 0.710, g: 0.537, b: 0.000, a: 1.0),
+    ext_blue: (r: 0.149, g: 0.545, b: 0.824, a: 1.0),
+    ext_purple: (r: 0.424, g: 0.443, b: 0.769, a: 1.0),
+    ext_pink: (r: 0.827, g: 0.212, b: 0.510, a: 1.0),
+    ext_indigo: (r: 0.424, g: 0.443, b: 0.769, a: 1.0),
+)

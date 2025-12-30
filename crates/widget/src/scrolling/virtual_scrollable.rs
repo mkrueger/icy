@@ -83,57 +83,6 @@ pub use super::scrollable::{AbsoluteOffset, RelativeOffset};
 
 use std::ops::Range;
 
-/// Creates a virtual scrollable that renders content based on the visible viewport.
-///
-/// The `content_size` declares the total logical size of the content, used for
-/// scrollbar calculations. The `view` callback receives the visible viewport
-/// rectangle (in content-local coordinates) and must return the content to render.
-///
-/// This is the most flexible virtualization approach - you decide what to render
-/// based on the viewport. For simple uniform-height rows, consider [`show_rows`].
-///
-/// Smooth scrolling is automatic - the widget applies sub-pixel translation based
-/// on the scroll offset to ensure pixel-perfect rendering.
-///
-/// # Arguments
-/// * `content_size` - The total size of the virtual content
-/// * `view` - A callback that receives the visible viewport and returns content
-///
-/// # Example
-/// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Size; }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::virtual_scrollable;
-/// use iced::Size;
-///
-/// enum Message {}
-///
-/// // 10,000 items, each 30px tall
-/// let row_height = 30.0;
-/// let total_rows = 10_000;
-///
-/// virtual_scrollable::show_viewport(
-///     Size::new(400.0, total_rows as f32 * row_height),
-///     |viewport| {
-///         // Calculate which rows are visible
-///         let first_row = (viewport.y / row_height).floor() as usize;
-///         let last_row = ((viewport.y + viewport.height) / row_height).ceil() as usize;
-///         // ... render only visible rows
-///         # iced::widget::text("").into()
-///     }
-/// );
-/// ```
-pub fn show_viewport<'a, Message, Theme, Renderer>(
-    content_size: Size,
-    view: impl Fn(Rectangle) -> Element<'a, Message, Theme, Renderer> + 'a,
-) -> VirtualScrollable<'a, Message, Theme, Renderer>
-where
-    Theme: Catalog,
-    Renderer: text::Renderer,
-{
-    VirtualScrollable::new(content_size, view)
-}
-
 /// Creates a virtual scrollable optimized for uniform-height rows.
 ///
 /// This is a convenience wrapper around [`show_viewport`] for the common case
