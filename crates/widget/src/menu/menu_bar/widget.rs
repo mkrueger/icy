@@ -35,10 +35,22 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
+        eprintln!(
+            "[MenuBar::diff] Called, tree.children.len={}",
+            tree.children.len()
+        );
         let state = tree.state.downcast_mut::<MenuBarState>();
-        state
-            .inner
-            .with_data_mut(|inner| menu_roots_diff(&self.menu_roots, &mut inner.tree));
+        state.inner.with_data_mut(|inner| {
+            eprintln!(
+                "[MenuBar::diff] inner.tree.children.len BEFORE={}",
+                inner.tree.children.len()
+            );
+            menu_roots_diff(&self.menu_roots, &mut inner.tree);
+            eprintln!(
+                "[MenuBar::diff] inner.tree.children.len AFTER={}",
+                inner.tree.children.len()
+            );
+        });
     }
 
     fn tag(&self) -> tree::Tag {
@@ -54,6 +66,14 @@ where
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
+        // Ensure inner.tree is initialized (diff() may not have been called)
+        let state = tree.state.downcast_mut::<MenuBarState>();
+        state.inner.with_data_mut(|inner| {
+            if inner.tree.children.len() != self.menu_roots.len() {
+                menu_roots_diff(&self.menu_roots, &mut inner.tree);
+            }
+        });
+
         let limits = limits.width(self.width).height(self.height);
 
         // Layout each menu root item directly

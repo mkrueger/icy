@@ -33,14 +33,50 @@ impl MenuState {
         Message: Clone,
         Renderer: renderer::Renderer,
     {
-        let MenuSlice {
-            start_index,
-            end_index,
-            lower_bound_rel,
-            upper_bound_rel,
-        } = slice;
+        let mut start_index = slice.start_index;
+        let mut end_index = slice.end_index;
+        let lower_bound_rel = slice.lower_bound_rel;
+        let upper_bound_rel = slice.upper_bound_rel;
 
-        debug_assert_eq!(menu_tree.len(), self.menu_bounds.child_positions.len());
+        // Mismatch can happen transiently while navigating/opening submenus.
+        // Do not panic; clamp work to the overlap between computed bounds and the current tree.
+        let effective_len = self
+            .menu_bounds
+            .child_positions
+            .len()
+            .min(self.menu_bounds.child_sizes.len())
+            .min(menu_tree.len());
+
+        if effective_len == 0 {
+            log::warn!(
+                "Menu state mismatch: no overlapping children (positions={}, sizes={}, tree={})",
+                self.menu_bounds.child_positions.len(),
+                self.menu_bounds.child_sizes.len(),
+                menu_tree.len()
+            );
+            let children_bounds = self.menu_bounds.children_bounds + overlay_offset;
+            return Node::with_children(children_bounds.size(), vec![])
+                .move_to(children_bounds.position());
+        }
+
+        if menu_tree.len() != self.menu_bounds.child_positions.len()
+            || self.menu_bounds.child_positions.len() != self.menu_bounds.child_sizes.len()
+        {
+            log::warn!(
+                "Menu state mismatch: positions={}, sizes={}, tree={} (clamping to {})",
+                self.menu_bounds.child_positions.len(),
+                self.menu_bounds.child_sizes.len(),
+                menu_tree.len(),
+                effective_len
+            );
+        }
+
+        let max_index = effective_len - 1;
+        start_index = start_index.min(max_index);
+        end_index = end_index.min(max_index);
+        if start_index > end_index {
+            start_index = end_index;
+        }
 
         // viewport space children bounds
         let children_bounds = self.menu_bounds.children_bounds + overlay_offset;
@@ -75,10 +111,18 @@ impl MenuState {
 
                 let limits = Limits::new(size, size);
 
-                mt.item
-                    .as_widget_mut()
-                    .layout(&mut tree[mt.index], renderer, &limits)
-                    .move_to(Point::new(0.0, position + self.scroll_offset))
+                {
+                    let Some(child_tree) = tree.get_mut(mt.index) else {
+                        // Tree can be temporarily out-of-sync while opening/navigating menus
+                        return Node::new(Size::ZERO)
+                            .move_to(Point::new(0.0, position + self.scroll_offset));
+                    };
+
+                    mt.item
+                        .as_widget_mut()
+                        .layout(child_tree, renderer, &limits)
+                        .move_to(Point::new(0.0, position + self.scroll_offset))
+                }
             })
             .collect::<Vec<_>>();
 

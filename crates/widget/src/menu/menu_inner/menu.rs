@@ -91,7 +91,18 @@ where
                     let Some(root_entry) = menu_roots.get_mut(first_root) else {
                         return None;
                     };
-                    let roots = active_root.iter().skip(1).fold(
+                    let Some(tree_entry) = tree_children.get_mut(first_root) else {
+                        return None;
+                    };
+
+                    // Each `MenuState` corresponds to a depth in `active_root`.
+                    // Depth 0 (root menu) should use `root_entry.children`.
+                    // Depth 1 should use `root_entry.children[active_root[1]].children`, etc.
+                    //
+                    // IMPORTANT: `tree_entry.children` is a *flat* widget tree (built from
+                    // `MenuTree::flatten()`), and menu items reference it via `MenuTree::index`.
+                    // Therefore, we must always pass the full flat tree slice for the root.
+                    let menu_items = active_root.iter().skip(1).take(i).fold(
                         &mut root_entry.children,
                         |mt, &next_active_root| {
                             if next_active_root < mt.len() {
@@ -102,17 +113,11 @@ where
                         },
                     );
 
-                    let Some(tree_entry) = tree_children.get_mut(first_root) else {
-                        return None;
-                    };
+                    let flat_tree = &mut tree_entry.children;
+
                     let slice = ms.slice(limits.max(), overlay_offset, item_height);
-                    let children_node = ms.layout(
-                        overlay_offset,
-                        slice,
-                        renderer,
-                        roots,
-                        &mut tree_entry.children,
-                    );
+                    let children_node =
+                        ms.layout(overlay_offset, slice, renderer, menu_items, flat_tree);
                     let node_size = children_node.size();
                     intrinsic_size.height += node_size.height;
                     intrinsic_size.width = intrinsic_size.width.max(node_size.width);
@@ -980,12 +985,6 @@ where
             let Some(root_entry) = self.menu_roots.get(first_root) else {
                 return;
             };
-            let roots = active_root
-                .iter()
-                .skip(1)
-                .fold(&root_entry.children, |mt, next_active_root| {
-                    mt.get(*next_active_root).map(|m| &m.children).unwrap_or(mt)
-                });
 
             let indices = state.get_trimmed_indices(0).collect::<Vec<_>>();
 
@@ -999,7 +998,9 @@ where
                 let draw_path = self.path_highlight.as_ref().is_some_and(|ph| match ph {
                     PathHighlight::Full => true,
                     PathHighlight::OmitActive => !indices.is_empty() && i < indices.len() - 1,
-                    PathHighlight::MenuActive => i == state.active_root.len() - 1,
+                    // Keep the whole open path highlighted (VS Code-style):
+                    // when a submenu is open, the item that opened it should remain selected.
+                    PathHighlight::MenuActive => !indices.is_empty() && i < indices.len(),
                 });
 
                 let view_cursor = if i == state.menu_states.len() - 1 {
@@ -1009,6 +1010,18 @@ where
                 };
 
                 renderer.with_layer(render_bounds, |r| {
+                    // Each menu panel draws a different slice of the `MenuTree` hierarchy.
+                    // Depth 0 draws `root_entry.children`, depth 1 draws the children of the
+                    // active item in depth 0, etc.
+                    let menu_items = active_root.iter().skip(1).take(i).fold(
+                        &root_entry.children[..],
+                        |mt, &next_active_root| {
+                            mt.get(next_active_root)
+                                .map(|m| &m.children[..])
+                                .unwrap_or(mt)
+                        },
+                    );
+
                     let slice = ms.slice(viewport_size, overlay_offset, self.item_height);
                     let start_index = slice.start_index;
                     let end_index = slice.end_index;
@@ -1092,9 +1105,9 @@ where
                     }
 
                     // draw items
-                    if start_index < roots.len() {
+                    if start_index < menu_items.len() {
                         if let Some(tree_entry) = state.tree.children.get(first_root) {
-                            for (mt, clo) in roots
+                            for (mt, clo) in menu_items
                                 .get(start_index..=end_index)
                                 .unwrap_or(&[])
                                 .iter()

@@ -28,7 +28,6 @@ use crate::core::touch;
 use crate::core::widget::Id as WidgetId;
 use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
-use crate::core::window;
 use crate::core::{
     Background, Clipboard, Color, Element, Event, Layout, Length, Padding, Rectangle, Shadow,
     Shell, Size, Theme, Vector, Widget,
@@ -265,6 +264,12 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        // Ensure tree has children (may not be initialized in some overlay scenarios)
+        if tree.children.is_empty() {
+            log::warn!("Button: tree.children is empty in layout(), reinitializing");
+            tree.children = self.children();
+        }
+
         layout::padded(limits, self.width, self.height, self.padding, |limits| {
             self.content
                 .as_widget_mut()
@@ -284,10 +289,20 @@ where
         let state = tree.state.downcast_mut::<State>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
 
+        if tree.children.is_empty() {
+            log::warn!("Button: tree.children is empty in operate(), skipping child operation");
+            return;
+        }
+
+        let Some(content_layout) = layout.children().next() else {
+            log::warn!("Button: missing child layout in operate(), skipping");
+            return;
+        };
+
         operation.traverse(&mut |operation| {
             self.content.as_widget_mut().operate(
                 &mut tree.children[0],
-                layout.children().next().unwrap(),
+                content_layout,
                 renderer,
                 operation,
             );
@@ -305,10 +320,20 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        if tree.children.is_empty() {
+            log::warn!("Button: tree.children is empty in update(), reinitializing");
+            tree.children = self.children();
+        }
+
+        let Some(content_layout) = layout.children().next() else {
+            log::warn!("Button: missing child layout in update(), skipping");
+            return;
+        };
+
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
-            layout.children().next().unwrap(),
+            content_layout,
             cursor,
             renderer,
             clipboard,
@@ -425,11 +450,12 @@ where
             Status::Active
         };
 
-        if let Event::Window(window::Event::RedrawRequested(_now)) = event {
-            self.status = Some(current_status);
-        } else if self.status.is_some_and(|status| status != current_status) {
+        // Keep the cached status in sync and request a redraw on changes.
+        // Relying on RedrawRequested to update `self.status` can leave stale visuals.
+        if self.status.is_some_and(|status| status != current_status) {
             shell.request_redraw();
         }
+        self.status = Some(current_status);
     }
 
     fn draw(
@@ -443,23 +469,27 @@ where
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let content_layout = layout.children().next().unwrap();
+        let Some(content_layout) = layout.children().next() else {
+            // Can happen transiently if the widget tree is out-of-sync;
+            // avoid panicking during draw.
+            log::warn!("Button: missing child layout in draw(), skipping");
+            return;
+        };
 
-        // Compute status dynamically if not yet set
-        let status = self.status.unwrap_or_else(|| {
-            if self.on_press.is_none() {
-                Status::Disabled
-            } else if cursor.is_over(bounds) {
-                let state = tree.state.downcast_ref::<State>();
-                if state.is_pressed {
-                    Status::Pressed
-                } else {
-                    Status::Hovered
-                }
+        // Compute status dynamically during draw.
+        // This avoids stale hover/pressed visuals when the widget instance is reused.
+        let status = if self.on_press.is_none() {
+            Status::Disabled
+        } else if cursor.is_over(bounds) {
+            let state = tree.state.downcast_ref::<State>();
+            if state.is_pressed {
+                Status::Pressed
             } else {
-                Status::Active
+                Status::Hovered
             }
-        });
+        } else {
+            Status::Active
+        };
 
         let style = theme.style(&self.class, status);
 
@@ -488,6 +518,11 @@ where
         } else {
             *viewport
         };
+
+        if tree.children.is_empty() {
+            log::warn!("Button: tree.children is empty in draw(), skipping content draw");
+            return;
+        }
 
         self.content.as_widget().draw(
             &tree.children[0],
@@ -527,9 +562,19 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
+        if tree.children.is_empty() {
+            log::warn!("Button: tree.children is empty in overlay(), skipping");
+            return None;
+        }
+
+        let Some(child_layout) = layout.children().next() else {
+            log::warn!("Button: missing child layout in overlay(), skipping");
+            return None;
+        };
+
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
-            layout.children().next().unwrap(),
+            child_layout,
             renderer,
             viewport,
             translation,

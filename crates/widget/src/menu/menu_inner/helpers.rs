@@ -40,6 +40,10 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
     Theme: StyleSheet,
 {
     menu.tree.inner.with_data_mut(|state| {
+        // DEBUG
+        eprintln!("[init_root_menu] open={}, menu_states.len={}, active_root={:?}, tree.children.len={}", 
+            state.open, state.menu_states.len(), state.active_root, state.tree.children.len());
+        
         if !state.open {
             return;
         }
@@ -54,7 +58,7 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
                 menu.root_bounds_list.get(i).zip(menu.menu_roots.get_mut(i))
             {
                 if !mt.children.is_empty() {
-                    let Some(tree_entry) = state.tree.children.first_mut() else {
+                    let Some(tree_entry) = state.tree.children.get_mut(i) else {
                         return;
                     };
                     let view_center = viewport_size.width * 0.5;
@@ -122,9 +126,12 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
             }
 
             if root_bounds.contains(overlay_cursor) {
-                let Some(tree_entry) = state.tree.children.first_mut() else {
+                eprintln!("[init_root_menu] Cursor over root {}, mt.children.len={}", i, mt.children.len());
+                let Some(tree_entry) = state.tree.children.get_mut(i) else {
+                    eprintln!("[init_root_menu] ERROR: tree.children.get_mut({}) failed, tree has {} children", i, state.tree.children.len());
                     continue;
                 };
+                eprintln!("[init_root_menu] tree_entry.children.len={}", tree_entry.children.len());
                 let view_center = viewport_size.width * 0.5;
                 let rb_center = root_bounds.center_x();
 
@@ -335,6 +342,7 @@ where
             0 => {
                 if menu.is_overlay && !menu.bar_bounds.contains(overlay_cursor) {
                     state.open = false;
+                    shell.request_redraw();
                 }
                 return Captured;
             }
@@ -355,6 +363,7 @@ where
             || menu.is_overlay && !last_children_bounds.contains(overlay_cursor)
         {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         }
 
@@ -366,10 +375,12 @@ where
 
         let Some(first_root) = active_root.first().copied() else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
         let Some(root_entry) = menu.menu_roots.get_mut(first_root) else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
         let roots =
@@ -385,6 +396,7 @@ where
                 });
         let Some(tree_entry) = state.tree.children.get_mut(first_root) else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
         let tree = &mut tree_entry.children;
@@ -394,6 +406,7 @@ where
         // This is robust with dynamic heights and separators.
         let Some(last_menu_layout) = layout.children().nth(last_menu_state_index) else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
 
@@ -414,6 +427,7 @@ where
 
         let Some(new_index) = hovered_index else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
 
@@ -421,6 +435,7 @@ where
             || active_menu.get(new_index).map_or(true, |m| m.is_separator)
         {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         }
 
@@ -433,6 +448,7 @@ where
 
         let Some(item) = active_menu.get_mut(new_index) else {
             last_menu_state.index = None;
+            shell.request_redraw();
             return Captured;
         };
         let old_index = last_menu_state.index.replace(new_index);
