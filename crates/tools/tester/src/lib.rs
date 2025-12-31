@@ -28,7 +28,7 @@ use crate::test::instruction;
 use crate::test::{Emulator, Ice, Instruction};
 use crate::widget::{
     button, center, column, combo_box, container, pick_list, row, rule, scrollable, slider, space,
-    stack, text, text_editor, theme,
+    stack, text, text_editor,
 };
 
 use std::ops::RangeInclusive;
@@ -47,7 +47,7 @@ pub struct Attach<P> {
 
 impl<P> Program for Attach<P>
 where
-    P: Program + 'static,
+    P: Program<Theme = Theme> + 'static,
 {
     type State = Tester<P>;
     type Message = Message<P>;
@@ -168,7 +168,7 @@ enum Tick<P: Program> {
     Assert(instruction::Interaction),
 }
 
-impl<P: Program + 'static> Tester<P> {
+impl<P: Program<Theme = Theme> + 'static> Tester<P> {
     fn new(program: &P) -> Self {
         let (state, _) = program.boot();
         let window = program.window().unwrap_or_default();
@@ -548,17 +548,15 @@ impl<P: Program + 'static> Tester<P> {
 
             container(row![icon.size(14), label].align_y(Center).spacing(8)).style(
                 |theme: &Theme| {
-                    let palette = theme.extended_palette();
-
                     container::Style {
                         text_color: Some(match &self.state {
-                            State::Empty | State::Idle { .. } => palette.background.strongest.color,
-                            State::Recording { .. } => palette.danger.base.color,
-                            State::Asserting { .. } => palette.warning.base.color,
+                            State::Empty | State::Idle { .. } => theme.background.on,
+                            State::Recording { .. } => theme.destructive.base,
+                            State::Asserting { .. } => theme.warning.base,
                             State::Playing { outcome, .. } => match outcome {
-                                Outcome::Running => theme.palette().primary,
-                                Outcome::Failed => theme.palette().danger,
-                                Outcome::Success => theme.extended_palette().success.strong.color,
+                                Outcome::Running => theme.accent.base,
+                                Outcome::Failed => theme.destructive.base,
+                                Outcome::Success => theme.success.base,
                             },
                         }),
                         ..container::Style::default()
@@ -583,7 +581,7 @@ impl<P: Program + 'static> Tester<P> {
 
         let viewport = container(
             scrollable(
-                container(themer(self.theme(program, window), view))
+                container(view)
                     .width(self.viewport.width)
                     .height(self.viewport.height),
             )
@@ -593,17 +591,15 @@ impl<P: Program + 'static> Tester<P> {
             }),
         )
         .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-
             container::Style {
                 border: border::width(2.0).color(match &self.state {
-                    State::Empty | State::Idle { .. } => palette.background.strongest.color,
-                    State::Recording { .. } => palette.danger.base.color,
-                    State::Asserting { .. } => palette.warning.weak.color,
+                    State::Empty | State::Idle { .. } => theme.background.on,
+                    State::Recording { .. } => theme.destructive.base,
+                    State::Asserting { .. } => theme.warning.base,
                     State::Playing { outcome, .. } => match outcome {
-                        Outcome::Running => palette.primary.base.color,
-                        Outcome::Failed => palette.danger.strong.color,
-                        Outcome::Success => palette.success.strong.color,
+                        Outcome::Running => theme.accent.base,
+                        Outcome::Failed => theme.destructive.base,
+                        Outcome::Success => theme.success.base,
                     },
                 }),
                 ..container::Style::default()
@@ -618,7 +614,7 @@ impl<P: Program + 'static> Tester<P> {
                 .width(250)
                 .padding(10)
                 .style(|theme| container::Style::default()
-                    .background(theme.extended_palette().background.weakest.color)),
+                    .background(theme.background.base)),
         ]
         .into()
     }
@@ -695,30 +691,16 @@ impl<P: Program + 'static> Tester<P> {
                                             } => {
                                                 if *current == i + 1 {
                                                     Some(match outcome {
-                                                        Outcome::Running => theme.palette().primary,
+                                                        Outcome::Running => theme.accent.base,
                                                         Outcome::Failed => {
-                                                            theme
-                                                                .extended_palette()
-                                                                .danger
-                                                                .strong
-                                                                .color
+                                                            theme.destructive.base
                                                         }
                                                         Outcome::Success => {
-                                                            theme
-                                                                .extended_palette()
-                                                                .success
-                                                                .strong
-                                                                .color
+                                                            theme.success.base
                                                         }
                                                     })
                                                 } else if *current > i + 1 {
-                                                    Some(
-                                                        theme
-                                                            .extended_palette()
-                                                            .success
-                                                            .strong
-                                                            .color,
-                                                    )
+                                                    Some(theme.success.base)
                                                 } else {
                                                     None
                                                 }
@@ -857,16 +839,14 @@ where
                 .width(Fill)
                 .height(24)
                 .style(|theme: &core::Theme, status| {
-                    let palette = theme.extended_palette();
-
                     slider::Style {
                         rail: slider::Rail {
                             backgrounds: (
                                 match status {
                                     slider::Status::Active | slider::Status::Dragged => {
-                                        palette.background.strongest.color
+                                        theme.background.on
                                     }
-                                    slider::Status::Hovered => palette.background.stronger.color,
+                                    slider::Status::Hovered => theme.background.component.hover,
                                 }
                                 .into(),
                                 Color::TRANSPARENT.into(),
@@ -884,12 +864,12 @@ where
                 })
         )
         .style(|theme| container::Style::default()
-            .background(theme.extended_palette().background.weak.color)
+            .background(theme.background.component.base)
             .border(border::rounded(2))),
         row![
             text(label).size(14).style(|theme: &core::Theme| {
                 text::Style {
-                    color: Some(theme.extended_palette().background.weak.text),
+                    color: Some(theme.background.component.on),
                 }
             }),
             space::horizontal(),

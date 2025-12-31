@@ -11,7 +11,7 @@ use super::{
         CloseCondition, Direction, ItemHeight, ItemWidth, Menu, MenuState, PathHighlight,
     },
     menu_tree::MenuTree,
-    mnemonic::{MnemonicDisplay, mnemonics_enabled},
+    mnemonic::{MnemonicDisplay, mnemonics_enabled, set_show_underlines},
     style::StyleSheet,
 };
 
@@ -467,8 +467,10 @@ where
                     state.alt_pressed = true;
                     if self.mnemonic_display == MnemonicDisplay::OnAlt {
                         state.show_mnemonics = true;
+                        set_show_underlines(true);
                     }
                 });
+                shell.invalidate_layout();
                 shell.request_redraw();
             }
 
@@ -482,8 +484,10 @@ where
                     // Keep mnemonics visible if menu is open
                     if !state.open && self.mnemonic_display == MnemonicDisplay::OnAlt {
                         state.show_mnemonics = false;
+                        set_show_underlines(false);
                     }
                 });
+                shell.invalidate_layout();
                 shell.request_redraw();
             }
 
@@ -505,14 +509,19 @@ where
                         if root.mnemonic == Some(ch) {
                             // Open this menu
                             my_state.inner.with_data_mut(|state| {
+                                // Clear existing menu states to force reinitialization
+                                // with correct menu bounds for the new root
+                                state.menu_states.clear();
                                 state.active_root = vec![idx];
                                 state.open = true;
                                 state.view_cursor = view_cursor;
                                 // Show mnemonics while menu is open
                                 if self.mnemonic_display == MnemonicDisplay::OnAlt {
                                     state.show_mnemonics = true;
+                                    set_show_underlines(true);
                                 }
                             });
+                            shell.invalidate_layout();
                             shell.request_redraw();
                             shell.capture_event();
                             break;
@@ -532,7 +541,13 @@ where
                         state.menu_states.clear();
                         state.active_root.clear();
                         state.open = false;
+
+                        if self.mnemonic_display == MnemonicDisplay::OnAlt && !state.alt_pressed {
+                            state.show_mnemonics = false;
+                            set_show_underlines(false);
+                        }
                     });
+                    shell.invalidate_layout();
                     shell.request_redraw();
                     shell.capture_event();
                 }
@@ -553,9 +568,15 @@ where
                         state.active_root.clear();
                         state.open = false;
                         state.view_cursor = view_cursor;
+
+                        if self.mnemonic_display == MnemonicDisplay::OnAlt && !state.alt_pressed {
+                            state.show_mnemonics = false;
+                            set_show_underlines(false);
+                        }
                     }
                 });
-                // Request redraw to update the visual highlight
+                // Layout invalidation also triggers a redraw; needed for mnemonic underline updates.
+                shell.invalidate_layout();
                 shell.request_redraw();
             }
             _ => (),
@@ -574,6 +595,14 @@ where
     ) {
         let state = tree.state.downcast_ref::<MenuBarState>();
         let cursor_pos = view_cursor.position().unwrap_or_default();
+        // Update global mnemonic underline state based on display mode
+        match self.mnemonic_display {
+            MnemonicDisplay::Show => set_show_underlines(true),
+            MnemonicDisplay::Hide => set_show_underlines(false),
+            MnemonicDisplay::OnAlt => {
+                state.inner.with_data(|s| set_show_underlines(s.show_mnemonics));
+            }
+        }
 
         state.inner.with_data_mut(|state| {
             let position = if state.open && (cursor_pos.x < 0.0 || cursor_pos.y < 0.0) {

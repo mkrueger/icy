@@ -241,14 +241,13 @@ pub enum MenuItem<A: MenuAction, L: Into<Cow<'static, str>>> {
 pub fn menu_root<'a, Message>(
     label: impl Into<Cow<'a, str>> + 'a,
     on_press: Message,
-    show_mnemonic: bool,
 ) -> (Button<'a, Message>, Option<char>)
 where
     Message: Clone + 'a,
 {
     let l: Cow<'a, str> = label.into();
     let parsed = parse_mnemonic(&l);
-    let button = button(mnemonic_text(&l, show_mnemonic))
+    let button = button(mnemonic_text(&l))
         .padding([4, 12])
         .on_press(on_press)
         .style(super::style::menu_root_style);
@@ -262,7 +261,6 @@ where
 /// # Arguments
 /// - `key_binds` - A reference to a `HashMap` that maps `KeyBind` to `A`.
 /// - `children` - A vector of `MenuItem`.
-/// - `show_mnemonic` - Whether to show mnemonic underlines (typically when Alt is pressed).
 ///
 /// # Returns
 /// - A vector of `MenuTree`.
@@ -270,7 +268,6 @@ where
 pub fn menu_items<'a, A, L, Message>(
     key_binds: &HashMap<KeyBind, A>,
     children: Vec<MenuItem<A, L>>,
-    show_mnemonic: bool,
 ) -> Vec<MenuTree<'a, Message, crate::Theme, crate::Renderer>>
 where
     A: MenuAction<Message = Message>,
@@ -300,7 +297,7 @@ where
                     let parsed = parse_mnemonic(&l);
                     let key = find_key(&action, key_binds);
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        mnemonic_text(&l, show_mnemonic),
+                        mnemonic_text(&l),
                         Space::new().width(Length::Fill).into(),
                         text(key).style(shortcut_text_style).into(),
                     ];
@@ -314,7 +311,7 @@ where
                     let l: Cow<'static, str> = label.into();
                     let parsed = parse_mnemonic(&l);
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        mnemonic_text(&l, show_mnemonic),
+                        mnemonic_text(&l),
                         Space::new().width(Length::Fill).into(),
                     ];
 
@@ -332,7 +329,7 @@ where
 
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
                         text(check_mark).into(),
-                        mnemonic_text(&l, show_mnemonic),
+                        mnemonic_text(&l),
                         Space::new().width(Length::Fill).into(),
                         text(key).style(shortcut_text_style).into(),
                     ];
@@ -347,11 +344,11 @@ where
 
                     let mut tree = MenuTree::with_children(
                         menu_button(vec![
-                            mnemonic_text(&l, show_mnemonic),
+                            mnemonic_text(&l),
                             Space::new().width(Length::Fill).into(),
                             text("▶").into(),
                         ]),
-                        menu_items(key_binds, sub_children, show_mnemonic),
+                        menu_items(key_binds, sub_children),
                     );
                     tree.mnemonic = parsed.mnemonic_char;
                     trees.push(tree);

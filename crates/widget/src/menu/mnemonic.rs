@@ -5,9 +5,37 @@
 // Use "&&" for a literal ampersand.
 
 use std::borrow::Cow;
+use std::cell::Cell;
 
 use crate::core::text::Span;
 use crate::text;
+use crate::core::{
+    Clipboard, Element, Layout, Length, Rectangle, Shell, Size, Widget,
+    event,
+    layout::{Limits, Node},
+    mouse::Cursor,
+    overlay, renderer,
+    widget::{Tree, tree},
+};
+
+type RichType<Message> = text::Rich<'static, (), Message, crate::Theme, crate::Renderer>;
+
+// Thread-local state for mnemonic underline visibility.
+// This is updated by MenuBar when Alt is pressed/released.
+thread_local! {
+    static SHOW_MNEMONIC_UNDERLINES: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Set whether mnemonic underlines should be shown.
+/// Called by MenuBar when Alt key state changes.
+pub(crate) fn set_show_underlines(show: bool) {
+    SHOW_MNEMONIC_UNDERLINES.with(|cell| cell.set(show));
+}
+
+/// Get whether mnemonic underlines should be shown.
+pub(crate) fn get_show_underlines() -> bool {
+    SHOW_MNEMONIC_UNDERLINES.with(|cell| cell.get())
+}
 
 /// How mnemonics are displayed in menu labels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -79,41 +107,180 @@ pub fn parse_mnemonic(label: &str) -> ParsedMnemonic<'_> {
 
 /// Create a text element with the mnemonic character underlined.
 ///
-/// If `show_underline` is false or there's no mnemonic, the underline is not shown,
-/// but the same widget type (Rich text with 3 spans) is always returned to avoid tree state issues.
+/// The underline visibility is controlled by the MenuBar's internal state,
+/// which tracks Alt key presses automatically.
 pub fn mnemonic_text<'a, Message>(
     label: &str,
-    show_underline: bool,
 ) -> crate::core::Element<'a, Message, crate::Theme, crate::Renderer>
 where
     Message: Clone + 'a,
 {
-    let parsed = parse_mnemonic(label);
-    let display = parsed.display_text.as_ref();
+    MnemonicLabel::<Message>::new(label).into()
+}
 
-    let (before, mnemonic, after) = if let Some(idx) = parsed.underline_index {
-        // Get the character at idx (handling multi-byte chars)
-        let before = &display[..idx];
-        let mnemonic_end = display[idx..]
-            .char_indices()
-            .nth(1)
-            .map(|(i, _)| idx + i)
-            .unwrap_or(display.len());
-        let mnemonic = &display[idx..mnemonic_end];
-        let after = &display[mnemonic_end..];
-        (before, mnemonic, after)
-    } else {
-        // No mnemonic - use the whole text as "before", empty mnemonic and after
-        (display, "", "")
-    };
+struct MnemonicLabel<Message> {
+    before: String,
+    mnemonic: String,
+    after: String,
+    underline: bool,
+    rich: text::Rich<'static, (), Message, crate::Theme, crate::Renderer>,
+}
 
-    // Always use Rich text with 3 spans to keep widget structure consistent
-    text::Rich::<'a, (), Message>::with_spans([
-        Span::<'a, ()>::new(before.to_owned()),
-        Span::<'a, ()>::new(mnemonic.to_owned()).underline(show_underline),
-        Span::<'a, ()>::new(after.to_owned()),
-    ])
-    .into()
+impl<Message> MnemonicLabel<Message> {
+    fn new(label: &str) -> Self {
+        let parsed = parse_mnemonic(label);
+        let display = parsed.display_text.as_ref();
+
+        let (before, mnemonic, after) = if let Some(idx) = parsed.underline_index {
+            // Get the character at idx (handling multi-byte chars)
+            let before = &display[..idx];
+            let mnemonic_end = display[idx..]
+                .char_indices()
+                .nth(1)
+                .map(|(i, _)| idx + i)
+                .unwrap_or(display.len());
+            let mnemonic = &display[idx..mnemonic_end];
+            let after = &display[mnemonic_end..];
+            (before.to_owned(), mnemonic.to_owned(), after.to_owned())
+        } else {
+            (display.to_owned(), String::new(), String::new())
+        };
+
+        let underline = get_show_underlines();
+
+        let rich = Self::build_rich(&before, &mnemonic, &after, underline);
+
+        Self {
+            before,
+            mnemonic,
+            after,
+            underline,
+            rich,
+        }
+    }
+
+    fn build_rich(
+        before: &str,
+        mnemonic: &str,
+        after: &str,
+        underline: bool,
+    ) -> text::Rich<'static, (), Message, crate::Theme, crate::Renderer> {
+        text::Rich::with_spans([
+            Span::<'static, ()>::new(before.to_owned()),
+            Span::<'static, ()>::new(mnemonic.to_owned()).underline(underline),
+            Span::<'static, ()>::new(after.to_owned()),
+        ])
+    }
+
+    fn sync(&mut self) {
+        let underline = get_show_underlines();
+
+        if underline == self.underline {
+            return;
+        }
+
+        self.underline = underline;
+        self.rich = Self::build_rich(&self.before, &self.mnemonic, &self.after, underline);
+    }
+}
+
+impl<Message> Widget<Message, crate::Theme, crate::Renderer> for MnemonicLabel<Message> {
+    fn tag(&self) -> tree::Tag {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::tag(&self.rich)
+    }
+
+    fn state(&self) -> tree::State {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::state(&self.rich)
+    }
+
+    fn size(&self) -> Size<Length> {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::size(&self.rich)
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::children(&self.rich)
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::diff(&self.rich, tree);
+    }
+
+    fn layout(&mut self, tree: &mut Tree, renderer: &crate::Renderer, limits: &Limits) -> Node {
+        self.sync();
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::layout(
+            &mut self.rich,
+            tree,
+            renderer,
+            limits,
+        )
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &event::Event,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        renderer: &crate::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::update(
+            &mut self.rich,
+            tree,
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut crate::Renderer,
+        theme: &crate::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        viewport: &Rectangle,
+    ) {
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::draw(
+            &self.rich,
+            tree,
+            renderer,
+            theme,
+            style,
+            layout,
+            cursor,
+            viewport,
+        );
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'_>,
+        renderer: &crate::Renderer,
+        viewport: &Rectangle,
+        translation: crate::core::Vector,
+    ) -> Option<overlay::Element<'b, Message, crate::Theme, crate::Renderer>> {
+        let _ = (tree, layout, renderer, viewport, translation);
+        None
+    }
+}
+
+impl<'a, Message> From<MnemonicLabel<Message>> for Element<'a, Message, crate::Theme, crate::Renderer>
+where
+    Message: Clone + 'a,
+{
+    fn from(value: MnemonicLabel<Message>) -> Self {
+        Element::new(value)
+    }
 }
 
 /// Check if mnemonics are enabled on the current platform.

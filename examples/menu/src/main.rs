@@ -15,15 +15,12 @@ struct App {
     last_action: String,
     dark_mode: bool,
     show_toolbar: bool,
-    show_mnemonic: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     MenuAction(MenuAction),
     NoOp, // Used to enable menu root buttons visually
-    AltPressed,
-    AltReleased,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,12 +61,6 @@ impl App {
                 }
             }
             Message::NoOp => {} // Do nothing - used for menu root buttons
-            Message::AltPressed => {
-                self.show_mnemonic = true;
-            }
-            Message::AltReleased => {
-                self.show_mnemonic = false;
-            }
         }
     }
 
@@ -78,14 +69,6 @@ impl App {
 
         fn handle_hotkey(event: keyboard::Event) -> Option<Message> {
             match event {
-                keyboard::Event::KeyPressed {
-                    key: Key::Named(Named::Alt),
-                    ..
-                } => Some(Message::AltPressed),
-                keyboard::Event::KeyReleased {
-                    key: Key::Named(Named::Alt),
-                    ..
-                } => Some(Message::AltReleased),
                 keyboard::Event::KeyPressed { key, modifiers, .. } => {
                     let ctrl = modifiers.control();
                     let shift = modifiers.shift();
@@ -202,9 +185,8 @@ impl App {
 
         // Build menu structure using Tree::with_children
         // Use '&' to mark mnemonic characters (e.g., "&File" makes Alt+F open File menu)
-        let show_mnemonic = self.show_mnemonic;
 
-        let (file_btn, file_mnemonic) = root("&File", Message::NoOp, show_mnemonic);
+        let (file_btn, file_mnemonic) = root("&File", Message::NoOp);
         let mut file_menu = Tree::with_children(
             file_btn,
             items(
@@ -218,14 +200,13 @@ impl App {
                     Item::Divider,
                     Item::Button("E&xit", MenuAction::Exit),
                 ],
-                show_mnemonic,
             ),
         );
         if let Some(m) = file_mnemonic {
             file_menu = file_menu.mnemonic(m);
         }
 
-        let (edit_btn, edit_mnemonic) = root("&Edit", Message::NoOp, show_mnemonic);
+        let (edit_btn, edit_mnemonic) = root("&Edit", Message::NoOp);
         let mut edit_menu = Tree::with_children(
             edit_btn,
             items(
@@ -238,14 +219,13 @@ impl App {
                     Item::Button("&Copy", MenuAction::Copy),
                     Item::Button("&Paste", MenuAction::Paste),
                 ],
-                show_mnemonic,
             ),
         );
         if let Some(m) = edit_mnemonic {
             edit_menu = edit_menu.mnemonic(m);
         }
 
-        let (view_btn, view_mnemonic) = root("&View", Message::NoOp, show_mnemonic);
+        let (view_btn, view_mnemonic) = root("&View", Message::NoOp);
         let mut view_menu = Tree::with_children(
             view_btn,
             items(
@@ -258,20 +238,18 @@ impl App {
                         MenuAction::ToggleToolbar,
                     ),
                 ],
-                show_mnemonic,
             ),
         );
         if let Some(m) = view_mnemonic {
             view_menu = view_menu.mnemonic(m);
         }
 
-        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp, show_mnemonic);
+        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp);
         let mut help_menu = Tree::with_children(
             help_btn,
             items(
                 &key_binds,
                 vec![Item::Button("&About", MenuAction::About)],
-                show_mnemonic,
             ),
         );
         if let Some(m) = help_mnemonic {

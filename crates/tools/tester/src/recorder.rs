@@ -489,6 +489,6 @@ fn find_text(
 fn highlight(theme: &impl theme::Base) -> Color {
     theme
         .palette()
-        .map(|palette| palette.primary)
+        .map(|palette| palette.accent())
         .unwrap_or(Color::from_rgb(0.0, 0.0, 1.0))
 }

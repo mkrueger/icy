@@ -244,14 +244,9 @@ let text_widget = mnemonic_text(
 - `MnemonicDisplay::Parentheses` - Show as "File (F)"
 - `MnemonicDisplay::None` - Don't show mnemonic indicator
 
-### Enabling Mnemonics
+### Platform Support
 
-```rust
-use iced::widget::menu::mnemonics_enabled;
-
-// Returns true when Alt key is held (mnemonics should be shown)
-let show_mnemonics = mnemonics_enabled(&modifiers);
-```
+Mnemonics are enabled on Windows and Linux but disabled on macOS (which uses Cmd-based shortcuts).
 
 ## Styling
 

@@ -5,7 +5,7 @@
 
 use super::menu_bar::MenuBarState;
 use super::menu_tree::MenuTree;
-use super::mnemonic::mnemonics_enabled;
+use super::mnemonic::{mnemonics_enabled, set_show_underlines};
 use super::style::StyleSheet;
 
 use crate::core::{Border, Shadow};
@@ -840,6 +840,41 @@ where
     ) -> event::Status {
         use event::Status::{Captured, Ignored};
         use keyboard::key::Named;
+
+        // While the menu overlay is open, it receives keyboard events first.
+        // Therefore we must handle Alt *release* here too, otherwise mnemonic
+        // underline toggling will not repaint while a submenu is shown.
+        match event {
+            event::Event::Keyboard(keyboard::Event::KeyPressed {
+                key: keyboard::Key::Named(Named::Alt),
+                ..
+            }) if mnemonics_enabled() => {
+                self.tree.inner.with_data_mut(|state| {
+                    state.alt_pressed = true;
+                    state.show_mnemonics = true;
+                });
+                set_show_underlines(true);
+                shell.invalidate_layout();
+                shell.request_redraw();
+                return Captured;
+            }
+
+            event::Event::Keyboard(keyboard::Event::KeyReleased {
+                key: keyboard::Key::Named(Named::Alt),
+                ..
+            }) if mnemonics_enabled() => {
+                self.tree.inner.with_data_mut(|state| {
+                    state.alt_pressed = false;
+                    state.show_mnemonics = false;
+                });
+                set_show_underlines(false);
+                shell.invalidate_layout();
+                shell.request_redraw();
+                return Captured;
+            }
+
+            _ => {}
+        }
 
         let event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) = event else {
             return Ignored;
