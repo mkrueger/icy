@@ -79,7 +79,8 @@ pub fn parse_mnemonic(label: &str) -> ParsedMnemonic<'_> {
 
 /// Create a text element with the mnemonic character underlined.
 ///
-/// If `show_underline` is false or there's no mnemonic, returns plain text.
+/// If `show_underline` is false or there's no mnemonic, the underline is not shown,
+/// but the same widget type (Rich text with 3 spans) is always returned to avoid tree state issues.
 pub fn mnemonic_text<'a, Message>(
     label: &str,
     show_underline: bool,
@@ -88,31 +89,31 @@ where
     Message: Clone + 'a,
 {
     let parsed = parse_mnemonic(label);
+    let display = parsed.display_text.as_ref();
 
-    if show_underline {
-        if let Some(idx) = parsed.underline_index {
-            let display = parsed.display_text.as_ref();
-            // Get the character at idx (handling multi-byte chars)
-            let before = &display[..idx];
-            let mnemonic_end = display[idx..]
-                .char_indices()
-                .nth(1)
-                .map(|(i, _)| idx + i)
-                .unwrap_or(display.len());
-            let mnemonic = &display[idx..mnemonic_end];
-            let after = &display[mnemonic_end..];
+    let (before, mnemonic, after) = if let Some(idx) = parsed.underline_index {
+        // Get the character at idx (handling multi-byte chars)
+        let before = &display[..idx];
+        let mnemonic_end = display[idx..]
+            .char_indices()
+            .nth(1)
+            .map(|(i, _)| idx + i)
+            .unwrap_or(display.len());
+        let mnemonic = &display[idx..mnemonic_end];
+        let after = &display[mnemonic_end..];
+        (before, mnemonic, after)
+    } else {
+        // No mnemonic - use the whole text as "before", empty mnemonic and after
+        (display, "", "")
+    };
 
-            return text::Rich::<'a, (), Message>::with_spans([
-                Span::<'a, ()>::new(before.to_owned()),
-                Span::<'a, ()>::new(mnemonic.to_owned()).underline(true),
-                Span::<'a, ()>::new(after.to_owned()),
-            ])
-            .into();
-        }
-    }
-
-    // No mnemonic or not showing underline - return plain text
-    text::Text::new(parsed.display_text.into_owned()).into()
+    // Always use Rich text with 3 spans to keep widget structure consistent
+    text::Rich::<'a, (), Message>::with_spans([
+        Span::<'a, ()>::new(before.to_owned()),
+        Span::<'a, ()>::new(mnemonic.to_owned()).underline(show_underline),
+        Span::<'a, ()>::new(after.to_owned()),
+    ])
+    .into()
 }
 
 /// Check if mnemonics are enabled on the current platform.

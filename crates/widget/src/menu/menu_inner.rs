@@ -1436,9 +1436,68 @@ pub(crate) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
     Theme: StyleSheet,
 {
     menu.tree.inner.with_data_mut(|state| {
+        if !state.open {
+            return;
+        }
+
+        // Case 1: menu_states is empty but active_root is set (mnemonic activation)
+        // We need to initialize menu_states for the active root
+        if state.menu_states.is_empty() && !state.active_root.is_empty() {
+            let i = state.active_root[0];
+            if let Some((&root_bounds, mt)) =
+                menu.root_bounds_list.get(i).zip(menu.menu_roots.get_mut(i))
+            {
+                if !mt.children.is_empty() {
+                    let view_center = viewport_size.width * 0.5;
+                    let rb_center = root_bounds.center_x();
+
+                    state.horizontal_direction = if menu.is_overlay && rb_center > view_center {
+                        Direction::Negative
+                    } else {
+                        Direction::Positive
+                    };
+
+                    let aod = Aod {
+                        horizontal: true,
+                        vertical: true,
+                        horizontal_overlap: true,
+                        vertical_overlap: false,
+                        horizontal_direction: state.horizontal_direction,
+                        vertical_direction: state.vertical_direction,
+                        horizontal_offset: 0.0,
+                        vertical_offset: main_offset,
+                    };
+
+                    let menu_bounds = MenuBounds::new(
+                        mt,
+                        renderer,
+                        menu.item_width,
+                        menu.item_height,
+                        viewport_size,
+                        overlay_offset,
+                        &aod,
+                        menu.bounds_expand,
+                        root_bounds,
+                        &mut state.tree.children[0].children,
+                        menu.is_overlay,
+                    );
+
+                    let ms = MenuState {
+                        index: Some(0),
+                        scroll_offset: 0.0,
+                        menu_bounds,
+                    };
+                    state.menu_states.push(ms);
+
+                    shell.invalidate_layout();
+                }
+            }
+            return;
+        }
+
+        // Case 2: Normal cursor-based initialization
         if !(state.menu_states.is_empty()
             && (!menu.is_overlay || bar_bounds.contains(overlay_cursor)))
-            || !state.open
         {
             return;
         }

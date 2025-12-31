@@ -15,12 +15,15 @@ struct App {
     last_action: String,
     dark_mode: bool,
     show_toolbar: bool,
+    show_mnemonic: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     MenuAction(MenuAction),
     NoOp, // Used to enable menu root buttons visually
+    AltPressed,
+    AltReleased,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +64,12 @@ impl App {
                 }
             }
             Message::NoOp => {} // Do nothing - used for menu root buttons
+            Message::AltPressed => {
+                self.show_mnemonic = true;
+            }
+            Message::AltReleased => {
+                self.show_mnemonic = false;
+            }
         }
     }
 
@@ -68,27 +77,36 @@ impl App {
         use iced::keyboard;
 
         fn handle_hotkey(event: keyboard::Event) -> Option<Message> {
-            let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
-                return None;
-            };
+            match event {
+                keyboard::Event::KeyPressed {
+                    key: Key::Named(Named::Alt),
+                    ..
+                } => Some(Message::AltPressed),
+                keyboard::Event::KeyReleased {
+                    key: Key::Named(Named::Alt),
+                    ..
+                } => Some(Message::AltReleased),
+                keyboard::Event::KeyPressed { key, modifiers, .. } => {
+                    let ctrl = modifiers.control();
+                    let shift = modifiers.shift();
 
-            let ctrl = modifiers.control();
-            let shift = modifiers.shift();
-
-            match key.as_ref() {
-                Key::Character("q") if ctrl => Some(Message::MenuAction(MenuAction::Exit)),
-                Key::Character("n") if ctrl => Some(Message::MenuAction(MenuAction::New)),
-                Key::Character("o") if ctrl => Some(Message::MenuAction(MenuAction::Open)),
-                Key::Character("s") if ctrl && shift => {
-                    Some(Message::MenuAction(MenuAction::SaveAs))
+                    match key.as_ref() {
+                        Key::Character("q") if ctrl => Some(Message::MenuAction(MenuAction::Exit)),
+                        Key::Character("n") if ctrl => Some(Message::MenuAction(MenuAction::New)),
+                        Key::Character("o") if ctrl => Some(Message::MenuAction(MenuAction::Open)),
+                        Key::Character("s") if ctrl && shift => {
+                            Some(Message::MenuAction(MenuAction::SaveAs))
+                        }
+                        Key::Character("s") if ctrl => Some(Message::MenuAction(MenuAction::Save)),
+                        Key::Character("z") if ctrl => Some(Message::MenuAction(MenuAction::Undo)),
+                        Key::Character("y") if ctrl => Some(Message::MenuAction(MenuAction::Redo)),
+                        Key::Character("x") if ctrl => Some(Message::MenuAction(MenuAction::Cut)),
+                        Key::Character("c") if ctrl => Some(Message::MenuAction(MenuAction::Copy)),
+                        Key::Character("v") if ctrl => Some(Message::MenuAction(MenuAction::Paste)),
+                        Key::Named(Named::F1) => Some(Message::MenuAction(MenuAction::About)),
+                        _ => None,
+                    }
                 }
-                Key::Character("s") if ctrl => Some(Message::MenuAction(MenuAction::Save)),
-                Key::Character("z") if ctrl => Some(Message::MenuAction(MenuAction::Undo)),
-                Key::Character("y") if ctrl => Some(Message::MenuAction(MenuAction::Redo)),
-                Key::Character("x") if ctrl => Some(Message::MenuAction(MenuAction::Cut)),
-                Key::Character("c") if ctrl => Some(Message::MenuAction(MenuAction::Copy)),
-                Key::Character("v") if ctrl => Some(Message::MenuAction(MenuAction::Paste)),
-                Key::Named(Named::F1) => Some(Message::MenuAction(MenuAction::About)),
                 _ => None,
             }
         }
@@ -184,7 +202,9 @@ impl App {
 
         // Build menu structure using Tree::with_children
         // Use '&' to mark mnemonic characters (e.g., "&File" makes Alt+F open File menu)
-        let (file_btn, file_mnemonic) = root("&File", Message::NoOp);
+        let show_mnemonic = self.show_mnemonic;
+
+        let (file_btn, file_mnemonic) = root("&File", Message::NoOp, show_mnemonic);
         let mut file_menu = Tree::with_children(
             file_btn,
             items(
@@ -198,13 +218,14 @@ impl App {
                     Item::Divider,
                     Item::Button("E&xit", MenuAction::Exit),
                 ],
+                show_mnemonic,
             ),
         );
         if let Some(m) = file_mnemonic {
             file_menu = file_menu.mnemonic(m);
         }
 
-        let (edit_btn, edit_mnemonic) = root("&Edit", Message::NoOp);
+        let (edit_btn, edit_mnemonic) = root("&Edit", Message::NoOp, show_mnemonic);
         let mut edit_menu = Tree::with_children(
             edit_btn,
             items(
@@ -217,13 +238,14 @@ impl App {
                     Item::Button("&Copy", MenuAction::Copy),
                     Item::Button("&Paste", MenuAction::Paste),
                 ],
+                show_mnemonic,
             ),
         );
         if let Some(m) = edit_mnemonic {
             edit_menu = edit_menu.mnemonic(m);
         }
 
-        let (view_btn, view_mnemonic) = root("&View", Message::NoOp);
+        let (view_btn, view_mnemonic) = root("&View", Message::NoOp, show_mnemonic);
         let mut view_menu = Tree::with_children(
             view_btn,
             items(
@@ -236,16 +258,21 @@ impl App {
                         MenuAction::ToggleToolbar,
                     ),
                 ],
+                show_mnemonic,
             ),
         );
         if let Some(m) = view_mnemonic {
             view_menu = view_menu.mnemonic(m);
         }
 
-        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp);
+        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp, show_mnemonic);
         let mut help_menu = Tree::with_children(
             help_btn,
-            items(&key_binds, vec![Item::Button("&About", MenuAction::About)]),
+            items(
+                &key_binds,
+                vec![Item::Button("&About", MenuAction::About)],
+                show_mnemonic,
+            ),
         );
         if let Some(m) = help_mnemonic {
             help_menu = help_menu.mnemonic(m);

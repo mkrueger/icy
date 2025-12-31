@@ -227,7 +227,7 @@ where
                 click_outside: true,
                 click_inside: true,
             },
-            item_width: ItemWidth::Uniform(180),
+            item_width: ItemWidth::Uniform(240),
             item_height: ItemHeight::Dynamic(36),
             path_highlight: Some(PathHighlight::MenuActive),
             menu_roots,
@@ -612,11 +612,6 @@ where
                             width: item_bounds.width - p_left - p_right,
                             height: item_bounds.height - p_top - p_bottom,
                         };
-
-                        println!(
-                            "Highlighting menu item at index p_top={} p_bottom={}",
-                            p_top, p_bottom
-                        );
 
                         let [tl, tr, br, bl] = styling.path_border_radius;
                         let path_quad = renderer::Quad {

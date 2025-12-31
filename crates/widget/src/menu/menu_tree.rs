@@ -10,8 +10,16 @@ use crate::core::{Alignment, Element, Length, renderer};
 
 use super::action::MenuAction;
 use super::key_bind::KeyBind;
-use super::mnemonic::parse_mnemonic;
+use super::mnemonic::{mnemonic_text, parse_mnemonic};
 use crate::{Button, Row, Space, button, text};
+
+/// Style function for keyboard shortcut text in menus.
+/// Uses 60% opacity for a subtle, secondary appearance.
+fn shortcut_text_style(theme: &crate::Theme) -> crate::text::Style {
+    let mut color = theme.on_background();
+    color.a *= 0.6;
+    crate::text::Style { color: Some(color) }
+}
 
 /// Nested menu is essentially a tree of items, a menu is a collection of items
 /// a menu itself can also be an item of another menu.
@@ -233,13 +241,14 @@ pub enum MenuItem<A: MenuAction, L: Into<Cow<'static, str>>> {
 pub fn menu_root<'a, Message>(
     label: impl Into<Cow<'a, str>> + 'a,
     on_press: Message,
+    show_mnemonic: bool,
 ) -> (Button<'a, Message>, Option<char>)
 where
     Message: Clone + 'a,
 {
     let l: Cow<'a, str> = label.into();
     let parsed = parse_mnemonic(&l);
-    let button = button(text(parsed.display_text.into_owned()))
+    let button = button(mnemonic_text(&l, show_mnemonic))
         .padding([4, 12])
         .on_press(on_press)
         .style(super::style::menu_root_style);
@@ -253,6 +262,7 @@ where
 /// # Arguments
 /// - `key_binds` - A reference to a `HashMap` that maps `KeyBind` to `A`.
 /// - `children` - A vector of `MenuItem`.
+/// - `show_mnemonic` - Whether to show mnemonic underlines (typically when Alt is pressed).
 ///
 /// # Returns
 /// - A vector of `MenuTree`.
@@ -260,6 +270,7 @@ where
 pub fn menu_items<'a, A, L, Message>(
     key_binds: &HashMap<KeyBind, A>,
     children: Vec<MenuItem<A, L>>,
+    show_mnemonic: bool,
 ) -> Vec<MenuTree<'a, Message, crate::Theme, crate::Renderer>>
 where
     A: MenuAction<Message = Message>,
@@ -289,9 +300,9 @@ where
                     let parsed = parse_mnemonic(&l);
                     let key = find_key(&action, key_binds);
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        text(parsed.display_text.into_owned()).into(),
+                        mnemonic_text(&l, show_mnemonic),
                         Space::new().width(Length::Fill).into(),
-                        text(key).into(),
+                        text(key).style(shortcut_text_style).into(),
                     ];
 
                     let menu_button = menu_button(items).on_press(action.message());
@@ -303,7 +314,7 @@ where
                     let l: Cow<'static, str> = label.into();
                     let parsed = parse_mnemonic(&l);
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        text(parsed.display_text.into_owned()).into(),
+                        mnemonic_text(&l, show_mnemonic),
                         Space::new().width(Length::Fill).into(),
                     ];
 
@@ -321,9 +332,9 @@ where
 
                     let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
                         text(check_mark).into(),
-                        text(parsed.display_text.into_owned()).into(),
+                        mnemonic_text(&l, show_mnemonic),
                         Space::new().width(Length::Fill).into(),
-                        text(key).into(),
+                        text(key).style(shortcut_text_style).into(),
                     ];
 
                     let mut tree = MenuTree::new(menu_button(items).on_press(action.message()));
@@ -336,11 +347,11 @@ where
 
                     let mut tree = MenuTree::with_children(
                         menu_button(vec![
-                            text(parsed.display_text.into_owned()).into(),
+                            mnemonic_text(&l, show_mnemonic),
                             Space::new().width(Length::Fill).into(),
                             text("▶").into(),
                         ]),
-                        menu_items(key_binds, sub_children),
+                        menu_items(key_binds, sub_children, show_mnemonic),
                     );
                     tree.mnemonic = parsed.mnemonic_char;
                     trees.push(tree);
