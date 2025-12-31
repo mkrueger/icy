@@ -551,6 +551,24 @@ where
             mouse::Interaction::default()
         }
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        let (start, end) = self.range.clone().into_inner();
+        Some(
+            crate::core::accessibility::WidgetInfo::slider(
+                self.value.into(),
+                start.into(),
+                end.into(),
+            )
+            .with_bounds(layout.bounds())
+            .with_step(self.step.into()),
+        )
+    }
 }
 
 impl<'a, T, Message, Theme, Renderer> From<VerticalSlider<'a, T, Message, Theme>>

@@ -26,6 +26,7 @@ fira-sans = ["iced_graphics/fira-sans"]
 strict-assertions = ["iced_wgpu?/strict-assertions"]
 x11 = ["iced_tiny_skia?/x11"]
 wayland = ["iced_tiny_skia?/wayland"]
+accessibility = ["iced_graphics/accessibility"]
 
 [dependencies]
 iced_graphics.workspace = true

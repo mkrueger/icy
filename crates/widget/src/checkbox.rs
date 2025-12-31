@@ -546,6 +546,20 @@ where
             operation.text(None, layout.bounds(), label);
         }
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        let label = self.label.as_deref().unwrap_or("");
+        Some(
+            crate::core::accessibility::WidgetInfo::checkbox(label, self.is_checked)
+                .with_bounds(layout.bounds())
+                .with_enabled(self.on_toggle.is_some()),
+        )
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<Checkbox<'a, Message, Theme, Renderer>>

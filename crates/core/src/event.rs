@@ -5,6 +5,9 @@ use crate::mouse;
 use crate::touch;
 use crate::window;
 
+#[cfg(feature = "accessibility")]
+use crate::accessibility;
+
 /// A user interface event.
 ///
 /// _**Note:** This type is largely incomplete! If you need to track
@@ -27,6 +30,13 @@ pub enum Event {
 
     /// An input method event
     InputMethod(input_method::Event),
+
+    /// An accessibility event from a screen reader or assistive technology.
+    ///
+    /// This event is triggered when a user interacts with the UI through
+    /// accessibility tools like screen readers (Narrator, VoiceOver, Orca).
+    #[cfg(feature = "accessibility")]
+    Accessibility(accessibility::Event),
 }
 
 /// The status of an [`Event`] after being processed.

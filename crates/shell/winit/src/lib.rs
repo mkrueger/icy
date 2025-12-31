@@ -30,6 +30,9 @@ pub mod clipboard;
 pub mod conversion;
 pub mod dnd;
 
+#[cfg(feature = "accessibility")]
+pub mod accessibility;
+
 mod error;
 mod proxy;
 mod window;
@@ -1764,6 +1767,20 @@ fn run_action<'a, P, C>(
                 );
 
                 window.raw.request_redraw();
+            }
+        }
+        #[cfg(feature = "accessibility")]
+        Action::Accessibility(action) => {
+            use crate::runtime::accessibility::Action as AccessibilityAction;
+            match action {
+                AccessibilityAction::Announce { message, priority } => {
+                    log::info!("Screen reader announcement ({:?}): {}", priority, message);
+                    // TODO: Send announcement to accessibility adapter
+                }
+                AccessibilityAction::Focus { target } => {
+                    log::info!("Focus accessible element: {:?}", target);
+                    // TODO: Focus accessible element via accessibility adapter
+                }
             }
         }
         Action::Exit => {

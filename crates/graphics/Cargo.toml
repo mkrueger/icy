@@ -23,6 +23,7 @@ image = ["dep:image", "kamadak-exif"]
 svg = []
 web-colors = []
 fira-sans = []
+accessibility = ["iced_core/accessibility"]
 
 [dependencies]
 iced_core.workspace = true

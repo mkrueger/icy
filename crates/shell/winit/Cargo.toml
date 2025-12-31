@@ -22,6 +22,7 @@ unconditional-rendering = []
 linux-theme-detection = ["dep:mundy", "mundy/async-io", "mundy/color-scheme"]
 x11 = ["winit/x11", "dep:clipboard-rs"]
 wayland = ["winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "dep:smithay-clipboard", "dep:wayland-client"]
+accessibility = ["dep:accesskit_winit", "dep:accesskit", "iced_program/accessibility"]
 
 [dependencies]
 iced_debug.workspace = true
@@ -35,6 +36,12 @@ winit.workspace = true
 
 sysinfo.workspace = true
 sysinfo.optional = true
+
+accesskit_winit.workspace = true
+accesskit_winit.optional = true
+
+accesskit.workspace = true
+accesskit.optional = true
 
 # Clipboard backends
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]

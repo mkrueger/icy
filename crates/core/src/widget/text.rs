@@ -254,6 +254,20 @@ where
     ) {
         operation.text(None, layout.bounds(), &self.fragment);
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility_label(&self) -> Option<std::borrow::Cow<'_, str>> {
+        Some(std::borrow::Cow::Borrowed(self.fragment.as_ref()))
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &Tree,
+        layout: Layout<'_>,
+    ) -> Option<crate::accessibility::WidgetInfo> {
+        Some(crate::accessibility::WidgetInfo::label(&*self.fragment).with_bounds(layout.bounds()))
+    }
 }
 
 /// The format of some [`Text`].

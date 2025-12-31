@@ -611,6 +611,50 @@ pub mod dnd {
     };
 }
 
+#[cfg(feature = "accessibility")]
+pub mod accessibility {
+    //! Accessibility support for screen readers and assistive technologies.
+    //!
+    //! This module provides types for building an accessibility tree that can be
+    //! consumed by screen readers like NVDA (Windows), VoiceOver (macOS), and
+    //! Orca (Linux).
+    //!
+    //! # Overview
+    //!
+    //! Accessibility support is built on [AccessKit](https://accesskit.dev/), which
+    //! provides cross-platform accessibility via native APIs:
+    //! - **Windows**: UI Automation
+    //! - **macOS**: NSAccessibility
+    //! - **Linux**: AT-SPI (via D-Bus)
+    //!
+    //! # Events
+    //!
+    //! When a screen reader user interacts with your app, you'll receive
+    //! [`Event::Accessibility`](crate::Event::Accessibility) events that contain
+    //! action requests like "click", "focus", or "set value".
+    //!
+    //! # Example
+    //! ```ignore
+    //! use iced::accessibility::{WidgetInfo, Action, Event};
+    //!
+    //! // Create accessibility info for a button
+    //! let info = WidgetInfo::button("Press me!");
+    //!
+    //! // Handle accessibility events in update()
+    //! match event {
+    //!     Event::Accessibility(acc_event) if acc_event.is_click() => {
+    //!         // Handle screen reader "click" action
+    //!     }
+    //!     _ => {}
+    //! }
+    //! ```
+    pub use crate::core::accessibility::{
+        AccessibilityState, Action, ActionData, ActionRequest, Event, Node, NodeId, Role, Tree,
+        TreeUpdate, WidgetInfo, node_id,
+    };
+    pub use crate::runtime::accessibility::{Priority, announce, focus};
+}
+
 pub mod executor {
     //! Choose your preferred executor to power your application.
     pub use iced_futures::Executor;

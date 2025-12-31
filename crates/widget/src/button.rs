@@ -384,6 +384,30 @@ where
                     }
                 }
             }
+            #[cfg(feature = "accessibility")]
+            Event::Accessibility(accessibility_event) => {
+                // Handle screen reader "click" action
+                if accessibility_event.is_click() {
+                    if let Some(on_press) = &self.on_press {
+                        shell.publish(on_press.get());
+                        shell.capture_event();
+                    }
+                }
+                // Handle screen reader "focus" action
+                if accessibility_event.is_focus() {
+                    let state = tree.state.downcast_mut::<State>();
+                    state.is_focused = true;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "blur" action
+                if accessibility_event.is_blur() {
+                    let state = tree.state.downcast_mut::<State>();
+                    state.is_focused = false;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
             _ => {}
         }
 
@@ -509,6 +533,26 @@ where
             renderer,
             viewport,
             translation,
+        )
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &Tree,
+        layout: Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        // Get label from child widget (e.g., Text) or use empty string
+        let label = self
+            .content
+            .as_widget()
+            .accessibility_label()
+            .map(|s| s.into_owned())
+            .unwrap_or_default();
+        Some(
+            crate::core::accessibility::WidgetInfo::button(label)
+                .with_bounds(layout.bounds())
+                .with_enabled(self.on_press.is_some()),
         )
     }
 }

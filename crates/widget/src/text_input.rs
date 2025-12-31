@@ -1297,6 +1297,20 @@ where
             mouse::Interaction::default()
         }
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        Some(
+            crate::core::accessibility::WidgetInfo::text_input(self.value.to_string())
+                .with_bounds(layout.bounds())
+                .with_enabled(self.on_input.is_some())
+                .with_placeholder(&self.placeholder),
+        )
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<TextInput<'a, Message, Theme, Renderer>>

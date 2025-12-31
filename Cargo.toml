@@ -101,6 +101,8 @@ linux-theme-detection = ["iced_winit/linux-theme-detection"]
 x11 = ["iced_renderer/x11", "iced_winit/x11"]
 # Enables the Unix Wayland backend
 wayland = ["iced_renderer/wayland", "iced_winit/wayland"]
+# Enables accessibility support via AccessKit (screen readers)
+accessibility = ["iced_core/accessibility", "iced_widget/accessibility", "iced_winit/accessibility"]
 
 [dependencies]
 iced_debug.workspace = true
@@ -283,6 +285,10 @@ winit = { git = "https://github.com/iced-rs/winit.git", rev = "05b8ff17a06562f0a
     "rwh_06",
 ] }
 
+# Accessibility
+accesskit = "0.18"
+accesskit_winit = "0.24"
+
 # Clipboard backends
 clipboard-rs = "0.3"
 smithay-clipboard = { git = "https://github.com/mkrueger/smithay-clipboard.git", rev = "0be79e9828bb42ea6591afe95e2f189458577054", features = ["dnd"] }
@@ -314,3 +320,7 @@ useless_conversion = "deny"
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "forbid"
+
+# Patch winit so accesskit_winit uses the same version as iced
+[patch.crates-io]
+winit = { git = "https://github.com/iced-rs/winit.git", rev = "05b8ff17a06562f0a10bb46e6eaacbe2a95cb5ed" }

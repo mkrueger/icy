@@ -9,6 +9,10 @@
     html_logo_url = "https://raw.githubusercontent.com/iced-rs/iced/9ab6923e943f784985e9ef9ca28b10278297225d/docs/logo.svg"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[cfg(feature = "accessibility")]
+pub mod accessibility;
+
 pub mod clipboard;
 pub mod dnd;
 pub mod font;
@@ -63,6 +67,10 @@ pub enum Action<T> {
     /// Run an image action.
     Image(image::Action),
 
+    /// Run an accessibility action.
+    #[cfg(feature = "accessibility")]
+    Accessibility(accessibility::Action),
+
     /// Poll any resources that may have pending computations.
     Tick,
 
@@ -92,6 +100,8 @@ impl<T> Action<T> {
             Action::Window(action) => Err(Action::Window(action)),
             Action::System(action) => Err(Action::System(action)),
             Action::Image(action) => Err(Action::Image(action)),
+            #[cfg(feature = "accessibility")]
+            Action::Accessibility(action) => Err(Action::Accessibility(action)),
             Action::Tick => Err(Action::Tick),
             Action::Reload => Err(Action::Reload),
             Action::Exit => Err(Action::Exit),
@@ -121,6 +131,10 @@ where
             Action::Window(_) => write!(f, "Action::Window"),
             Action::System(action) => write!(f, "Action::System({action:?})"),
             Action::Image(_) => write!(f, "Action::Image"),
+            #[cfg(feature = "accessibility")]
+            Action::Accessibility(action) => {
+                write!(f, "Action::Accessibility({action:?})")
+            }
             Action::Tick => write!(f, "Action::Tick"),
             Action::Reload => write!(f, "Action::Reload"),
             Action::Exit => write!(f, "Action::Exit"),

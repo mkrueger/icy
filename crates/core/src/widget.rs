@@ -147,4 +147,26 @@ where
     ) -> Option<overlay::Element<'a, Message, Theme, Renderer>> {
         None
     }
+
+    /// Returns accessibility information for this widget.
+    ///
+    /// This is used by screen readers and other assistive technologies.
+    /// By default, widgets are not accessible.
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &Tree,
+        _layout: Layout<'_>,
+    ) -> Option<crate::accessibility::WidgetInfo> {
+        None
+    }
+
+    /// Returns the accessibility label of this widget, if any.
+    ///
+    /// This is used by container widgets (like buttons) to automatically
+    /// derive their accessibility label from their content.
+    #[cfg(feature = "accessibility")]
+    fn accessibility_label(&self) -> Option<std::borrow::Cow<'_, str>> {
+        None
+    }
 }

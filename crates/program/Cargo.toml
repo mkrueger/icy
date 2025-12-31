@@ -17,6 +17,7 @@ workspace = true
 [features]
 debug = []
 time-travel = []
+accessibility = ["iced_runtime/accessibility"]
 
 [dependencies]
 iced_graphics.workspace = true

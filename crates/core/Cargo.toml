@@ -19,6 +19,7 @@ crisp = []
 basic-shaping = []
 advanced-shaping = []
 serde = ["dep:serde", "dep:ron"]
+accessibility = ["dep:accesskit"]
 
 [dependencies]
 bitflags.workspace = true
@@ -38,3 +39,6 @@ serde.features = ["derive"]
 
 ron.workspace = true
 ron.optional = true
+
+accesskit.workspace = true
+accesskit.optional = true
