@@ -547,20 +547,18 @@ impl<P: Program<Theme = Theme> + 'static> Tester<P> {
             };
 
             container(row![icon.size(14), label].align_y(Center).spacing(8)).style(
-                |theme: &Theme| {
-                    container::Style {
-                        text_color: Some(match &self.state {
-                            State::Empty | State::Idle { .. } => theme.background.on,
-                            State::Recording { .. } => theme.destructive.base,
-                            State::Asserting { .. } => theme.warning.base,
-                            State::Playing { outcome, .. } => match outcome {
-                                Outcome::Running => theme.accent.base,
-                                Outcome::Failed => theme.destructive.base,
-                                Outcome::Success => theme.success.base,
-                            },
-                        }),
-                        ..container::Style::default()
-                    }
+                |theme: &Theme| container::Style {
+                    text_color: Some(match &self.state {
+                        State::Empty | State::Idle { .. } => theme.background.on,
+                        State::Recording { .. } => theme.destructive.base,
+                        State::Asserting { .. } => theme.warning.base,
+                        State::Playing { outcome, .. } => match outcome {
+                            Outcome::Running => theme.accent.base,
+                            Outcome::Failed => theme.destructive.base,
+                            Outcome::Success => theme.success.base,
+                        },
+                    }),
+                    ..container::Style::default()
                 },
             )
         };
@@ -590,20 +588,18 @@ impl<P: Program<Theme = Theme> + 'static> Tester<P> {
                 horizontal: scrollable::Scrollbar::default(),
             }),
         )
-        .style(|theme: &Theme| {
-            container::Style {
-                border: border::width(2.0).color(match &self.state {
-                    State::Empty | State::Idle { .. } => theme.background.on,
-                    State::Recording { .. } => theme.destructive.base,
-                    State::Asserting { .. } => theme.warning.base,
-                    State::Playing { outcome, .. } => match outcome {
-                        Outcome::Running => theme.accent.base,
-                        Outcome::Failed => theme.destructive.base,
-                        Outcome::Success => theme.success.base,
-                    },
-                }),
-                ..container::Style::default()
-            }
+        .style(|theme: &Theme| container::Style {
+            border: border::width(2.0).color(match &self.state {
+                State::Empty | State::Idle { .. } => theme.background.on,
+                State::Recording { .. } => theme.destructive.base,
+                State::Asserting { .. } => theme.warning.base,
+                State::Playing { outcome, .. } => match outcome {
+                    Outcome::Running => theme.accent.base,
+                    Outcome::Failed => theme.destructive.base,
+                    Outcome::Success => theme.success.base,
+                },
+            }),
+            ..container::Style::default()
         })
         .padding(10);
 
@@ -613,8 +609,7 @@ impl<P: Program<Theme = Theme> + 'static> Tester<P> {
             container(self.controls().map(Tick::Tester))
                 .width(250)
                 .padding(10)
-                .style(|theme| container::Style::default()
-                    .background(theme.background.base)),
+                .style(|theme| container::Style::default().background(theme.background.base)),
         ]
         .into()
     }
@@ -692,12 +687,8 @@ impl<P: Program<Theme = Theme> + 'static> Tester<P> {
                                                 if *current == i + 1 {
                                                     Some(match outcome {
                                                         Outcome::Running => theme.accent.base,
-                                                        Outcome::Failed => {
-                                                            theme.destructive.base
-                                                        }
-                                                        Outcome::Success => {
-                                                            theme.success.base
-                                                        }
+                                                        Outcome::Failed => theme.destructive.base,
+                                                        Outcome::Success => theme.success.base,
                                                     })
                                                 } else if *current > i + 1 {
                                                     Some(theme.success.base)

@@ -8,15 +8,14 @@ use std::borrow::Cow;
 use std::cell::Cell;
 
 use crate::core::text::Span;
-use crate::text;
 use crate::core::{
-    Clipboard, Element, Layout, Length, Rectangle, Shell, Size, Widget,
-    event,
+    Clipboard, Element, Layout, Length, Rectangle, Shell, Size, Widget, event,
     layout::{Limits, Node},
     mouse::Cursor,
     overlay, renderer,
     widget::{Tree, tree},
 };
+use crate::text;
 
 type RichType<Message> = text::Rich<'static, (), Message, crate::Theme, crate::Renderer>;
 
@@ -202,7 +201,9 @@ impl<Message> Widget<Message, crate::Theme, crate::Renderer> for MnemonicLabel<M
     }
 
     fn diff(&self, tree: &mut Tree) {
-        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::diff(&self.rich, tree);
+        <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::diff(
+            &self.rich, tree,
+        );
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &crate::Renderer, limits: &Limits) -> Node {
@@ -250,14 +251,7 @@ impl<Message> Widget<Message, crate::Theme, crate::Renderer> for MnemonicLabel<M
         viewport: &Rectangle,
     ) {
         <RichType<Message> as Widget<Message, crate::Theme, crate::Renderer>>::draw(
-            &self.rich,
-            tree,
-            renderer,
-            theme,
-            style,
-            layout,
-            cursor,
-            viewport,
+            &self.rich, tree, renderer, theme, style, layout, cursor, viewport,
         );
     }
 
@@ -274,7 +268,8 @@ impl<Message> Widget<Message, crate::Theme, crate::Renderer> for MnemonicLabel<M
     }
 }
 
-impl<'a, Message> From<MnemonicLabel<Message>> for Element<'a, Message, crate::Theme, crate::Renderer>
+impl<'a, Message> From<MnemonicLabel<Message>>
+    for Element<'a, Message, crate::Theme, crate::Renderer>
 where
     Message: Clone + 'a,
 {

@@ -247,10 +247,7 @@ impl App {
         let (help_btn, help_mnemonic) = root("&Help", Message::NoOp);
         let mut help_menu = Tree::with_children(
             help_btn,
-            items(
-                &key_binds,
-                vec![Item::Button("&About", MenuAction::About)],
-            ),
+            items(&key_binds, vec![Item::Button("&About", MenuAction::About)]),
         );
         if let Some(m) = help_mnemonic {
             help_menu = help_menu.mnemonic(m);

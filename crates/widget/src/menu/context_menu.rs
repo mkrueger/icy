@@ -197,18 +197,26 @@ where
         let open = state.menu_bar_state.inner.with_data(|state| state.open);
         let mut was_open = false;
 
-        // Handle escape key and clicks when menu is open
-        if matches!(
+        // Handle escape key when menu is open
+        let close_for_escape = self.close_on_escape
+            && matches!(
+                event,
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                    ..
+                })
+            );
+
+        // Handle clicks when menu is open
+        let close_for_click = matches!(
             event,
-            Event::Keyboard(keyboard::Event::KeyPressed {
-                key: keyboard::Key::Named(keyboard::key::Named::Escape),
-                ..
-            }) | Event::Mouse(mouse::Event::ButtonPressed {
+            Event::Mouse(mouse::Event::ButtonPressed {
                 button: mouse::Button::Right | mouse::Button::Left,
                 ..
             }) | Event::Touch(touch::Event::FingerPressed { .. })
-        ) && open
-        {
+        );
+
+        if open && (close_for_escape || close_for_click) {
             state.menu_bar_state.inner.with_data_mut(|state| {
                 was_open = true;
                 state.menu_states.clear();
@@ -248,12 +256,12 @@ where
                 shell.capture_event();
                 shell.request_redraw();
                 return;
-            } else if !was_open && right_button_released(event)
-                || touch_lifted(event)
-                || left_button_released(event)
+            } else if !was_open
+                && (right_button_released(event)
+                    || touch_lifted(event)
+                    || left_button_released(event))
             {
                 state.menu_bar_state.inner.with_data_mut(|state| {
-                    was_open = true;
                     state.menu_states.clear();
                     state.active_root.clear();
                     state.open = false;

@@ -310,10 +310,8 @@ where
                 MenuItem::ButtonDisabled(label, _action) => {
                     let l: Cow<'static, str> = label.into();
                     let parsed = parse_mnemonic(&l);
-                    let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> = vec![
-                        mnemonic_text(&l),
-                        Space::new().width(Length::Fill).into(),
-                    ];
+                    let items: Vec<Element<'_, Message, crate::Theme, crate::Renderer>> =
+                        vec![mnemonic_text(&l), Space::new().width(Length::Fill).into()];
 
                     let menu_button = menu_button(items);
                     let mut tree = MenuTree::new(menu_button);
