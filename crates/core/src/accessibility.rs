@@ -6,7 +6,9 @@
 
 pub use accesskit::{Action, ActionRequest, Node, NodeId, Role, Tree, TreeUpdate};
 
+use crate::widget;
 use crate::{Point, Rectangle, Size};
+use std::hash::{Hash, Hasher};
 
 /// Information about a widget for accessibility purposes.
 #[derive(Debug, Clone)]
@@ -291,6 +293,25 @@ impl WidgetInfo {
 /// Generates a stable [`NodeId`] from an arbitrary ID value.
 pub fn node_id(id: u64) -> NodeId {
     NodeId(id)
+}
+
+/// Generates a stable [`NodeId`] from a widget [`widget::Id`].
+///
+/// This is useful to associate accessibility action targets back to widgets
+/// that already have stable identifiers.
+pub fn node_id_from_widget_id(id: &widget::Id) -> NodeId {
+    use std::collections::hash_map::DefaultHasher;
+
+    let mut hasher = DefaultHasher::new();
+    id.hash(&mut hasher);
+
+    // Avoid clashing with reserved/special IDs commonly used by shells.
+    let mut value = hasher.finish();
+    if value <= 1 {
+        value = value.wrapping_add(2);
+    }
+
+    NodeId(value)
 }
 
 /// The state of the accessibility tree.

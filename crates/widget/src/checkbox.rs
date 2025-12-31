@@ -2,10 +2,6 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! #
-//! use iced::widget::checkbox;
 //!
 //! struct State {
 //!    is_checked: bool,
@@ -113,8 +109,6 @@ where
     /// The default size of a [`Checkbox`].
     const DEFAULT_SIZE: f32 = 16.0;
 
-    /// Creates a new [`Checkbox`].
-    ///
     /// It expects:
     ///   * a boolean describing whether the [`Checkbox`] is checked or not
     pub fn new(is_checked: bool) -> Self {
@@ -539,6 +533,11 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.accessibility(tree, layout) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
 

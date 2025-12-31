@@ -286,6 +286,13 @@ where
     ) {
         operation.container(None, layout.bounds());
 
+        #[cfg(feature = "accessibility")]
+        if let Some(info) =
+            <Self as Widget<Message, Theme, Renderer>>::accessibility(self, tree, layout)
+        {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
 
@@ -411,6 +418,13 @@ where
             }
             #[cfg(feature = "accessibility")]
             Event::Accessibility(accessibility_event) => {
+                if self.id.as_ref().is_some_and(|id| {
+                    accessibility_event.target
+                        != crate::core::accessibility::node_id_from_widget_id(id)
+                }) {
+                    return;
+                }
+
                 // Handle screen reader "click" action
                 if accessibility_event.is_click() {
                     if let Some(on_press) = &self.on_press {

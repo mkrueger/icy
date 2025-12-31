@@ -650,7 +650,7 @@ pub mod accessibility {
     //! ```
     pub use crate::core::accessibility::{
         AccessibilityState, Action, ActionData, ActionRequest, Event, Node, NodeId, Role, Tree,
-        TreeUpdate, WidgetInfo, node_id,
+        TreeUpdate, WidgetInfo, node_id, node_id_from_widget_id,
     };
     pub use crate::runtime::accessibility::{Priority, announce, focus};
 }

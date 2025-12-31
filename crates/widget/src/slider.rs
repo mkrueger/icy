@@ -559,6 +559,13 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = <Self as Widget<Message, Theme, Renderer>>::accessibility(
+            self, tree, layout,
+        ) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
     }

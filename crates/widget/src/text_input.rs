@@ -632,6 +632,11 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.accessibility(tree, layout) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
 
         operation.text_input(self.id.as_ref(), layout.bounds(), state);

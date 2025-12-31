@@ -1,8 +1,12 @@
 //! Query or update internal widget state.
+#[cfg(feature = "accessibility")]
+pub mod accessibility;
 pub mod focusable;
 pub mod scrollable;
 pub mod text_input;
 
+#[cfg(feature = "accessibility")]
+pub use accessibility::AccessibilityTree;
 pub use focusable::{FocusLevel, FocusTier, Focusable};
 pub use scrollable::Scrollable;
 pub use text_input::TextInput;
@@ -49,6 +53,16 @@ pub trait Operation<T = ()>: Send {
     /// Operates on a widget that contains some text.
     fn text(&mut self, _id: Option<&Id>, _bounds: Rectangle, _text: &str) {}
 
+    /// Operates on a widget that provides accessibility information.
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &mut self,
+        _id: Option<&Id>,
+        _bounds: Rectangle,
+        _info: crate::accessibility::WidgetInfo,
+    ) {
+    }
+
     /// Operates on a custom widget with some state.
     fn custom(&mut self, _id: Option<&Id>, _bounds: Rectangle, _state: &mut dyn Any) {}
 
@@ -92,6 +106,16 @@ where
 
     fn text(&mut self, id: Option<&Id>, bounds: Rectangle, text: &str) {
         self.as_mut().text(id, bounds, text);
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &mut self,
+        id: Option<&Id>,
+        bounds: Rectangle,
+        info: crate::accessibility::WidgetInfo,
+    ) {
+        self.as_mut().accessibility(id, bounds, info);
     }
 
     fn custom(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Any) {
@@ -173,6 +197,16 @@ where
 
         fn text(&mut self, id: Option<&Id>, bounds: Rectangle, text: &str) {
             self.operation.text(id, bounds, text);
+        }
+
+        #[cfg(feature = "accessibility")]
+        fn accessibility(
+            &mut self,
+            id: Option<&Id>,
+            bounds: Rectangle,
+            info: crate::accessibility::WidgetInfo,
+        ) {
+            self.operation.accessibility(id, bounds, info);
         }
 
         fn custom(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Any) {
@@ -257,6 +291,16 @@ where
 
                 fn text(&mut self, id: Option<&Id>, bounds: Rectangle, text: &str) {
                     self.operation.text(id, bounds, text);
+                }
+
+                #[cfg(feature = "accessibility")]
+                fn accessibility(
+                    &mut self,
+                    id: Option<&Id>,
+                    bounds: Rectangle,
+                    info: crate::accessibility::WidgetInfo,
+                ) {
+                    self.operation.accessibility(id, bounds, info);
                 }
 
                 fn custom(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Any) {

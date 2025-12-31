@@ -8,13 +8,24 @@ use winit::window::Window;
 
 use crate::core::Rectangle;
 
+use std::fmt;
+
 // Re-export for convenience
 pub use crate::core::accessibility::Event as AccessibilityEvent;
 
 /// Accessibility adapter wrapper for a window.
 pub struct AccessibilityAdapter {
     adapter: Adapter,
+    receiver: std::sync::mpsc::Receiver<ProcessedEvent>,
     enabled: bool,
+}
+
+impl fmt::Debug for AccessibilityAdapter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AccessibilityAdapter")
+            .field("enabled", &self.enabled)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AccessibilityAdapter {
@@ -24,14 +35,59 @@ impl AccessibilityAdapter {
     /// Creates a new accessibility adapter for a window.
     ///
     /// This must be called before the window is shown.
-    pub fn new<T: From<accesskit_winit::Event> + Send + 'static>(
-        event_loop: &ActiveEventLoop,
-        window: &Window,
-        proxy: winit::event_loop::EventLoopProxy<T>,
-    ) -> Self {
-        let adapter = Adapter::with_event_loop_proxy(event_loop, window, proxy);
+    pub fn new(event_loop: &ActiveEventLoop, window: &Window) -> Self {
+        use accesskit::{ActionHandler, ActivationHandler, DeactivationHandler, TreeUpdate};
+
+        let (sender, receiver) = std::sync::mpsc::channel::<ProcessedEvent>();
+
+        struct Activate {
+            sender: std::sync::mpsc::Sender<ProcessedEvent>,
+        }
+
+        impl ActivationHandler for Activate {
+            fn request_initial_tree(&mut self) -> Option<TreeUpdate> {
+                let _ = self.sender.send(ProcessedEvent::Activated);
+                None
+            }
+        }
+
+        struct DoAction {
+            sender: std::sync::mpsc::Sender<ProcessedEvent>,
+        }
+
+        impl ActionHandler for DoAction {
+            fn do_action(&mut self, request: accesskit::ActionRequest) {
+                let _ = self.sender.send(ProcessedEvent::ActionRequested(
+                    AccessibilityEvent::from_request(request),
+                ));
+            }
+        }
+
+        struct Deactivate {
+            sender: std::sync::mpsc::Sender<ProcessedEvent>,
+        }
+
+        impl DeactivationHandler for Deactivate {
+            fn deactivate_accessibility(&mut self) {
+                let _ = self.sender.send(ProcessedEvent::Deactivated);
+            }
+        }
+
+        let adapter = Adapter::with_direct_handlers(
+            event_loop,
+            window,
+            Activate {
+                sender: sender.clone(),
+            },
+            DoAction {
+                sender: sender.clone(),
+            },
+            Deactivate { sender },
+        );
+
         Self {
             adapter,
+            receiver,
             enabled: false,
         }
     }
@@ -61,6 +117,23 @@ impl AccessibilityAdapter {
     /// Updates the accessibility tree if accessibility is active.
     pub fn update(&mut self, tree_update: impl FnOnce() -> TreeUpdate) {
         self.adapter.update_if_active(tree_update);
+    }
+
+    /// Drains any pending accessibility events.
+    pub fn drain_events(&mut self) -> Vec<ProcessedEvent> {
+        let mut drained = Vec::new();
+
+        while let Ok(event) = self.receiver.try_recv() {
+            match event {
+                ProcessedEvent::Activated => self.activate(),
+                ProcessedEvent::Deactivated => self.deactivate(),
+                _ => {}
+            }
+
+            drained.push(event);
+        }
+
+        drained
     }
 
     /// Sends a full tree update with the given nodes.
@@ -93,6 +166,8 @@ pub fn create_window_node(title: &str, bounds: Rectangle) -> Node {
 /// The result of processing an AccessKit window event.
 #[derive(Debug, Clone)]
 pub enum ProcessedEvent {
+    /// Accessibility was activated (screen reader connected).
+    Activated,
     /// Initial tree was requested - send the full tree.
     InitialTreeRequested,
     /// An action was requested on a node - convert to icy Event.
@@ -102,17 +177,6 @@ pub enum ProcessedEvent {
 }
 
 impl ProcessedEvent {
-    /// Converts an AccessKit winit window event to a processed event.
-    pub fn from_accesskit_event(event: &accesskit_winit::WindowEvent) -> Self {
-        match event {
-            accesskit_winit::WindowEvent::InitialTreeRequested => Self::InitialTreeRequested,
-            accesskit_winit::WindowEvent::ActionRequested(request) => {
-                Self::ActionRequested(AccessibilityEvent::from_request(request.clone()))
-            }
-            accesskit_winit::WindowEvent::AccessibilityDeactivated => Self::Deactivated,
-        }
-    }
-
     /// Returns the accessibility event if this is an action request.
     pub fn into_event(self) -> Option<AccessibilityEvent> {
         match self {
@@ -137,13 +201,9 @@ pub enum AccessibilityAction {
 #[allow(deprecated)]
 impl AccessibilityAction {
     /// Converts an AccessKit winit event to an action.
-    pub fn from_event(event: &accesskit_winit::WindowEvent) -> Self {
-        match event {
-            accesskit_winit::WindowEvent::InitialTreeRequested => Self::InitialTreeRequested,
-            accesskit_winit::WindowEvent::ActionRequested(request) => {
-                Self::ActionRequested(request.clone())
-            }
-            accesskit_winit::WindowEvent::AccessibilityDeactivated => Self::Deactivated,
-        }
+    ///
+    /// Deprecated: the winit-proxy style adapter is no longer used.
+    pub fn from_event(_event: &accesskit_winit::WindowEvent) -> Self {
+        Self::Deactivated
     }
 }

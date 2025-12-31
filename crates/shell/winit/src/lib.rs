@@ -26,12 +26,11 @@ pub use program::runtime;
 pub use runtime::futures;
 pub use winit;
 
+#[cfg(feature = "accessibility")]
+pub mod accessibility;
 pub mod clipboard;
 pub mod conversion;
 pub mod dnd;
-
-#[cfg(feature = "accessibility")]
-pub mod accessibility;
 
 mod error;
 mod proxy;
@@ -343,6 +342,15 @@ where
                                     .create_window(window_attributes)
                                     .expect("Create window");
 
+                                #[cfg(feature = "accessibility")]
+                                let accessibility =
+                                    Some(crate::accessibility::AccessibilityAdapter::new(
+                                        event_loop, &window,
+                                    ));
+
+                                #[cfg(not(feature = "accessibility"))]
+                                let accessibility = ();
+
                                 #[cfg(target_os = "macos")]
                                 if let Some(position) = position {
                                     window.set_outer_position(position);
@@ -390,6 +398,8 @@ where
                                         window: Arc::new(window),
                                         exit_on_close_request,
                                         make_visible: visible,
+                                        #[cfg(feature = "accessibility")]
+                                        accessibility,
                                         on_open,
                                     },
                                 );
@@ -448,6 +458,8 @@ enum Event<Message: 'static> {
         window: Arc<winit::window::Window>,
         exit_on_close_request: bool,
         make_visible: bool,
+        #[cfg(feature = "accessibility")]
+        accessibility: Option<crate::accessibility::AccessibilityAdapter>,
         on_open: oneshot::Sender<window::Id>,
     },
     EventLoopAwakened(winit::event::Event<Message>),
@@ -468,6 +480,16 @@ enum Control {
         scale_factor: f32,
     },
     SetAutomaticWindowTabbing(bool),
+}
+
+#[cfg(feature = "accessibility")]
+struct AccessibilityState {
+    adapter: crate::accessibility::AccessibilityAdapter,
+    pending_announcement: Option<(String, crate::runtime::accessibility::Priority)>,
+    announcement_serial: u64,
+    focus_override: Option<crate::core::accessibility::NodeId>,
+    /// The last focused node id, used to detect focus changes and announce them.
+    last_focused: Option<crate::core::accessibility::NodeId>,
 }
 
 async fn run_instance<P>(
@@ -500,6 +522,9 @@ async fn run_instance<P>(
     let mut user_interfaces = ManuallyDrop::new(FxHashMap::default());
     let mut clipboard = Clipboard::unconnected();
     let mut dnd_manager = DndManager::unconnected();
+
+    #[cfg(feature = "accessibility")]
+    let mut accessibility: FxHashMap<window::Id, AccessibilityState> = FxHashMap::default();
 
     #[cfg(all(feature = "linux-theme-detection", target_os = "linux"))]
     let mut system_theme = {
@@ -553,6 +578,8 @@ async fn run_instance<P>(
                 window,
                 exit_on_close_request,
                 make_visible,
+                #[cfg(feature = "accessibility")]
+                    accessibility: a11y_adapter,
                 on_open,
             } => {
                 if compositor.is_none() {
@@ -667,6 +694,20 @@ async fn run_instance<P>(
                 );
                 let _ = ui_caches.insert(id, user_interface::Cache::default());
 
+                #[cfg(feature = "accessibility")]
+                if let Some(adapter) = a11y_adapter {
+                    let _ = accessibility.insert(
+                        id,
+                        AccessibilityState {
+                            adapter,
+                            pending_announcement: None,
+                            announcement_serial: 0,
+                            focus_override: None,
+                            last_focused: None,
+                        },
+                    );
+                }
+
                 if make_visible {
                     window.raw.set_visible(true);
                 }
@@ -760,6 +801,8 @@ async fn run_instance<P>(
                             &mut window_manager,
                             &mut ui_caches,
                             &mut is_window_opening,
+                            #[cfg(feature = "accessibility")]
+                            &mut accessibility,
                             &mut system_theme,
                         );
                         actions += 1;
@@ -878,6 +921,8 @@ async fn run_instance<P>(
                                         &mut window_manager,
                                         &mut ui_caches,
                                         &mut is_window_opening,
+                                        #[cfg(feature = "accessibility")]
+                                        &mut accessibility,
                                         &mut system_theme,
                                     );
                                 }
@@ -932,6 +977,13 @@ async fn run_instance<P>(
                             cursor,
                         );
                         draw_span.finish();
+
+                        #[cfg(feature = "accessibility")]
+                        if let Some(state) = accessibility.get_mut(&id)
+                            && state.adapter.is_enabled()
+                        {
+                            update_accessibility_tree(id, window, interface, state);
+                        }
 
                         if let user_interface::State::Updated {
                             redraw_request,
@@ -1062,6 +1114,8 @@ async fn run_instance<P>(
                                 &mut window_manager,
                                 &mut ui_caches,
                                 &mut is_window_opening,
+                                #[cfg(feature = "accessibility")]
+                                &mut accessibility,
                                 &mut system_theme,
                             );
                         } else {
@@ -1080,6 +1134,31 @@ async fn run_instance<P>(
                         if actions > 0 {
                             proxy.free_slots(actions);
                             actions = 0;
+                        }
+
+                        #[cfg(feature = "accessibility")]
+                        {
+                            use crate::accessibility::ProcessedEvent;
+
+                            for (id, state) in accessibility.iter_mut() {
+                                for event in state.adapter.drain_events() {
+                                    match event {
+                                        ProcessedEvent::Activated => {
+                                            if let Some(window) = window_manager.get_mut(*id) {
+                                                window.raw.request_redraw();
+                                            }
+                                        }
+                                        ProcessedEvent::ActionRequested(acc_event) => {
+                                            events
+                                                .push((*id, core::Event::Accessibility(acc_event)));
+                                        }
+                                        ProcessedEvent::Deactivated => {}
+                                        ProcessedEvent::InitialTreeRequested => {
+                                            // Not used by the direct-handler adapter.
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         if events.is_empty() && messages.is_empty() && window_manager.is_idle() {
@@ -1115,6 +1194,72 @@ async fn run_instance<P>(
                                     &mut clipboard,
                                     &mut messages,
                                 );
+
+                            #[cfg(feature = "accessibility")]
+                            if let Some(state) = accessibility.get_mut(&id)
+                                && state.adapter.is_enabled()
+                            {
+                                use crate::core::keyboard;
+                                use crate::core::keyboard::key::Named;
+                                use crate::core::widget::operation;
+                                use crate::core::widget::operation::Operation as _;
+
+                                // Accessibility mode = full focus on steroids:
+                                // When the screen reader is enabled, Tab/Shift+Tab should
+                                // traverse ALL focusable controls.
+                                let mut moved_focus = false;
+                                for (event, status) in window_events.iter().zip(statuses.iter()) {
+                                    if *status != crate::core::event::Status::Ignored {
+                                        continue;
+                                    }
+
+                                    let crate::core::Event::Keyboard(keyboard::Event::KeyPressed {
+                                        key,
+                                        modifiers,
+                                        ..
+                                    }) = event
+                                    else {
+                                        continue;
+                                    };
+
+                                    if *key != keyboard::Key::Named(Named::Tab) {
+                                        continue;
+                                    }
+
+                                    if let Some(ui) = user_interfaces.get_mut(&id) {
+                                        let level = operation::FocusLevel::AllControls;
+
+                                        if modifiers.shift() {
+                                            let mut op =
+                                                operation::focusable::focus_previous_filtered::<()>(
+                                                    level,
+                                                );
+                                            ui.operate(&window.renderer, &mut op);
+                                            let _ = op.finish();
+                                        } else {
+                                            let mut op =
+                                                operation::focusable::focus_next_filtered::<()>(
+                                                    level,
+                                                );
+                                            ui.operate(&window.renderer, &mut op);
+                                            let _ = op.finish();
+                                        }
+                                    }
+
+                                    window.raw.request_redraw();
+                                    moved_focus = true;
+                                    break;
+                                }
+
+                                // Ensure the VoiceOver marker follows the new focus.
+                                if moved_focus {
+                                    if let Some(ui) = user_interfaces.get_mut(&id) {
+                                        update_accessibility_tree(id, window, ui, state);
+                                    }
+                                } else if let Some(ui) = user_interfaces.get_mut(&id) {
+                                    update_accessibility_tree(id, window, ui, state);
+                                }
+                            }
 
                             #[cfg(feature = "unconditional-rendering")]
                             window.request_redraw(window::RedrawRequest::NextFrame);
@@ -1186,6 +1331,8 @@ async fn run_instance<P>(
                                     &mut window_manager,
                                     &mut ui_caches,
                                     &mut is_window_opening,
+                                    #[cfg(feature = "accessibility")]
+                                    &mut accessibility,
                                     &mut system_theme,
                                 );
                             }
@@ -1211,6 +1358,137 @@ async fn run_instance<P>(
     }
 
     let _ = ManuallyDrop::into_inner(user_interfaces);
+}
+
+#[cfg(feature = "accessibility")]
+fn update_accessibility_tree<'a, P, C>(
+    _id: window::Id,
+    window: &mut window::Window<P, C>,
+    ui: &mut UserInterface<'a, P::Message, P::Theme, P::Renderer>,
+    state: &mut AccessibilityState,
+) where
+    P: Program,
+    C: Compositor<Renderer = P::Renderer> + 'static,
+    P::Theme: theme::Base,
+{
+    use crate::core::accessibility::{Node, NodeId, Role, node_id_from_widget_id};
+    use crate::core::widget::operation;
+    use crate::core::widget::operation::Operation;
+    use accesskit::Live;
+    use std::sync::{Arc, Mutex};
+
+    if !state.adapter.is_enabled() {
+        return;
+    }
+
+    let bounds = crate::core::Rectangle::with_size(window.state.logical_size());
+
+    let collected = {
+        let output: Arc<Mutex<Option<operation::AccessibilityTree>>> = Arc::new(Mutex::new(None));
+        let output_ref = Arc::clone(&output);
+
+        let mut op = operation::map(operation::accessibility::collect(), move |tree| {
+            *output_ref.lock().expect("lock accessibility tree") = Some(tree);
+        });
+
+        ui.operate(&window.renderer, &mut op);
+        let _ = op.finish();
+
+        output.lock().expect("lock accessibility tree").take()
+    };
+
+    let Some(collected) = collected else {
+        return;
+    };
+
+    let root_id = crate::accessibility::AccessibilityAdapter::ROOT_ID;
+    let announcer_id = NodeId(1);
+
+    let mut root = crate::accessibility::create_window_node("", bounds);
+
+    let mut announcer = Node::new(Role::Label);
+    announcer.set_bounds(accesskit::Rect {
+        x0: 0.0,
+        y0: 0.0,
+        x1: 0.0,
+        y1: 0.0,
+    });
+    announcer.set_live(Live::Off);
+
+    if let Some((message, priority)) = state.pending_announcement.take() {
+        state.announcement_serial = state.announcement_serial.wrapping_add(1);
+
+        // Ensure the value changes even if the same message is repeated.
+        let label = format!("{message} ({})", state.announcement_serial);
+        announcer.set_label(label);
+
+        announcer.set_live(match priority {
+            crate::runtime::accessibility::Priority::Polite => Live::Polite,
+            crate::runtime::accessibility::Priority::Assertive => Live::Assertive,
+        });
+    }
+
+    let mut children = Vec::with_capacity(1 + collected.nodes.len());
+    children.push(announcer_id);
+    children.extend(collected.nodes.iter().map(|(id, _)| *id));
+    root.set_children(children);
+
+    let focus = state.focus_override.take().or_else(|| {
+        let output: Arc<Mutex<Option<crate::core::widget::Id>>> = Arc::new(Mutex::new(None));
+        let output_ref = Arc::clone(&output);
+
+        let mut op = operation::map(operation::focusable::find_focused(), move |id| {
+            *output_ref.lock().expect("lock focused widget") = Some(id);
+        });
+
+        ui.operate(&window.renderer, &mut op);
+        let _ = op.finish();
+
+        output
+            .lock()
+            .expect("lock focused widget")
+            .take()
+            .map(|id| node_id_from_widget_id(&id))
+    });
+
+    // Detect focus change and announce the newly focused widget's label/value.
+    if focus != state.last_focused {
+        state.last_focused = focus;
+
+        // If there's a newly focused node, find its label/value from collected nodes and announce it.
+        if let Some(focused_id) = focus {
+            if let Some((_, node)) = collected.nodes.iter().find(|(id, _)| *id == focused_id) {
+                // Try to derive a description from the node.
+                // AccessKit Node has label() and value() accessors.
+                let label_text = node.label().map(|s| s.to_string());
+                let value_text = node.value().map(|s| s.to_string());
+                let role_text = format!("{:?}", node.role());
+
+                // Combine role + label/value into announcement.
+                let announcement = match (label_text, value_text) {
+                    (Some(lbl), Some(val)) if !val.is_empty() => {
+                        format!("{role_text}: {lbl}, {val}")
+                    }
+                    (Some(lbl), _) => format!("{role_text}: {lbl}"),
+                    (None, Some(val)) if !val.is_empty() => format!("{role_text}: {val}"),
+                    _ => role_text,
+                };
+
+                // Use existing announcer mechanism.
+                state.announcement_serial = state.announcement_serial.wrapping_add(1);
+                let label = format!("{announcement} ({})", state.announcement_serial);
+                announcer.set_label(label);
+                announcer.set_live(Live::Polite);
+            }
+        }
+    }
+
+    let mut nodes = Vec::with_capacity(2 + collected.nodes.len());
+    nodes.push((root_id, root));
+    nodes.push((announcer_id, announcer));
+    nodes.extend(collected.nodes);
+
+    state.adapter.update_tree(nodes, focus);
 }
 
 /// Builds a window's [`UserInterface`] for the [`Program`].
@@ -1294,6 +1572,7 @@ fn run_action<'a, P, C>(
     window_manager: &mut WindowManager<P, C>,
     ui_caches: &mut FxHashMap<window::Id, user_interface::Cache>,
     is_window_opening: &mut bool,
+    #[cfg(feature = "accessibility")] accessibility: &mut FxHashMap<window::Id, AccessibilityState>,
     system_theme: &mut theme::Mode,
 ) where
     P: Program,
@@ -1395,6 +1674,11 @@ fn run_action<'a, P, C>(
             window::Action::Close(id) => {
                 let _ = ui_caches.remove(&id);
                 let _ = interfaces.remove(&id);
+
+                #[cfg(feature = "accessibility")]
+                {
+                    let _ = accessibility.remove(&id);
+                }
 
                 if let Some(window) = window_manager.remove(id) {
                     if clipboard.window_id() == Some(window.raw.id()) {
@@ -1774,12 +2058,30 @@ fn run_action<'a, P, C>(
             use crate::runtime::accessibility::Action as AccessibilityAction;
             match action {
                 AccessibilityAction::Announce { message, priority } => {
+                    let Some((id, window)) = window_manager.iter_mut().next() else {
+                        return;
+                    };
+
+                    let Some(state) = accessibility.get_mut(&id) else {
+                        return;
+                    };
+
                     log::info!("Screen reader announcement ({:?}): {}", priority, message);
-                    // TODO: Send announcement to accessibility adapter
+                    state.pending_announcement = Some((message, priority));
+                    window.raw.request_redraw();
                 }
                 AccessibilityAction::Focus { target } => {
+                    let Some((id, window)) = window_manager.iter_mut().next() else {
+                        return;
+                    };
+
+                    let Some(state) = accessibility.get_mut(&id) else {
+                        return;
+                    };
+
                     log::info!("Focus accessible element: {:?}", target);
-                    // TODO: Focus accessible element via accessibility adapter
+                    state.focus_override = Some(target);
+                    window.raw.request_redraw();
                 }
             }
         }
