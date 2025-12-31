@@ -28,12 +28,16 @@ pub use winit;
 
 pub mod clipboard;
 pub mod conversion;
+pub mod dnd;
+pub mod drag_detector;
 
 mod error;
 mod proxy;
 mod window;
 
 pub use clipboard::Clipboard;
+pub use dnd::DndManager;
+pub use drag_detector::DragDetector;
 pub use error::Error;
 pub use proxy::Proxy;
 
@@ -491,9 +495,14 @@ async fn run_instance<P>(
     let mut messages = Vec::new();
     let mut actions = 0;
 
+    // Drag detection per window
+    let mut drag_detectors: FxHashMap<window::Id, drag_detector::DragDetector> =
+        FxHashMap::default();
+
     let mut ui_caches = FxHashMap::default();
     let mut user_interfaces = ManuallyDrop::new(FxHashMap::default());
     let mut clipboard = Clipboard::unconnected();
+    let mut dnd_manager = DndManager::unconnected();
 
     #[cfg(all(feature = "linux-theme-detection", target_os = "linux"))]
     let mut system_theme = {
@@ -677,34 +686,56 @@ async fn run_instance<P>(
                     clipboard = Clipboard::connect(window.raw.clone());
                 }
 
+                // Connect DnD manager if not yet initialized
+                if !dnd_manager.is_available() {
+                    let proxy_for_dnd = proxy.clone();
+                    let wakeup = std::sync::Arc::new(move || {
+                        proxy_for_dnd.wake_up();
+                    });
+                    dnd_manager = DndManager::connect(window.raw.clone(), wakeup);
+                }
+
                 let _ = on_open.send(id);
                 is_window_opening = false;
             }
             Event::EventLoopAwakened(event) => {
                 match event {
-                    event::Event::NewEvents(event::StartCause::Init) => {
-                        for (_id, window) in window_manager.iter_mut() {
-                            window.raw.request_redraw();
-                        }
-                    }
-                    event::Event::NewEvents(event::StartCause::ResumeTimeReached { .. }) => {
-                        let now = Instant::now();
-
-                        for (_id, window) in window_manager.iter_mut() {
-                            if let Some(redraw_at) = window.redraw_at
-                                && redraw_at <= now
-                            {
-                                window.raw.request_redraw();
-                                window.redraw_at = None;
+                    event::Event::NewEvents(start_cause) => {
+                        // Poll for DnD events from smithay-clipboard on every event loop iteration
+                        for dnd_event in dnd_manager.poll_events() {
+                            // DnD events are window-agnostic, use the first window
+                            if let Some((id, _)) = window_manager.iter_mut().next() {
+                                events.push((id, dnd_event));
                             }
                         }
 
-                        if let Some(redraw_at) = window_manager.redraw_at() {
-                            let _ = control_sender
-                                .start_send(Control::ChangeFlow(ControlFlow::WaitUntil(redraw_at)));
-                        } else {
-                            let _ =
-                                control_sender.start_send(Control::ChangeFlow(ControlFlow::Wait));
+                        match start_cause {
+                            event::StartCause::Init => {
+                                for (_id, window) in window_manager.iter_mut() {
+                                    window.raw.request_redraw();
+                                }
+                            }
+                            event::StartCause::ResumeTimeReached { .. } => {
+                                let now = Instant::now();
+
+                                for (_id, window) in window_manager.iter_mut() {
+                                    if let Some(redraw_at) = window.redraw_at
+                                        && redraw_at <= now
+                                    {
+                                        window.raw.request_redraw();
+                                        window.redraw_at = None;
+                                    }
+                                }
+
+                                if let Some(redraw_at) = window_manager.redraw_at() {
+                                    let _ = control_sender
+                                        .start_send(Control::ChangeFlow(ControlFlow::WaitUntil(redraw_at)));
+                                } else {
+                                    let _ =
+                                        control_sender.start_send(Control::ChangeFlow(ControlFlow::Wait));
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     event::Event::PlatformSpecific(event::PlatformSpecific::MacOS(
@@ -725,6 +756,7 @@ async fn run_instance<P>(
                             &mut events,
                             &mut messages,
                             &mut clipboard,
+                            &mut dnd_manager,
                             &mut control_sender,
                             &mut user_interfaces,
                             &mut window_manager,
@@ -842,6 +874,7 @@ async fn run_instance<P>(
                                         &mut events,
                                         &mut messages,
                                         &mut clipboard,
+                                        &mut dnd_manager,
                                         &mut control_sender,
                                         &mut user_interfaces,
                                         &mut window_manager,
@@ -1025,6 +1058,7 @@ async fn run_instance<P>(
                                 &mut events,
                                 &mut messages,
                                 &mut clipboard,
+                                &mut dnd_manager,
                                 &mut control_sender,
                                 &mut user_interfaces,
                                 &mut window_manager,
@@ -1040,6 +1074,20 @@ async fn run_instance<P>(
                                 window.state.scale_factor(),
                                 window.state.modifiers(),
                             ) {
+                                // Process event through drag detector
+                                let detector = drag_detectors
+                                    .entry(id)
+                                    .or_insert_with(drag_detector::DragDetector::new);
+
+                                if let Some(drag_event) = detector.process(&event) {
+                                    // Emit drag event
+                                    events.push((
+                                        id,
+                                        crate::core::Event::Drag(drag_event),
+                                    ));
+                                }
+
+                                // Always emit the original event too
                                 events.push((id, event));
                             }
                         }
@@ -1148,6 +1196,7 @@ async fn run_instance<P>(
                                     &mut events,
                                     &mut messages,
                                     &mut clipboard,
+                                    &mut dnd_manager,
                                     &mut control_sender,
                                     &mut user_interfaces,
                                     &mut window_manager,
@@ -1255,6 +1304,7 @@ fn run_action<'a, P, C>(
     events: &mut Vec<(window::Id, core::Event)>,
     messages: &mut Vec<P::Message>,
     clipboard: &mut Clipboard,
+    dnd_manager: &mut DndManager,
     control_sender: &mut mpsc::UnboundedSender<Control>,
     interfaces: &mut FxHashMap<window::Id, UserInterface<'a, P::Message, P::Theme, P::Renderer>>,
     window_manager: &mut WindowManager<P, C>,
@@ -1336,6 +1386,10 @@ fn run_action<'a, P, C>(
                 let format_refs: Vec<&str> = formats.iter().map(String::as_str).collect();
                 let _ = channel.send(clipboard.read_all(target, &format_refs));
             }
+        },
+        Action::Dnd(action) => {
+            // DnD actions are processed by the DndManager
+            dnd_manager.process(action);
         },
         Action::Window(action) => match action {
             window::Action::Open(id, settings, channel) => {

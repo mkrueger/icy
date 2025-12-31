@@ -243,10 +243,11 @@ where
                 ..
             })
             | Touch(FingerLifted { .. } | FingerLost { .. }) => {
-                my_state.inner.with_data_mut(|state| {
+                let opened = my_state.inner.with_data_mut(|state| {
                     if state.menu_states.is_empty() && view_cursor.is_over(layout.bounds()) {
                         state.view_cursor = view_cursor;
                         state.open = true;
+                        true
                     } else {
                         state.menu_states.clear();
                         state.active_root.clear();
@@ -257,8 +258,16 @@ where
                             state.show_mnemonics = false;
                             set_show_underlines(false);
                         }
+                        false
                     }
                 });
+
+                // Prevent the just-opened menu from immediately receiving the same
+                // release event in the overlay and closing itself.
+                if opened {
+                    shell.capture_event();
+                }
+
                 // Layout invalidation also triggers a redraw; needed for mnemonic underline updates.
                 shell.invalidate_layout();
                 shell.request_redraw();

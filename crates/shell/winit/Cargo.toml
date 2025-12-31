@@ -21,7 +21,7 @@ hinting = []
 unconditional-rendering = []
 linux-theme-detection = ["dep:mundy", "mundy/async-io", "mundy/color-scheme"]
 x11 = ["winit/x11", "dep:clipboard-rs"]
-wayland = ["winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "dep:smithay-clipboard"]
+wayland = ["winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "dep:smithay-clipboard", "dep:wayland-client"]
 
 [dependencies]
 iced_debug.workspace = true
@@ -43,6 +43,7 @@ clipboard-rs.workspace = true
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 clipboard-rs = { workspace = true, optional = true }
 smithay-clipboard = { workspace = true, optional = true }
+wayland-client = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys.workspace = true

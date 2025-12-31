@@ -96,6 +96,16 @@ impl<T: 'static> Proxy<T> {
     pub fn free_slots(&mut self, amount: usize) {
         let _ = self.notifier.start_send(amount);
     }
+
+    /// Wakes up the event loop.
+    ///
+    /// This can be used from other threads to wake up the event loop
+    /// when external events have occurred (e.g., DnD events from
+    /// smithay-clipboard).
+    pub fn wake_up(&self) {
+        // Send a no-op action to wake up the event loop
+        let _ = self.raw.send_event(Action::Tick);
+    }
 }
 
 impl<T: 'static> Sink<Action<T>> for Proxy<T> {

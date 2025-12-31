@@ -205,6 +205,10 @@ impl<P: Program + 'static> Emulator<P> {
                     // TODO
                     dbg!(action);
                 }
+                runtime::Action::Dnd(action) => {
+                    // TODO
+                    dbg!(action);
+                }
                 runtime::Action::Window(action) => {
                     use crate::runtime::window;
 

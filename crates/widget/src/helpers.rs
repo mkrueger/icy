@@ -23,7 +23,7 @@ use crate::text_input::{self, TextInput};
 use crate::toggler::{self, Toggler};
 use crate::tooltip::{self, Tooltip};
 use crate::vertical_slider::{self, VerticalSlider};
-use crate::{Column, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack};
+use crate::{Column, Draggable, DropTarget, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack};
 
 use std::borrow::Borrow;
 use std::ops::RangeInclusive;
@@ -2085,6 +2085,50 @@ where
     Renderer: core::Renderer,
 {
     MouseArea::new(widget)
+}
+
+/// Creates a new [`Draggable`] wrapper.
+///
+/// This makes the wrapped widget draggable for drag-and-drop operations.
+///
+/// # Example
+/// ```ignore
+/// use iced::widget::draggable;
+/// use iced::dnd::DragData;
+///
+/// draggable(text("Drag me!"))
+///     .on_drag(|| DragData::from_text("Hello!"))
+///     .on_drag_start(|data| Message::DragStarted(data))
+/// ```
+pub fn draggable<'a, Message, Theme, Renderer>(
+    widget: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> Draggable<'a, Message, Theme, Renderer>
+where
+    Renderer: core::Renderer,
+{
+    Draggable::new(widget)
+}
+
+/// Creates a new [`DropTarget`] wrapper.
+///
+/// This makes the wrapped widget accept drag-and-drop operations.
+///
+/// # Example
+/// ```ignore
+/// use iced::widget::drop_target;
+///
+/// drop_target(container(text("Drop here!")))
+///     .accept_text()
+///     .on_drop(|pos, data, mime| Message::Dropped(data))
+///     .highlight_on_hover(true)
+/// ```
+pub fn drop_target<'a, Message, Theme, Renderer>(
+    widget: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> DropTarget<'a, Message, Theme, Renderer>
+where
+    Renderer: core::Renderer,
+{
+    DropTarget::new(widget)
 }
 
 /// Creates a [`PaneGrid`] with the given [`pane_grid::State`] and view function.

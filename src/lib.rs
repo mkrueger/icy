@@ -586,6 +586,32 @@ pub mod clipboard {
     pub use crate::runtime::clipboard::{Error, Format, PRIMARY, STANDARD, Target, WriteBuilder};
 }
 
+pub mod dnd {
+    //! Drag and drop support.
+    //!
+    //! This module provides functionality for initiating and handling drag and drop
+    //! operations, supporting both internal (widget-to-widget) and external
+    //! (cross-application) drag and drop.
+    //!
+    //! # Example
+    //! ```ignore
+    //! use iced::dnd::{self, DragData};
+    //!
+    //! // Start a drag with text data
+    //! let task = dnd::start_drag(
+    //!     DragData::from_text("Hello, world!"),
+    //!     None,
+    //! );
+    //! ```
+    pub use crate::core::dnd::{
+        DndAction, DragData, DragIcon, DragSourceEvent, DropResult, DropTargetEvent, DropZone,
+    };
+    pub use crate::runtime::dnd::{
+        accept_drag, reject_drag, request_data, set_drop_zones, start_drag,
+        start_drag_with_actions,
+    };
+}
+
 pub mod executor {
     //! Choose your preferred executor to power your application.
     pub use iced_futures::Executor;
@@ -614,6 +640,11 @@ pub mod keyboard {
 pub mod mouse {
     //! Listen and react to mouse events.
     pub use crate::core::mouse::{Button, Cursor, Event, Interaction, ScrollDelta};
+}
+
+pub mod drag {
+    //! Listen and react to drag events.
+    pub use crate::core::drag::{Actions, DragId, DragOffer, Event, Outcome};
 }
 
 pub mod system {

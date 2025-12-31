@@ -10,6 +10,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 pub mod clipboard;
+pub mod dnd;
 pub mod font;
 pub mod image;
 pub mod keyboard;
@@ -50,6 +51,9 @@ pub enum Action<T> {
     /// Run a clipboard action.
     Clipboard(clipboard::Action),
 
+    /// Run a drag and drop action.
+    Dnd(dnd::Action),
+
     /// Run a window action.
     Window(window::Action),
 
@@ -84,6 +88,7 @@ impl<T> Action<T> {
             Action::LoadFont { bytes, channel } => Err(Action::LoadFont { bytes, channel }),
             Action::Widget(operation) => Err(Action::Widget(operation)),
             Action::Clipboard(action) => Err(Action::Clipboard(action)),
+            Action::Dnd(action) => Err(Action::Dnd(action)),
             Action::Window(action) => Err(Action::Window(action)),
             Action::System(action) => Err(Action::System(action)),
             Action::Image(action) => Err(Action::Image(action)),
@@ -109,6 +114,9 @@ where
             }
             Action::Clipboard(action) => {
                 write!(f, "Action::Clipboard({action:?})")
+            }
+            Action::Dnd(action) => {
+                write!(f, "Action::Dnd({action:?})")
             }
             Action::Window(_) => write!(f, "Action::Window"),
             Action::System(action) => write!(f, "Action::System({action:?})"),

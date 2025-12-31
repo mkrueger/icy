@@ -1,0 +1,13 @@
+[package]
+name = "dnd"
+version = "0.1.0"
+authors = ["Mike Krueger <mkrueger@posteo.de>"]
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "dnd"
+path = "src/main.rs"
+
+[dependencies]
+iced.workspace = true

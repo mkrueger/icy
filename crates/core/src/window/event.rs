@@ -1,3 +1,4 @@
+use crate::dnd::{DndAction, DragSourceEvent};
 use crate::time::Instant;
 use crate::{Point, Size};
 
@@ -74,4 +75,39 @@ pub enum Event {
     ///
     /// - **Wayland:** Not implemented.
     FilesHoveredLeft,
+
+    /// A drag entered this window.
+    ///
+    /// This is emitted when an external drag (from another application or window)
+    /// enters this window's bounds.
+    DragEntered {
+        /// Position where the drag entered, relative to the window.
+        position: Point,
+        /// MIME types offered by the drag source.
+        mime_types: Vec<String>,
+    },
+
+    /// A drag moved within this window.
+    DragMoved {
+        /// Current position of the drag, relative to the window.
+        position: Point,
+    },
+
+    /// Data was dropped on this window.
+    DragDropped {
+        /// Position where the drop occurred.
+        position: Point,
+        /// The dropped data bytes.
+        data: Vec<u8>,
+        /// The MIME type of the dropped data.
+        mime_type: String,
+        /// The action that was performed (Copy, Move, Link).
+        action: DndAction,
+    },
+
+    /// A drag left this window without dropping.
+    DragLeft,
+
+    /// Event from an active drag source operation that this window started.
+    DragSource(DragSourceEvent),
 }
