@@ -1,5 +1,4 @@
 //! Handle events of a user interface.
-use crate::drag;
 use crate::input_method;
 use crate::keyboard;
 use crate::mouse;
@@ -28,12 +27,6 @@ pub enum Event {
 
     /// An input method event
     InputMethod(input_method::Event),
-
-    /// A drag and drop event
-    ///
-    /// Sent during drag operations. While a drag is active,
-    /// normal mouse hover/click events may be suppressed.
-    Drag(drag::Event),
 }
 
 /// The status of an [`Event`] after being processed.

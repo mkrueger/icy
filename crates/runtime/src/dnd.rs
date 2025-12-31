@@ -92,7 +92,11 @@ pub fn set_drop_zones<T>(window: Id, zones: Vec<DropZone>) -> Task<T> {
 ///
 /// Call this in response to a `DragEntered` event to indicate which
 /// MIME types your drop target can accept.
-pub fn accept_drag<T>(window: Id, mime_types: Vec<Cow<'static, str>>, action: DndAction) -> Task<T> {
+pub fn accept_drag<T>(
+    window: Id,
+    mime_types: Vec<Cow<'static, str>>,
+    action: DndAction,
+) -> Task<T> {
     task::effect(crate::Action::Dnd(Action::AcceptDrag {
         window,
         mime_types,

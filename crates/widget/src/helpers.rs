@@ -23,7 +23,9 @@ use crate::text_input::{self, TextInput};
 use crate::toggler::{self, Toggler};
 use crate::tooltip::{self, Tooltip};
 use crate::vertical_slider::{self, VerticalSlider};
-use crate::{Column, Draggable, DropTarget, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack};
+use crate::{
+    Column, Draggable, DropTarget, Grid, MouseArea, Pin, Responsive, Row, Sensor, Space, Stack,
+};
 
 use std::borrow::Borrow;
 use std::ops::RangeInclusive;

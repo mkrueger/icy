@@ -9,21 +9,21 @@ use crate::runtime::dnd::Action;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 use winit::window::Window;
 
-#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
-use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
-#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
-use wayland_client::protocol::wl_surface::WlSurface;
-#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
-use wayland_client::{Connection, backend::ObjectId, Proxy};
 #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
 use smithay_clipboard::dnd::{
     DndData as SmithayDndData, DndDestinationRectangle, DndEvent, OfferEvent, Rectangle, Sender,
     SourceEvent,
 };
+#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+use wayland_client::protocol::wl_data_device_manager::DndAction as WlDndAction;
+#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+use wayland_client::protocol::wl_surface::WlSurface;
+#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+use wayland_client::{Connection, Proxy, backend::ObjectId};
 
 #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
 use smithay_clipboard::Clipboard;
@@ -40,6 +40,8 @@ struct State {
     clipboard: Option<Clipboard>,
     /// The Wayland connection (needed to create WlSurface from raw handles)
     connection: Option<Connection>,
+    /// The WlSurface for the window (needed to start drags)
+    surface: Option<WlSurface>,
     /// Receiver for DnD events from smithay-clipboard
     event_receiver: Option<Receiver<DndEvent<WlSurface>>>,
     /// Active drag source (if we initiated a drag)
@@ -99,16 +101,15 @@ impl DndManager {
                 use winit::raw_window_handle::RawDisplayHandle;
 
                 if let RawDisplayHandle::Wayland(wayland) = display_handle.as_raw() {
-                    
                     // Create the clipboard with the display
                     // SAFETY: The display pointer is valid for the lifetime of the window
                     #[allow(unsafe_code)]
-                    let clipboard =
-                        unsafe { Clipboard::new(wayland.display.as_ptr().cast()) };
+                    let clipboard = unsafe { Clipboard::new(wayland.display.as_ptr().cast()) };
 
                     // Create a Wayland connection from the display
                     #[allow(unsafe_code)]
-                    let backend = unsafe { Backend::from_foreign_display(wayland.display.as_ptr().cast()) };
+                    let backend =
+                        unsafe { Backend::from_foreign_display(wayland.display.as_ptr().cast()) };
                     let connection = Connection::from_backend(backend);
 
                     // Create a channel for receiving DnD events
@@ -122,13 +123,17 @@ impl DndManager {
 
                     // Try to register the window surface for DnD
                     let mut surface_registered = false;
+                    let mut stored_surface = None;
                     if let Ok(window_handle) = window.window_handle() {
                         use winit::raw_window_handle::RawWindowHandle;
                         if let RawWindowHandle::Wayland(wl_window) = window_handle.as_raw() {
                             // Create WlSurface from the raw pointer
                             #[allow(unsafe_code)]
                             match unsafe {
-                                ObjectId::from_ptr(WlSurface::interface(), wl_window.surface.as_ptr().cast())
+                                ObjectId::from_ptr(
+                                    WlSurface::interface(),
+                                    wl_window.surface.as_ptr().cast(),
+                                )
                             } {
                                 Ok(object_id) => {
                                     match WlSurface::from_id(&connection, object_id) {
@@ -152,7 +157,11 @@ impl DndManager {
                                                 actions: WlDndAction::Copy | WlDndAction::Move,
                                                 preferred: WlDndAction::Copy,
                                             }];
-                                            clipboard.register_dnd_destination(surface, rectangles);
+                                            clipboard.register_dnd_destination(
+                                                surface.clone(),
+                                                rectangles,
+                                            );
+                                            stored_surface = Some(surface);
                                             surface_registered = true;
                                         }
                                         Err(_e) => {
@@ -171,6 +180,7 @@ impl DndManager {
                         state: State {
                             clipboard: Some(clipboard),
                             connection: Some(connection),
+                            surface: stored_surface,
                             event_receiver: Some(receiver),
                             active_drag: None,
                             last_action: WlDndAction::None,
@@ -186,6 +196,7 @@ impl DndManager {
                 state: State {
                     clipboard: None,
                     connection: None,
+                    surface: None,
                     event_receiver: None,
                     active_drag: None,
                     last_action: WlDndAction::None,
@@ -214,6 +225,7 @@ impl DndManager {
                 state: State {
                     clipboard: None,
                     connection: None,
+                    surface: None,
                     event_receiver: None,
                     active_drag: None,
                     last_action: WlDndAction::None,
@@ -326,7 +338,7 @@ impl DndManager {
     ) {
         #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
         {
-            if let Some(ref clipboard) = self.state.clipboard {
+            if let (Some(clipboard), Some(surface)) = (&self.state.clipboard, &self.state.surface) {
                 // Convert our DragData to smithay's DndData
                 let smithay_data = SmithayDndData::new(
                     data.data,
@@ -336,17 +348,16 @@ impl DndManager {
                 // Convert DndAction to Wayland DndAction
                 let wayland_action = convert_dnd_action(allowed_actions);
 
-                // TODO: We need to get the WlSurface from the window
-                // For now, just log that we can't start without a surface
-                log::warn!(
-                    "DnD start_drag: Need WlSurface to start drag. Data: {} bytes, actions: {:?}",
-                    smithay_data.data.len(),
-                    wayland_action
+                // Start the drag operation
+                clipboard.start_dnd(
+                    surface.clone(),
+                    smithay_data,
+                    wayland_action,
+                    None, // No icon for now
                 );
 
-                // Store the channel to receive completion
+                // Store the channel to receive completion notification
                 self.state.active_drag = Some(ActiveDrag { channel });
-
                 return;
             }
         }
@@ -476,8 +487,8 @@ impl DndManager {
     /// This should be called when DnD events are received from the Wayland compositor.
     #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
     fn handle_dnd_event(&mut self, event: DndEvent<WlSurface>) -> Option<crate::core::Event> {
-        use crate::core::window::Event as WindowEvent;
         use crate::core::Point;
+        use crate::core::window::Event as WindowEvent;
 
         match event {
             DndEvent::Offer(rect_id, offer_event) => match offer_event {

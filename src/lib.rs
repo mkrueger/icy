@@ -607,8 +607,7 @@ pub mod dnd {
         DndAction, DragData, DragIcon, DragSourceEvent, DropResult, DropTargetEvent, DropZone,
     };
     pub use crate::runtime::dnd::{
-        accept_drag, reject_drag, request_data, set_drop_zones, start_drag,
-        start_drag_with_actions,
+        accept_drag, reject_drag, request_data, set_drop_zones, start_drag, start_drag_with_actions,
     };
 }
 
@@ -640,11 +639,6 @@ pub mod keyboard {
 pub mod mouse {
     //! Listen and react to mouse events.
     pub use crate::core::mouse::{Button, Cursor, Event, Interaction, ScrollDelta};
-}
-
-pub mod drag {
-    //! Listen and react to drag events.
-    pub use crate::core::drag::{Actions, DragId, DragOffer, Event, Outcome};
 }
 
 pub mod system {

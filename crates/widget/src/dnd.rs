@@ -519,7 +519,10 @@ where
 
         // Handle DnD window events
         match event {
-            Event::Window(crate::core::window::Event::DragEntered { position, mime_types }) => {
+            Event::Window(crate::core::window::Event::DragEntered {
+                position,
+                mime_types,
+            }) => {
                 if bounds.contains(*position) {
                     state.is_hovered = true;
                     state.offered_mime_types = mime_types.clone();

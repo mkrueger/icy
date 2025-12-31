@@ -29,7 +29,6 @@ pub use winit;
 pub mod clipboard;
 pub mod conversion;
 pub mod dnd;
-pub mod drag_detector;
 
 mod error;
 mod proxy;
@@ -37,7 +36,6 @@ mod window;
 
 pub use clipboard::Clipboard;
 pub use dnd::DndManager;
-pub use drag_detector::DragDetector;
 pub use error::Error;
 pub use proxy::Proxy;
 
@@ -495,10 +493,6 @@ async fn run_instance<P>(
     let mut messages = Vec::new();
     let mut actions = 0;
 
-    // Drag detection per window
-    let mut drag_detectors: FxHashMap<window::Id, drag_detector::DragDetector> =
-        FxHashMap::default();
-
     let mut ui_caches = FxHashMap::default();
     let mut user_interfaces = ManuallyDrop::new(FxHashMap::default());
     let mut clipboard = Clipboard::unconnected();
@@ -728,11 +722,12 @@ async fn run_instance<P>(
                                 }
 
                                 if let Some(redraw_at) = window_manager.redraw_at() {
-                                    let _ = control_sender
-                                        .start_send(Control::ChangeFlow(ControlFlow::WaitUntil(redraw_at)));
+                                    let _ = control_sender.start_send(Control::ChangeFlow(
+                                        ControlFlow::WaitUntil(redraw_at),
+                                    ));
                                 } else {
-                                    let _ =
-                                        control_sender.start_send(Control::ChangeFlow(ControlFlow::Wait));
+                                    let _ = control_sender
+                                        .start_send(Control::ChangeFlow(ControlFlow::Wait));
                                 }
                             }
                             _ => {}
@@ -1074,20 +1069,6 @@ async fn run_instance<P>(
                                 window.state.scale_factor(),
                                 window.state.modifiers(),
                             ) {
-                                // Process event through drag detector
-                                let detector = drag_detectors
-                                    .entry(id)
-                                    .or_insert_with(drag_detector::DragDetector::new);
-
-                                if let Some(drag_event) = detector.process(&event) {
-                                    // Emit drag event
-                                    events.push((
-                                        id,
-                                        crate::core::Event::Drag(drag_event),
-                                    ));
-                                }
-
-                                // Always emit the original event too
                                 events.push((id, event));
                             }
                         }
@@ -1390,7 +1371,7 @@ fn run_action<'a, P, C>(
         Action::Dnd(action) => {
             // DnD actions are processed by the DndManager
             dnd_manager.process(action);
-        },
+        }
         Action::Window(action) => match action {
             window::Action::Open(id, settings, channel) => {
                 let monitor = window_manager.last_monitor();
