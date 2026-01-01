@@ -3,6 +3,7 @@
 mod buttons;
 mod canvas_page;
 mod context_menu;
+mod dnd_page;
 mod lists;
 mod markdown_page;
 mod overview;
@@ -20,6 +21,7 @@ mod toggles;
 pub use buttons::*;
 pub use canvas_page::*;
 pub use context_menu::*;
+pub use dnd_page::*;
 pub use lists::*;
 pub use markdown_page::*;
 pub use overview::*;

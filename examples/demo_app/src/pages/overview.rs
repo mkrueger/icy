@@ -28,6 +28,7 @@ pub fn view_overview() -> Element<'static, Message> {
         text("  📜 Scrollables - Scrollable content areas"),
         text("  🔔 Toasts - Notification toasts"),
         text("  📌 Context Menu - Right-click menus"),
+        text("  📦 Drag & Drop - External DnD support"),
     ]
     .spacing(4)
     .into()

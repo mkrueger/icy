@@ -6,20 +6,22 @@
 mod pages;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
+use icy_ui::dnd::DropResult;
 use icy_ui::keyboard::Key;
 use icy_ui::widget::menu::{bar, items, root, Item, KeyBind, Modifier, Tree};
 use icy_ui::widget::{
     button, column, container, date_picker, pane_grid, row, rule, scrollable, space, text,
     text_editor, toaster,
 };
-use icy_ui::{Element, Fill, Subscription, Task, Theme};
+use icy_ui::{Element, Fill, Point, Subscription, Task, Theme};
 
 use pages::{
     AnchorPosition, ButtonsState, CanvasPageState, ComponentChoice, ContainerChoice,
-    ContextMenuState, ListsState, MarkdownPageState, PaneGridPageState, PickersState, QrCodeState,
-    ScrollDirection, ScrollablesTab, ScrollingState, ShaderState, SlidersState, TextInputsState,
-    ThemePage, ThemePageState, ToastsState, TogglesState,
+    ContextMenuState, DndPageState, ListsState, MarkdownPageState, PaneGridPageState, PickersState,
+    QrCodeState, ScrollDirection, ScrollablesTab, ScrollingState, ShaderState, SlidersState,
+    TextInputsState, ThemePage, ThemePageState, ToastsState, TogglesState,
 };
 
 pub fn main() -> icy_ui::Result {
@@ -47,6 +49,7 @@ pub enum Page {
     Theme,
     Toasts,
     ContextMenu,
+    Dnd,
     QrCode,
     Shader,
     Canvas,
@@ -67,6 +70,7 @@ impl Page {
         Page::Theme,
         Page::Toasts,
         Page::ContextMenu,
+        Page::Dnd,
         Page::QrCode,
         Page::Shader,
         Page::Canvas,
@@ -87,6 +91,7 @@ impl Page {
             Page::Theme => "Theme",
             Page::Toasts => "Toasts",
             Page::ContextMenu => "Context Menu",
+            Page::Dnd => "Drag && Drop",
             Page::QrCode => "QR Code",
             Page::Shader => "Shader",
             Page::Canvas => "Canvas",
@@ -108,6 +113,7 @@ impl Page {
             Page::Theme => "🎭",
             Page::Toasts => "🔔",
             Page::ContextMenu => "📌",
+            Page::Dnd => "📦",
             Page::QrCode => "📱",
             Page::Shader => "✨",
             Page::Canvas => "🎨",
@@ -129,6 +135,7 @@ impl Page {
             Page::Theme => Some("examples/demo_app/src/pages/theme_page.rs"),
             Page::Toasts => Some("examples/demo_app/src/pages/toasts.rs"),
             Page::ContextMenu => Some("examples/demo_app/src/pages/context_menu.rs"),
+            Page::Dnd => Some("examples/demo_app/src/pages/dnd_page.rs"),
             Page::QrCode => Some("examples/demo_app/src/pages/qr_code.rs"),
             Page::Shader => Some("examples/demo_app/src/pages/shader_page.rs"),
             Page::Canvas => Some("examples/demo_app/src/pages/canvas_page.rs"),
@@ -247,6 +254,7 @@ struct DemoApp {
     theme_page: ThemePageState,
     toasts: ToastsState,
     context_menu: ContextMenuState,
+    dnd: DndPageState,
     qr_code: QrCodeState,
     shader: ShaderState,
     canvas: CanvasPageState,
@@ -270,6 +278,7 @@ impl Default for DemoApp {
             theme_page: ThemePageState::default(),
             toasts: ToastsState::default(),
             context_menu: ContextMenuState::default(),
+            dnd: DndPageState::default(),
             qr_code: QrCodeState::default(),
             shader: ShaderState::default(),
             canvas: CanvasPageState::default(),
@@ -341,6 +350,25 @@ pub enum Message {
 
     // Context menu
     ContextAction(String),
+
+    // Drag and Drop
+    DndTextChanged(String),
+    DndStartDrag,
+    DndDragCompleted(DropResult),
+    DndDragEntered {
+        position: Point,
+        mime_types: Vec<String>,
+    },
+    DndDragMoved(Point),
+    DndDragLeft,
+    DndDragDropped {
+        position: Point,
+        data: Vec<u8>,
+        mime_type: String,
+    },
+    DndFileHovered(PathBuf),
+    DndFileDropped(PathBuf),
+    DndFilesHoveredLeft,
 
     // QR Code
     QrCodeInputChanged(String),
@@ -460,6 +488,10 @@ impl DemoApp {
             return Task::none();
         }
 
+        if let Some(task) = pages::update_dnd(&mut self.dnd, &message) {
+            return task;
+        }
+
         if pages::update_qr_code(&mut self.qr_code, &message) {
             return Task::none();
         }
@@ -503,14 +535,17 @@ impl DemoApp {
             }
         });
 
-        // Only run progress animation when on the Sliders page
+        let mut subs: Vec<Subscription<Message>> = vec![keyboard_sub];
+
         if self.current_page == Page::Sliders {
-            let progress_sub =
-                time::every(Duration::from_millis(50)).map(|_| Message::ProgressTick);
-            Subscription::batch([keyboard_sub, progress_sub])
-        } else {
-            keyboard_sub
+            subs.push(time::every(Duration::from_millis(50)).map(|_| Message::ProgressTick));
         }
+
+        if self.current_page == Page::Dnd {
+            subs.push(pages::subscription_dnd());
+        }
+
+        Subscription::batch(subs)
     }
 
     fn theme(&self) -> Theme {
@@ -658,6 +693,7 @@ impl DemoApp {
             Page::Theme => pages::view_theme(self.theme(), &self.theme_page),
             Page::Toasts => pages::view_toasts(&self.toasts),
             Page::ContextMenu => pages::view_context_menu(&self.context_menu),
+            Page::Dnd => pages::view_dnd(&self.dnd),
             Page::QrCode => pages::view_qr_code(&self.qr_code),
             Page::Shader => pages::view_shader(&self.shader),
             Page::Canvas => pages::canvas_page_view(&self.canvas),

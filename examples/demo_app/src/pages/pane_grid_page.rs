@@ -182,12 +182,12 @@ pub fn view_pane_grid(state: &PaneGridPageState) -> Element<'_, crate::Message> 
 /// View for the pane controls (split/close buttons)
 fn view_controls(pane: pane_grid::Pane, total_panes: usize) -> Element<'static, crate::Message> {
     let split_h = button(text("⬌").size(14))
-        .on_press(crate::Message::PaneGridSplitHorizontal(pane))
+        .on_press(crate::Message::PaneGridSplitVertical(pane))
         .padding([2, 6])
         .style(button::secondary);
 
     let split_v = button(text("⬍").size(14))
-        .on_press(crate::Message::PaneGridSplitVertical(pane))
+        .on_press(crate::Message::PaneGridSplitHorizontal(pane))
         .padding([2, 6])
         .style(button::secondary);
 
