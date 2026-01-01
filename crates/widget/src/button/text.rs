@@ -20,7 +20,7 @@
 //! ```
 
 use crate::core::{self, Element, Length, Padding};
-use crate::{text, Row};
+use crate::{Row, text};
 
 use super::Button;
 

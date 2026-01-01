@@ -15,6 +15,7 @@
 //!     .size(14.0);
 //! ```
 
+use crate::Theme;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::renderer;
@@ -23,7 +24,6 @@ use crate::core::widget::tree::{self, Tree};
 use crate::core::{
     self, Clipboard, Element, Event, Layout, Length, Pixels, Rectangle, Shell, Size, Widget,
 };
-use crate::Theme;
 
 /// A clickable hyperlink that opens a URL in the default browser.
 ///

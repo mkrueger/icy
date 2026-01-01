@@ -32,7 +32,8 @@ pub fn view_lists(state: &ListsState) -> Element<'static, Message> {
             )
             .placeholder("Choose a language..."),
             text(
-                state.selected_language
+                state
+                    .selected_language
                     .map(|l| format!("Selected: {}", l))
                     .unwrap_or_else(|| "No selection".into())
             ),
@@ -52,7 +53,7 @@ pub fn view_lists(state: &ListsState) -> Element<'static, Message> {
                             text(if is_selected { "●" } else { "○" }),
                             text(lang.to_string()),
                         ]
-                        .spacing(8)
+                        .spacing(8),
                     )
                     .on_press(Message::LanguageSelected(*lang))
                     .width(200)

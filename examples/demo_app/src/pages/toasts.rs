@@ -25,7 +25,10 @@ pub fn update_toasts(state: &mut ToastsState, message: &Message) -> Option<Task<
             state.toast_counter += 1;
             let (text, style): (String, toaster::StyleFn) = match kind {
                 ToastKind::Info => (
-                    format!("Info #{}: This is an informational message.", state.toast_counter),
+                    format!(
+                        "Info #{}: This is an informational message.",
+                        state.toast_counter
+                    ),
                     toaster::info_style,
                 ),
                 ToastKind::Success => (
@@ -60,10 +63,16 @@ pub fn view_toasts(state: &ToastsState) -> Element<'_, Message> {
         text("Click the buttons below to show toast notifications:").size(14),
         space().height(10),
         icy_ui::widget::row![
-            button("ℹ️ Info").on_press(Message::AddToast(ToastKind::Info)).style(button::secondary),
-            button("✅ Success").on_press(Message::AddToast(ToastKind::Success)).style(button::success),
+            button("ℹ️ Info")
+                .on_press(Message::AddToast(ToastKind::Info))
+                .style(button::secondary),
+            button("✅ Success")
+                .on_press(Message::AddToast(ToastKind::Success))
+                .style(button::success),
             button("⚠️ Warning").on_press(Message::AddToast(ToastKind::Warning)),
-            button("❌ Error").on_press(Message::AddToast(ToastKind::Error)).style(button::danger),
+            button("❌ Error")
+                .on_press(Message::AddToast(ToastKind::Error))
+                .style(button::danger),
         ]
         .spacing(10),
         space().height(20),

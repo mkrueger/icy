@@ -13,7 +13,7 @@
 //! ```
 
 use crate::core::{Alignment, Element, Length, Padding};
-use crate::{button, column, container, row, text, Button, Container, Text};
+use crate::{Button, Container, Text, button, column, container, row, text};
 use std::borrow::Cow;
 use std::ops::{Add, Sub};
 
@@ -32,7 +32,15 @@ pub fn spin_button<'a, T, M>(
 where
     T: Copy + Sub<Output = T> + Add<Output = T> + PartialOrd,
 {
-    SpinButton::new(label, value, step, min, max, Orientation::Horizontal, on_change)
+    SpinButton::new(
+        label,
+        value,
+        step,
+        min,
+        max,
+        Orientation::Horizontal,
+        on_change,
+    )
 }
 
 /// Creates a vertical spin button widget.
@@ -49,7 +57,15 @@ pub fn vertical<'a, T, M>(
 where
     T: Copy + Sub<Output = T> + Add<Output = T> + PartialOrd,
 {
-    SpinButton::new(label, value, step, min, max, Orientation::Vertical, on_change)
+    SpinButton::new(
+        label,
+        value,
+        step,
+        min,
+        max,
+        Orientation::Vertical,
+        on_change,
+    )
 }
 
 /// Orientation of the spin button.
@@ -145,11 +161,7 @@ where
     T: Copy + Sub<Output = T> + Add<Output = T> + PartialOrd,
 {
     let new_value = value + step;
-    if new_value > max {
-        max
-    } else {
-        new_value
-    }
+    if new_value > max { max } else { new_value }
 }
 
 fn decrement<T>(value: T, step: T, min: T, _max: T) -> T
@@ -165,7 +177,8 @@ where
     }
 }
 
-impl<'a, T, Message> From<SpinButton<'a, T, Message>> for Element<'a, Message, crate::Theme, crate::Renderer>
+impl<'a, T, Message> From<SpinButton<'a, T, Message>>
+    for Element<'a, Message, crate::Theme, crate::Renderer>
 where
     Message: Clone + 'static,
     T: Copy + Sub<Output = T> + Add<Output = T> + PartialOrd + 'static,
@@ -190,8 +203,7 @@ where
     let new_value = operation(spin.value, spin.step, spin.min, spin.max);
     let is_at_limit = new_value == spin.value;
 
-    let btn = button(text(label).center())
-        .padding(Padding::new(4.0).left(10.0).right(10.0));
+    let btn = button(text(label).center()).padding(Padding::new(4.0).left(10.0).right(10.0));
 
     if is_at_limit {
         btn

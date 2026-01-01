@@ -46,8 +46,8 @@ use crate::core::renderer;
 use crate::core::theme;
 use crate::core::time::Instant;
 use crate::core::widget::operation;
-use crate::core::{Point, Renderer, Size};
 use crate::core::widget::operation::focusable::FocusLevel;
+use crate::core::{Point, Renderer, Size};
 use crate::futures::futures::channel::mpsc;
 use crate::futures::futures::channel::oneshot;
 use crate::futures::futures::task;
@@ -1292,11 +1292,16 @@ async fn run_instance<P>(
                             // using Tab for indentation), it can set `FocusLevel::Manual`.
                             if focus_level != FocusLevel::Manual {
                                 for event in window_events.iter() {
-                                    if let core::Event::Keyboard(core::keyboard::Event::KeyPressed {
-                                        key: core::keyboard::Key::Named(core::keyboard::key::Named::Tab),
-                                        modifiers,
-                                        ..
-                                    }) = event
+                                    if let core::Event::Keyboard(
+                                        core::keyboard::Event::KeyPressed {
+                                            key:
+                                                core::keyboard::Key::Named(
+                                                    core::keyboard::key::Named::Tab,
+                                                ),
+                                            modifiers,
+                                            ..
+                                        },
+                                    ) = event
                                     {
                                         let ui = user_interfaces
                                             .get_mut(&id)
@@ -1305,20 +1310,21 @@ async fn run_instance<P>(
                                         // NOTE: `UserInterface::operate` only performs a single traversal.
                                         // Focus operations rely on `Operation::finish()` to chain the
                                         // counting pass into an applying pass.
-                                        let mut current_operation: Option<Box<dyn core::widget::Operation>> =
-                                            Some(if modifiers.shift() {
-                                                Box::new(
+                                        let mut current_operation: Option<
+                                            Box<dyn core::widget::Operation>,
+                                        > = Some(if modifiers.shift() {
+                                            Box::new(
                                                     core::widget::operation::focusable::focus_previous_filtered(
                                                         focus_level,
                                                     ),
                                                 )
-                                            } else {
-                                                Box::new(
+                                        } else {
+                                            Box::new(
                                                     core::widget::operation::focusable::focus_next_filtered(
                                                         focus_level,
                                                     ),
                                                 )
-                                            });
+                                        });
 
                                         while let Some(mut operation) = current_operation.take() {
                                             ui.operate(&window.renderer, operation.as_mut());

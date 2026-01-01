@@ -71,7 +71,7 @@ pub use button::Hyperlink;
 #[doc(no_inline)]
 pub use checkbox::Checkbox;
 #[doc(no_inline)]
-pub use color_picker::{color_picker, ColorPicker, Hsv};
+pub use color_picker::{ColorPicker, Hsv, color_picker};
 #[doc(no_inline)]
 pub use column::Column;
 #[doc(no_inline)]
@@ -79,7 +79,7 @@ pub use combo_box::ComboBox;
 #[doc(no_inline)]
 pub use container::Container;
 #[doc(no_inline)]
-pub use date_picker::{date_picker, Date, DatePicker, FirstDayOfWeek};
+pub use date_picker::{Date, DatePicker, FirstDayOfWeek, date_picker};
 #[doc(no_inline)]
 pub use dnd::{Draggable, DropTarget};
 #[doc(no_inline)]

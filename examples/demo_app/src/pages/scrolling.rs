@@ -1,10 +1,12 @@
 //! Scrollables page (tab-based), based on the `examples/scrollable` example.
 
 use icy_ui::widget::{
-    button, column, container, pick_list, progress_bar, radio_group, row, rule, scroll_area,
-    scrollable, slider, space, text,
+    button, canvas, column, container, pick_list, progress_bar, radio_group, row, rule,
+    scroll_area, scrollable, slider, space, text,
 };
-use icy_ui::{Border, Center, Color, Element, Fill, Length, Rectangle, Size, Theme};
+use icy_ui::{
+    Border, Center, Color, Element, Fill, Font, Length, Pixels, Point, Rectangle, Size, Theme,
+};
 
 use crate::Message;
 
@@ -34,32 +36,6 @@ impl ScrollablesTab {
             ScrollablesTab::LongList => "📜 Virtual List (100k rows)",
             ScrollablesTab::LargeCanvas => "🎨 Large Canvas (100k×100k)",
             ScrollablesTab::StyleOptions => "⚙️ Style Options",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ScrollStylePreset {
-    #[default]
-    Floating,
-    Thin,
-    Solid,
-}
-
-impl ScrollStylePreset {
-    pub const ALL: [ScrollStylePreset; 3] = [
-        ScrollStylePreset::Floating,
-        ScrollStylePreset::Thin,
-        ScrollStylePreset::Solid,
-    ];
-}
-
-impl std::fmt::Display for ScrollStylePreset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ScrollStylePreset::Floating => write!(f, "Floating"),
-            ScrollStylePreset::Thin => write!(f, "Thin"),
-            ScrollStylePreset::Solid => write!(f, "Solid"),
         }
     }
 }
@@ -112,7 +88,7 @@ impl From<AnchorPosition> for scrollable::Anchor {
 pub struct ScrollingState {
     pub active_tab: ScrollablesTab,
     pub row_height: f32,
-    pub style_preset: ScrollStylePreset,
+    pub style_preset: scrollable::Preset,
     pub direction: ScrollDirection,
     pub scrollbar_width: u32,
     pub scrollbar_margin: u32,
@@ -126,7 +102,7 @@ impl Default for ScrollingState {
         Self {
             active_tab: ScrollablesTab::default(),
             row_height: 30.0,
-            style_preset: ScrollStylePreset::default(),
+            style_preset: scrollable::Preset::default(),
             direction: ScrollDirection::default(),
             scrollbar_width: 10,
             scrollbar_margin: 0,
@@ -227,14 +203,20 @@ pub fn view_scrolling(state: &ScrollingState) -> Element<'static, Message> {
 
     let progress = view_progress(state.active_tab, state.direction, state.scroll_offset);
 
-    column![tabs, rule::horizontal(1), content, rule::horizontal(1), progress]
-        .spacing(10)
-        .into()
+    column![
+        tabs,
+        rule::horizontal(1),
+        content,
+        rule::horizontal(1),
+        progress
+    ]
+    .spacing(10)
+    .into()
 }
 
 fn view_long_list(
     row_height: f32,
-    style_preset: ScrollStylePreset,
+    style_preset: scrollable::Preset,
     scrollbar_width: u32,
     scrollbar_margin: u32,
     scroller_width: u32,
@@ -255,13 +237,15 @@ fn view_long_list(
     .align_y(Center);
 
     let virtual_list = scroll_area()
+        .auto_scroll(true)
         .width(Fill)
         .height(Length::Fixed(SCROLL_AREA_HEIGHT))
         .direction(scrollable::Direction::Vertical(
             scrollable::Scrollbar::new()
                 .width(scrollbar_width)
                 .margin(scrollbar_margin)
-                .scroller_width(scroller_width),
+                .scroller_width(scroller_width)
+                .preset(style_preset),
         ))
         .style(move |theme, status| scrollable_style(theme, status, style_preset))
         .show_rows(row_height, TOTAL_ROWS, move |range| {
@@ -308,13 +292,11 @@ fn view_long_list(
             .color(Color::from_rgb(0.6, 0.6, 0.6)),
     ];
 
-    column![controls, virtual_list, info]
-        .spacing(10)
-        .into()
+    column![controls, virtual_list, info].spacing(10).into()
 }
 
 fn view_large_canvas(
-    style_preset: ScrollStylePreset,
+    style_preset: scrollable::Preset,
     scrollbar_width: u32,
     scrollbar_margin: u32,
     scroller_width: u32,
@@ -335,23 +317,25 @@ fn view_large_canvas(
 
     let tile_size = 200.0;
     let virtual_canvas = scroll_area()
+        .auto_scroll(true)
         .width(Fill)
         .height(Length::Fixed(SCROLL_AREA_HEIGHT))
         .direction(scrollable::Direction::Both {
             vertical: scrollable::Scrollbar::new()
                 .width(scrollbar_width)
                 .margin(scrollbar_margin)
-                .scroller_width(scroller_width),
+                .scroller_width(scroller_width)
+                .preset(style_preset),
             horizontal: scrollable::Scrollbar::new()
                 .width(scrollbar_width)
                 .margin(scrollbar_margin)
-                .scroller_width(scroller_width),
+                .scroller_width(scroller_width)
+                .preset(style_preset),
         })
         .style(move |theme, status| scrollable_style(theme, status, style_preset))
         .show_viewport(Size::new(CANVAS_SIZE, CANVAS_SIZE), move |viewport| {
             render_tiles(viewport, tile_size)
         })
-        .with_cell_size(Size::new(tile_size, tile_size))
         .on_scroll(Message::Scrolled);
 
     let pos_x = current_scroll_offset.x * CANVAS_SIZE;
@@ -367,13 +351,11 @@ fn view_large_canvas(
             .color(Color::from_rgb(0.5, 0.7, 0.5)),
     ];
 
-    column![controls, virtual_canvas, info]
-        .spacing(10)
-        .into()
+    column![controls, virtual_canvas, info].spacing(10).into()
 }
 
 fn view_style_options(
-    style_preset: ScrollStylePreset,
+    style_preset: scrollable::Preset,
     direction: ScrollDirection,
     scrollbar_width: u32,
     scrollbar_margin: u32,
@@ -383,14 +365,18 @@ fn view_style_options(
     let preset_section = column![
         text("Style Preset").size(16),
         radio_group(
-            ScrollStylePreset::ALL,
+            scrollable::Preset::ALL,
             Some(style_preset),
             Message::ScrollStylePresetChanged,
         ),
         text(match style_preset {
-            ScrollStylePreset::Floating => "Floating: Scrollbars fade in on hover, float over content",
-            ScrollStylePreset::Thin => "Thin: Thin bars that expand on hover, slightly transparent",
-            ScrollStylePreset::Solid => "Solid: Always visible scrollbars that allocate space",
+            scrollable::Preset::Floating => {
+                "Floating: Scrollbars fade in on hover, float over content"
+            }
+            scrollable::Preset::Thin => {
+                "Thin: Thin bars that expand on hover, slightly transparent"
+            }
+            scrollable::Preset::Solid => "Solid: Always visible scrollbars that allocate space",
         })
         .size(12)
         .color(Color::from_rgb(0.6, 0.6, 0.6)),
@@ -400,7 +386,11 @@ fn view_style_options(
     let direction_section = column![
         text("Scroll Direction").size(16),
         radio_group(
-            [ScrollDirection::Vertical, ScrollDirection::Horizontal, ScrollDirection::Both],
+            [
+                ScrollDirection::Vertical,
+                ScrollDirection::Horizontal,
+                ScrollDirection::Both
+            ],
             Some(direction),
             Message::ScrollDirectionChanged,
         ),
@@ -486,18 +476,20 @@ fn view_style_options(
 }
 
 fn create_style_demo_content(
-    style_preset: ScrollStylePreset,
+    style_preset: scrollable::Preset,
     direction: ScrollDirection,
     scrollbar_width: u32,
     scrollbar_margin: u32,
     scroller_width: u32,
     anchor: AnchorPosition,
 ) -> Element<'static, Message> {
-    let scrollbar = scrollable::Scrollbar::new()
+    let mut scrollbar = scrollable::Scrollbar::new()
         .width(scrollbar_width)
         .margin(scrollbar_margin)
         .scroller_width(scroller_width)
         .anchor(anchor.into());
+
+    scrollbar = scrollbar.preset(style_preset);
 
     let direction = match direction {
         ScrollDirection::Vertical => scrollable::Direction::Vertical(scrollbar),
@@ -508,84 +500,39 @@ fn create_style_demo_content(
         },
     };
 
-    let content: Element<'static, Message> = match direction {
-        scrollable::Direction::Vertical(_) => {
-            let items: Vec<Element<'static, Message>> = (1..=50)
-                .map(|i| {
-                    container(text(format!("Item {}", i)).size(16))
-                        .padding(15)
-                        .width(Fill)
-                        .style(move |_theme| {
-                            let bg = if i % 2 == 0 {
-                                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-                            container::Style {
-                                background: Some(bg.into()),
-                                ..Default::default()
-                            }
-                        })
-                        .into()
-                })
-                .collect();
-            column(items).into()
-        }
-        scrollable::Direction::Horizontal(_) => {
-            let items: Vec<Element<'static, Message>> = (1..=30)
-                .map(|i| {
-                    container(text(format!("Col {}", i)).size(14))
-                        .padding([20, 40])
-                        .height(200)
-                        .center_y(Fill)
-                        .style(move |_theme| {
-                            let bg = if i % 2 == 0 {
-                                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-                            container::Style {
-                                background: Some(bg.into()),
-                                ..Default::default()
-                            }
-                        })
-                        .into()
-                })
-                .collect();
-            row(items).into()
-        }
-        scrollable::Direction::Both { .. } => {
-            let rows: Vec<Element<'static, Message>> = (0..20)
-                .map(|r| {
-                    let cols: Vec<Element<'static, Message>> = (0..20)
-                        .map(|c| {
-                            let hue = ((r + c) as f32 * 0.05) % 1.0;
-                            let color = hsv_to_rgb(hue, 0.3, 0.15);
-                            container(text(format!("({},{})", c, r)).size(12))
-                                .width(80)
-                                .height(60)
-                                .center(Fill)
-                                .style(move |_theme| container::Style {
-                                    background: Some(color.into()),
-                                    border: Border {
-                                        color: Color::from_rgba(1.0, 1.0, 1.0, 0.1),
-                                        width: 1.0,
-                                        radius: 0.0.into(),
-                                    },
-                                    ..Default::default()
-                                })
-                                .into()
-                        })
-                        .collect();
-                    row(cols).into()
-                })
-                .collect();
-            column(rows).into()
-        }
-    };
+    // Create demo content - a wide and tall text block
+    let lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.";
+
+    let items: Vec<Element<'static, Message>> = (1..=30)
+        .map(|i| {
+            let bg = if i % 2 == 0 {
+                Color::from_rgba(1.0, 1.0, 1.0, 0.05)
+            } else {
+                Color::TRANSPARENT
+            };
+            container(
+                row![
+                    text(format!("{:>3}.", i))
+                        .size(14)
+                        .color(Color::from_rgb(0.5, 0.5, 0.5)),
+                    text(format!("{} — {} — {} — {}", lorem, lorem, lorem, lorem)).size(14),
+                ]
+                .spacing(10),
+            )
+            .padding([8, 12])
+            .style(move |_theme| container::Style {
+                background: Some(bg.into()),
+                ..Default::default()
+            })
+            .into()
+        })
+        .collect();
+
+    let content: Element<'static, Message> = column(items).into();
 
     scrollable(content)
         .direction(direction)
+        .auto_scroll(true)
         .on_scroll(Message::Scrolled)
         .width(Fill)
         .height(Length::Fixed(SCROLL_AREA_HEIGHT))
@@ -593,11 +540,11 @@ fn create_style_demo_content(
         .into()
 }
 
-fn style_preset_picker(style_preset: ScrollStylePreset) -> Element<'static, Message> {
+fn style_preset_picker(style_preset: scrollable::Preset) -> Element<'static, Message> {
     row![
         text("Style:").size(14),
         pick_list(
-            &ScrollStylePreset::ALL[..],
+            &scrollable::Preset::ALL[..],
             Some(style_preset),
             Message::ScrollStylePresetChanged
         )
@@ -612,15 +559,11 @@ fn style_preset_picker(style_preset: ScrollStylePreset) -> Element<'static, Mess
 fn scrollable_style(
     theme: &Theme,
     status: scrollable::Status,
-    style_preset: ScrollStylePreset,
+    style_preset: scrollable::Preset,
 ) -> scrollable::Style {
     let base = scrollable::default(theme, status);
 
-    let scroll = match style_preset {
-        ScrollStylePreset::Floating => scrollable::ScrollStyle::floating(),
-        ScrollStylePreset::Thin => scrollable::ScrollStyle::thin(),
-        ScrollStylePreset::Solid => scrollable::ScrollStyle::solid(),
-    };
+    let scroll = style_preset.scroll_style();
 
     let hover_factor = match status {
         scrollable::Status::Active { hover_factor, .. } => hover_factor,
@@ -642,7 +585,10 @@ fn scrollable_style(
             is_horizontal_scrollbar_dragged,
             is_vertical_scrollbar_dragged,
             ..
-        } => (is_horizontal_scrollbar_dragged, is_vertical_scrollbar_dragged),
+        } => (
+            is_horizontal_scrollbar_dragged,
+            is_vertical_scrollbar_dragged,
+        ),
     };
     let is_interacting = is_h_interacting || is_v_interacting;
 
@@ -677,14 +623,13 @@ fn view_progress(
     current_scroll_offset: scrollable::RelativeOffset,
 ) -> Element<'static, Message> {
     let y_bar = progress_bar(0.0..=1.0, current_scroll_offset.y);
-    let x_bar =
-        progress_bar(0.0..=1.0, current_scroll_offset.x).style(|_theme: &Theme| {
-            progress_bar::Style {
-                background: Color::from_rgb(0.3, 0.3, 0.3).into(),
-                bar: Color::from_rgb8(250, 85, 134).into(),
-                border: Border::default(),
-            }
-        });
+    let x_bar = progress_bar(0.0..=1.0, current_scroll_offset.x).style(|_theme: &Theme| {
+        progress_bar::Style {
+            background: Color::from_rgb(0.3, 0.3, 0.3).into(),
+            bar: Color::from_rgb8(250, 85, 134).into(),
+            border: Border::default(),
+        }
+    });
 
     match active_tab {
         ScrollablesTab::LargeCanvas | ScrollablesTab::StyleOptions
@@ -711,55 +656,131 @@ fn view_progress(
 }
 
 fn render_tiles(viewport: Rectangle, tile_size: f32) -> Element<'static, Message> {
-    // Calculate visible tile range
-    let first_col = (viewport.x / tile_size).floor() as i32;
-    let last_col = ((viewport.x + viewport.width) / tile_size).ceil() as i32;
-    let first_row = (viewport.y / tile_size).floor() as i32;
-    let last_row = ((viewport.y + viewport.height) / tile_size).ceil() as i32;
+    // Use canvas for custom drawing - this is the correct approach for show_viewport
+    // The viewport gives us the visible area in content coordinates
+    struct TileCanvas {
+        viewport: Rectangle,
+        tile_size: f32,
+    }
 
-    // Build rows of tiles
-    let rows: Vec<Element<'static, Message>> = (first_row..=last_row)
-        .map(|r| {
-            let cols: Vec<Element<'static, Message>> = (first_col..=last_col)
-                .map(|c| {
+    impl canvas::Program<Message> for TileCanvas {
+        type State = ();
+
+        fn draw(
+            &self,
+            _state: &Self::State,
+            renderer: &icy_ui::Renderer,
+            _theme: &Theme,
+            bounds: Rectangle,
+            _cursor: icy_ui::mouse::Cursor,
+        ) -> Vec<canvas::Geometry<icy_ui::Renderer>> {
+            // Calculate visible tile range based on viewport
+            let first_col = (self.viewport.x / self.tile_size).floor() as i32;
+            let last_col = ((self.viewport.x + self.viewport.width) / self.tile_size).ceil() as i32;
+            let first_row = (self.viewport.y / self.tile_size).floor() as i32;
+            let last_row =
+                ((self.viewport.y + self.viewport.height) / self.tile_size).ceil() as i32;
+
+            // Create a frame and draw tiles
+            let mut frame = canvas::Frame::new(renderer, bounds.size());
+
+            for r in first_row..=last_row {
+                for c in first_col..=last_col {
+                    // Calculate tile position relative to viewport (screen coordinates)
+                    let tile_x = c as f32 * self.tile_size - self.viewport.x;
+                    let tile_y = r as f32 * self.tile_size - self.viewport.y;
+
+                    // Skip if outside visible bounds
+                    if tile_x + self.tile_size < 0.0
+                        || tile_y + self.tile_size < 0.0
+                        || tile_x > bounds.width
+                        || tile_y > bounds.height
+                    {
+                        continue;
+                    }
+
                     // Color based on position
                     let hue = ((c + r) as f32 * 0.05) % 1.0;
                     let color = hsv_to_rgb(hue, 0.4, 0.2);
 
-                    container(
-                        column![
-                            text(format!("({}, {})", c, r))
-                                .size(16)
-                                .color(Color::from_rgb(0.8, 0.8, 0.8)),
-                            text(format!("x:{:.0}", c as f32 * tile_size))
-                                .size(10)
-                                .color(Color::from_rgb(0.6, 0.6, 0.6)),
-                            text(format!("y:{:.0}", r as f32 * tile_size))
-                                .size(10)
-                                .color(Color::from_rgb(0.6, 0.6, 0.6)),
-                        ]
-                        .align_x(Center),
-                    )
-                    .width(tile_size)
-                    .height(tile_size)
-                    .align_x(icy_ui::alignment::Horizontal::Center)
-                    .align_y(icy_ui::alignment::Vertical::Center)
-                    .style(move |_| container::Style {
-                        background: Some(color.into()),
-                        border: icy_ui::Border::default()
-                            .width(1.0)
-                            .color(Color::from_rgba(1.0, 1.0, 1.0, 0.1)),
+                    // Draw tile background
+                    frame.fill_rectangle(
+                        Point::new(tile_x, tile_y),
+                        Size::new(self.tile_size, self.tile_size),
+                        color,
+                    );
+
+                    // Draw tile border
+                    frame.stroke(
+                        &canvas::Path::rectangle(
+                            Point::new(tile_x, tile_y),
+                            Size::new(self.tile_size, self.tile_size),
+                        ),
+                        canvas::Stroke::default()
+                            .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.1))
+                            .with_width(1.0),
+                    );
+
+                    // Draw tile label
+                    let label = format!("({}, {})", c, r);
+                    frame.fill_text(canvas::Text {
+                        content: label,
+                        position: Point::new(
+                            tile_x + self.tile_size / 2.0,
+                            tile_y + self.tile_size / 2.0 - 10.0,
+                        ),
+                        color: Color::from_rgb(0.8, 0.8, 0.8),
+                        size: Pixels::from(16.0),
+                        font: Font::DEFAULT,
+                        align_x: icy_ui::widget::text::Alignment::Center,
+                        align_y: icy_ui::alignment::Vertical::Center,
                         ..Default::default()
-                    })
-                    .into()
-                })
-                .collect();
+                    });
 
-            row(cols).into()
-        })
-        .collect();
+                    // Draw coordinate info
+                    let coord_x = format!("x:{:.0}", c as f32 * self.tile_size);
+                    frame.fill_text(canvas::Text {
+                        content: coord_x,
+                        position: Point::new(
+                            tile_x + self.tile_size / 2.0,
+                            tile_y + self.tile_size / 2.0 + 5.0,
+                        ),
+                        color: Color::from_rgb(0.6, 0.6, 0.6),
+                        size: Pixels::from(10.0),
+                        font: Font::DEFAULT,
+                        align_x: icy_ui::widget::text::Alignment::Center,
+                        align_y: icy_ui::alignment::Vertical::Center,
+                        ..Default::default()
+                    });
 
-    column(rows).into()
+                    let coord_y = format!("y:{:.0}", r as f32 * self.tile_size);
+                    frame.fill_text(canvas::Text {
+                        content: coord_y,
+                        position: Point::new(
+                            tile_x + self.tile_size / 2.0,
+                            tile_y + self.tile_size / 2.0 + 18.0,
+                        ),
+                        color: Color::from_rgb(0.6, 0.6, 0.6),
+                        size: Pixels::from(10.0),
+                        font: Font::DEFAULT,
+                        align_x: icy_ui::widget::text::Alignment::Center,
+                        align_y: icy_ui::alignment::Vertical::Center,
+                        ..Default::default()
+                    });
+                }
+            }
+
+            vec![frame.into_geometry()]
+        }
+    }
+
+    canvas(TileCanvas {
+        viewport,
+        tile_size,
+    })
+    .width(Fill)
+    .height(Fill)
+    .into()
 }
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color {

@@ -37,6 +37,6 @@ pub mod text;
 pub use icon::icon_button;
 #[cfg(feature = "image")]
 pub use image::image_button;
-pub use link::{hyperlink, Hyperlink};
+pub use link::{Hyperlink, hyperlink};
 pub use text::text_button;
 pub use widget::*;

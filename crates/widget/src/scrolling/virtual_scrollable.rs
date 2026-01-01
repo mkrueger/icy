@@ -59,6 +59,10 @@
 //! }
 //! ```
 use crate::container;
+use crate::core;
+use crate::core::alignment;
+use crate::core::border;
+use crate::core::keyboard::{self, Key, key};
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -71,8 +75,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    Animation, Background, Clipboard, Color, Element, Event, Layout, Length, Point, Rectangle,
-    Shell, Size, Vector, Widget,
+    Animation, Background, Clipboard, Color, Element, Event, Layout, Length, Pixels, Point,
+    Rectangle, Shell, Size, Vector, Widget,
 };
 
 use super::scrollable::{
@@ -143,11 +147,12 @@ where
     content_size: Size,
     view: Box<dyn Fn(Rectangle) -> Element<'a, Message, Theme, Renderer> + 'a>,
     on_scroll: Option<Box<dyn Fn(Viewport) -> Message + 'a>>,
+    auto_scroll: bool,
     class: Theme::Class<'a>,
     last_status: Option<Status>,
-    /// Cell size for smooth sub-cell scrolling.
-    /// For rows, only height is used. For 2D grids, both width and height.
-    cell_size: Option<Size>,
+    /// Row height for smooth sub-row scrolling (internal, set by `with_rows`).
+    /// When set, translation offset uses `translation % row_height` for smooth scrolling.
+    row_height: Option<f32>,
 }
 
 impl<'a, Message, Theme, Renderer> VirtualScrollable<'a, Message, Theme, Renderer>
@@ -168,9 +173,10 @@ where
             content_size,
             view: Box::new(view),
             on_scroll: None,
+            auto_scroll: false,
             class: Theme::default(),
             last_status: None,
-            cell_size: None,
+            row_height: None,
         }
     }
 
@@ -199,10 +205,19 @@ where
                 view(visible_range)
             }),
             on_scroll: None,
+            auto_scroll: false,
             class: Theme::default(),
             last_status: None,
-            cell_size: Some(Size::new(0.0, row_height)),
+            row_height: Some(row_height),
         }
+    }
+
+    /// Sets whether the user should be allowed to auto-scroll with the middle mouse button.
+    ///
+    /// By default, it is disabled.
+    pub fn auto_scroll(mut self, auto_scroll: bool) -> Self {
+        self.auto_scroll = auto_scroll;
+        self
     }
 
     /// Makes the [`VirtualScrollable`] scroll horizontally.
@@ -293,41 +308,6 @@ where
         self
     }
 
-    /// Sets the cell size for smooth sub-cell scrolling.
-    ///
-    /// When using [`show_viewport`] with a grid of uniform-sized cells (like tiles),
-    /// call this method with the cell size to enable smooth scrolling. The widget
-    /// will calculate the sub-cell offset and translate the content appropriately.
-    ///
-    /// For row-based scrolling, use [`show_rows`] which sets this automatically.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::core::Size; }
-    /// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
-    /// use icy_ui::widget::virtual_scrollable;
-    /// use icy_ui::Size;
-    ///
-    /// enum Message {}
-    ///
-    /// let tile_size = 200.0;
-    /// let canvas_size = 100_000.0;
-    ///
-    /// virtual_scrollable::show_viewport(
-    ///     Size::new(canvas_size, canvas_size),
-    ///     move |viewport| {
-    ///         // Render visible tiles based on viewport
-    ///         # iced::widget::text("").into()
-    ///     }
-    /// )
-    /// .with_cell_size(Size::new(tile_size, tile_size));
-    /// ```
-    #[must_use]
-    pub fn with_cell_size(mut self, cell_size: Size) -> Self {
-        self.cell_size = Some(cell_size);
-        self
-    }
-
     /// Sets the style class of the [`VirtualScrollable`].
     #[cfg(feature = "advanced")]
     #[must_use]
@@ -358,6 +338,9 @@ struct State {
     scroll_to_animation: Option<Animation<bool>>,
     /// Starting offset for smooth scroll-to animation
     scroll_to_start: Option<AbsoluteOffset>,
+
+    is_y_scrollbar_visible: bool,
+    is_x_scrollbar_visible: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -365,6 +348,11 @@ enum Interaction {
     None,
     YScrollerGrabbed(f32),
     XScrollerGrabbed(f32),
+    AutoScrolling {
+        origin: Point,
+        current: Point,
+        last_frame: Option<Instant>,
+    },
     TouchScrolling {
         last_position: Point,
         last_time: Instant,
@@ -386,6 +374,9 @@ impl Default for State {
             scroll_to_target: None,
             scroll_to_animation: None,
             scroll_to_start: None,
+
+            is_y_scrollbar_visible: true,
+            is_x_scrollbar_visible: true,
         }
     }
 }
@@ -687,6 +678,37 @@ impl State {
     }
 }
 
+fn embedded_padding(direction: Direction, state: &State) -> (f32, f32) {
+    let y_padding = direction
+        .vertical()
+        .and_then(|sb| {
+            sb.spacing
+                .map(|spacing| sb.width.max(sb.scroller_width) + sb.margin * 2.0 + spacing)
+        })
+        .unwrap_or(0.0);
+
+    let x_padding = direction
+        .horizontal()
+        .and_then(|sb| {
+            sb.spacing
+                .map(|spacing| sb.width.max(sb.scroller_width) + sb.margin * 2.0 + spacing)
+        })
+        .unwrap_or(0.0);
+
+    (
+        if state.is_y_scrollbar_visible {
+            y_padding
+        } else {
+            0.0
+        },
+        if state.is_x_scrollbar_visible {
+            x_padding
+        } else {
+            0.0
+        },
+    )
+}
+
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for VirtualScrollable<'_, Message, Theme, Renderer>
 where
@@ -723,10 +745,64 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let state = tree.state.downcast_ref::<State>();
+        let state = tree.state.downcast_mut::<State>();
 
         // Calculate bounds from limits
         let bounds = limits.resolve(self.width, self.height, Size::ZERO);
+
+        let (y_padding, x_padding) = match self.direction {
+            Direction::Vertical(Scrollbar {
+                width,
+                margin,
+                scroller_width,
+                spacing: Some(spacing),
+                ..
+            }) => (
+                Some(width.max(scroller_width) + margin * 2.0 + spacing),
+                None,
+            ),
+            Direction::Horizontal(Scrollbar {
+                width,
+                margin,
+                scroller_width,
+                spacing: Some(spacing),
+                ..
+            }) => (
+                None,
+                Some(width.max(scroller_width) + margin * 2.0 + spacing),
+            ),
+            Direction::Both {
+                vertical,
+                horizontal,
+            } => (
+                vertical.spacing.map(|spacing| {
+                    vertical.width.max(vertical.scroller_width) + vertical.margin * 2.0 + spacing
+                }),
+                horizontal.spacing.map(|spacing| {
+                    horizontal.width.max(horizontal.scroller_width)
+                        + horizontal.margin * 2.0
+                        + spacing
+                }),
+            ),
+            _ => (None, None),
+        };
+
+        let y_embedded = y_padding.is_some();
+        let x_embedded = x_padding.is_some();
+
+        let y_padding = y_padding.unwrap_or(0.0);
+        let x_padding = x_padding.unwrap_or(0.0);
+
+        let mut is_y_scrollbar_visible = state.is_y_scrollbar_visible && y_embedded;
+        let mut is_x_scrollbar_visible = state.is_x_scrollbar_visible && x_embedded;
+
+        if self.direction.vertical().is_none() {
+            is_y_scrollbar_visible = false;
+        }
+
+        if self.direction.horizontal().is_none() {
+            is_x_scrollbar_visible = false;
+        }
 
         // Determine content bounds based on declared content_size
         let content_width = if self.content_size.width > 0.0 {
@@ -740,6 +816,53 @@ where
             bounds.height
         };
 
+        // Resolve scrollbar visibility with a short convergence loop (Both can be interdependent).
+        for _ in 0..2 {
+            let viewport_width = (bounds.width
+                - if is_y_scrollbar_visible {
+                    y_padding
+                } else {
+                    0.0
+                })
+            .max(0.0);
+
+            let viewport_height = (bounds.height
+                - if is_x_scrollbar_visible {
+                    x_padding
+                } else {
+                    0.0
+                })
+            .max(0.0);
+
+            let y_needed = y_embedded && content_height > viewport_height;
+            let x_needed = x_embedded && content_width > viewport_width;
+
+            if y_needed == is_y_scrollbar_visible && x_needed == is_x_scrollbar_visible {
+                break;
+            }
+
+            is_y_scrollbar_visible = y_needed;
+            is_x_scrollbar_visible = x_needed;
+        }
+
+        state.is_y_scrollbar_visible = is_y_scrollbar_visible;
+        state.is_x_scrollbar_visible = is_x_scrollbar_visible;
+
+        let viewport_width = (bounds.width
+            - if is_y_scrollbar_visible {
+                y_padding
+            } else {
+                0.0
+            })
+        .max(0.0);
+        let viewport_height = (bounds.height
+            - if is_x_scrollbar_visible {
+                x_padding
+            } else {
+                0.0
+            })
+        .max(0.0);
+
         let content_bounds = Rectangle {
             x: 0.0,
             y: 0.0,
@@ -748,50 +871,22 @@ where
         };
 
         // Calculate visible viewport in content coordinates
-        let translation =
-            state.translation(self.direction, Rectangle::with_size(bounds), content_bounds);
+        // Like egui: the viewport is simply the visible area offset by the scroll position
+        let translation = state.translation(
+            self.direction,
+            Rectangle::with_size(Size::new(viewport_width, viewport_height)),
+            content_bounds,
+        );
 
-        let visible_viewport = {
-            let (extra_width, extra_height) = self
-                .cell_size
-                .map(|cell_size| {
-                    let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
-                    let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
-
-                    let at_end_x = translation.x >= max_scroll_x;
-                    let at_end_y = translation.y >= max_scroll_y;
-
-                    let extra_width = if cell_size.width > 0.0
-                        && !at_end_x
-                        && (translation.x % cell_size.width) != 0.0
-                    {
-                        cell_size.width
-                    } else {
-                        0.0
-                    };
-
-                    let extra_height = if cell_size.height > 0.0
-                        && !at_end_y
-                        && (translation.y % cell_size.height) != 0.0
-                    {
-                        cell_size.height
-                    } else {
-                        0.0
-                    };
-
-                    (extra_width, extra_height)
-                })
-                .unwrap_or((0.0, 0.0));
-
-            let max_width = (content_bounds.width - translation.x).max(0.0);
-            let max_height = (content_bounds.height - translation.y).max(0.0);
-
-            Rectangle {
-                x: translation.x,
-                y: translation.y,
-                width: (bounds.width + extra_width).min(max_width),
-                height: (bounds.height + extra_height).min(max_height),
-            }
+        let visible_viewport = Rectangle {
+            x: translation.x,
+            y: translation.y,
+            width: viewport_width
+                .min(content_bounds.width - translation.x)
+                .max(0.0),
+            height: viewport_height
+                .min(content_bounds.height - translation.y)
+                .max(0.0),
         };
 
         // Create the visible content
@@ -805,13 +900,14 @@ where
         }
 
         // Layout the visible content within the visible bounds
-        let content_limits = layout::Limits::new(Size::ZERO, bounds);
+        let content_limits =
+            layout::Limits::new(Size::ZERO, Size::new(viewport_width, viewport_height));
         let content_node =
             content
                 .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, &content_limits);
 
-        // The main node has the visible bounds, with content as child
+        // The main node has the outer bounds, with content as child (shrunken by right/bottom padding)
         layout::Node::with_children(bounds, vec![content_node])
     }
 
@@ -824,6 +920,14 @@ where
     ) {
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
+
+        let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
+        let viewport_bounds = Rectangle {
+            x: bounds.x,
+            y: bounds.y,
+            width: (bounds.width - right_padding).max(0.0),
+            height: (bounds.height - bottom_padding).max(0.0),
+        };
 
         let content_bounds = Rectangle {
             x: 0.0,
@@ -840,7 +944,7 @@ where
             },
         };
 
-        let translation = state.translation(self.direction, bounds, content_bounds);
+        let translation = state.translation(self.direction, viewport_bounds, content_bounds);
 
         operation.scrollable(self.id.as_ref(), bounds, content_bounds, translation, state);
     }
@@ -856,9 +960,25 @@ where
         shell: &mut Shell<'_, Message>,
         _viewport: &Rectangle,
     ) {
+        const AUTOSCROLL_DEADZONE: f32 = 20.0;
+        const AUTOSCROLL_SMOOTHNESS: f32 = 1.5;
+
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
         let cursor_over_scrollable = cursor.position_over(bounds);
+
+        let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
+        let viewport = Size::new(
+            (bounds.width - right_padding).max(0.0),
+            (bounds.height - bottom_padding).max(0.0),
+        );
+
+        let viewport_bounds = Rectangle {
+            x: bounds.x,
+            y: bounds.y,
+            width: viewport.width,
+            height: viewport.height,
+        };
 
         let content_bounds = Rectangle {
             x: bounds.x,
@@ -875,7 +995,7 @@ where
             },
         };
 
-        let scrollbars = Scrollbars::new(state, self.direction, bounds, content_bounds);
+        let scrollbars = Scrollbars::new(state, self.direction, bounds, viewport, content_bounds);
         let (mouse_over_y_scrollbar, mouse_over_x_scrollbar) = scrollbars.is_mouse_over(cursor);
 
         let last_offsets = (state.offset_x, state.offset_y);
@@ -898,6 +1018,21 @@ where
             }
         }
 
+        if matches!(state.interaction, Interaction::AutoScrolling { .. })
+            && matches!(
+                event,
+                Event::Mouse(
+                    mouse::Event::ButtonPressed { .. } | mouse::Event::WheelScrolled { .. }
+                ) | Event::Touch(_)
+                    | Event::Keyboard(_)
+            )
+        {
+            state.interaction = Interaction::None;
+            shell.capture_event();
+            shell.request_redraw();
+            return;
+        }
+
         let mut update = || {
             // Handle Y scrollbar dragging
             if let Some(scroller_grabbed_at) = state.y_scroller_grabbed_at() {
@@ -911,7 +1046,7 @@ where
 
                             state.scroll_y_to(
                                 scrollbar.scroll_percentage_y(scroller_grabbed_at, cursor_position),
-                                bounds,
+                                viewport_bounds,
                                 content_bounds,
                             );
 
@@ -977,7 +1112,7 @@ where
                         if let Some(scrollbar) = scrollbars.x {
                             state.scroll_x_to(
                                 scrollbar.scroll_percentage_x(scroller_grabbed_at, cursor_position),
-                                bounds,
+                                viewport_bounds,
                                 content_bounds,
                             );
 
@@ -1048,47 +1183,18 @@ where
                 };
 
                 // Rebuild content for current viewport and update it
-                let visible_viewport = {
-                    let (extra_width, extra_height) = self
-                        .cell_size
-                        .map(|cell_size| {
-                            let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
-                            let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
-
-                            let at_end_x = translation.x >= max_scroll_x;
-                            let at_end_y = translation.y >= max_scroll_y;
-
-                            let extra_width = if cell_size.width > 0.0
-                                && !at_end_x
-                                && (translation.x % cell_size.width) != 0.0
-                            {
-                                cell_size.width
-                            } else {
-                                0.0
-                            };
-
-                            let extra_height = if cell_size.height > 0.0
-                                && !at_end_y
-                                && (translation.y % cell_size.height) != 0.0
-                            {
-                                cell_size.height
-                            } else {
-                                0.0
-                            };
-
-                            (extra_width, extra_height)
-                        })
-                        .unwrap_or((0.0, 0.0));
-
-                    let max_width = (content_bounds.width - translation.x).max(0.0);
-                    let max_height = (content_bounds.height - translation.y).max(0.0);
-
-                    Rectangle {
-                        x: translation.x,
-                        y: translation.y,
-                        width: (bounds.width + extra_width).min(max_width),
-                        height: (bounds.height + extra_height).min(max_height),
-                    }
+                // Like egui: the viewport is simply the visible area offset by the scroll position
+                let visible_viewport = Rectangle {
+                    x: translation.x,
+                    y: translation.y,
+                    width: bounds
+                        .width
+                        .min(content_bounds.width - translation.x)
+                        .max(0.0),
+                    height: bounds
+                        .height
+                        .min(content_bounds.height - translation.y)
+                        .max(0.0),
                 };
 
                 let mut content = (self.view)(visible_viewport);
@@ -1174,16 +1280,117 @@ where
                         mouse::ScrollDelta::Pixels { x, y } => -Vector::new(x, y),
                     };
 
-                    state.scroll(self.direction.align(delta), bounds, content_bounds);
+                    state.scroll(self.direction.align(delta), viewport_bounds, content_bounds);
 
-                    let has_scrolled =
-                        notify_scroll(state, &self.on_scroll, bounds, content_bounds, shell);
+                    let has_scrolled = notify_scroll(
+                        state,
+                        &self.on_scroll,
+                        viewport_bounds,
+                        content_bounds,
+                        shell,
+                    );
 
                     let in_transaction = state.last_scrolled.is_some();
 
                     if has_scrolled || in_transaction {
                         shell.capture_event();
                     }
+                }
+                Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
+                    // Match existing widget behavior (e.g. slider): allow keyboard interaction
+                    // while hovering, since VirtualScrollable does not manage focus.
+                    if cursor_over_scrollable.is_none() {
+                        return;
+                    }
+
+                    let has_vertical = self.direction.vertical().is_some();
+                    let has_horizontal = self.direction.horizontal().is_some();
+
+                    if !has_vertical && !has_horizontal {
+                        return;
+                    }
+
+                    let current = AbsoluteOffset {
+                        x: state
+                            .offset_x
+                            .absolute(viewport_bounds.width, content_bounds.width),
+                        y: state
+                            .offset_y
+                            .absolute(viewport_bounds.height, content_bounds.height),
+                    };
+
+                    let page_x = viewport_bounds.width;
+                    let page_y = viewport_bounds.height;
+
+                    let max_x = (content_bounds.width - viewport_bounds.width).max(0.0);
+                    let max_y = (content_bounds.height - viewport_bounds.height).max(0.0);
+
+                    let mut target = current;
+
+                    match key {
+                        Key::Named(key::Named::PageUp) => {
+                            if modifiers.shift() && has_horizontal {
+                                target.x = (target.x - page_x).clamp(0.0, max_x);
+                            } else if has_vertical {
+                                target.y = (target.y - page_y).clamp(0.0, max_y);
+                            } else if has_horizontal {
+                                target.x = (target.x - page_x).clamp(0.0, max_x);
+                            }
+                        }
+                        Key::Named(key::Named::PageDown) => {
+                            if modifiers.shift() && has_horizontal {
+                                target.x = (target.x + page_x).clamp(0.0, max_x);
+                            } else if has_vertical {
+                                target.y = (target.y + page_y).clamp(0.0, max_y);
+                            } else if has_horizontal {
+                                target.x = (target.x + page_x).clamp(0.0, max_x);
+                            }
+                        }
+                        Key::Named(key::Named::Home) => {
+                            if has_vertical {
+                                target.y = 0.0;
+                            }
+                            if modifiers.shift() && has_horizontal {
+                                target.x = 0.0;
+                            }
+                        }
+                        Key::Named(key::Named::End) => {
+                            if has_vertical {
+                                target.y = max_y;
+                            }
+                            if modifiers.shift() && has_horizontal {
+                                target.x = max_x;
+                            }
+                        }
+                        _ => {
+                            return;
+                        }
+                    }
+
+                    // Cancel any ongoing kinetic scrolling and start an animated scroll.
+                    state.velocity = Vector::new(0.0, 0.0);
+                    state.last_kinetic_update = None;
+
+                    state.scroll_to_animated(target, viewport_bounds, content_bounds);
+                    shell.capture_event();
+                    shell.request_redraw();
+                }
+                Event::Mouse(mouse::Event::ButtonPressed {
+                    button: mouse::Button::Middle,
+                    ..
+                }) if self.auto_scroll && matches!(state.interaction, Interaction::None) => {
+                    let Some(origin) = cursor_over_scrollable else {
+                        return;
+                    };
+
+                    state.interaction = Interaction::AutoScrolling {
+                        origin,
+                        current: origin,
+                        last_frame: None,
+                    };
+
+                    shell.capture_event();
+                    shell.request_redraw();
                 }
                 Event::Touch(event)
                     if matches!(state.interaction, Interaction::TouchScrolling { .. })
@@ -1236,7 +1443,11 @@ where
                             state.velocity.y = state.velocity.y * (1.0 - smoothing)
                                 + instant_velocity.y * smoothing;
 
-                            state.scroll(self.direction.align(delta), bounds, content_bounds);
+                            state.scroll(
+                                self.direction.align(delta),
+                                viewport_bounds,
+                                content_bounds,
+                            );
                             state.interaction = Interaction::TouchScrolling {
                                 last_position: cursor_position,
                                 last_time: now,
@@ -1245,7 +1456,7 @@ where
                             let _ = notify_scroll(
                                 state,
                                 &self.on_scroll,
-                                bounds,
+                                viewport_bounds,
                                 content_bounds,
                                 shell,
                             );
@@ -1255,14 +1466,106 @@ where
 
                     shell.capture_event();
                 }
+                Event::Mouse(mouse::Event::CursorMoved { position, .. }) => {
+                    if let Interaction::AutoScrolling {
+                        origin, last_frame, ..
+                    } = state.interaction
+                    {
+                        let delta = *position - origin;
+
+                        state.interaction = Interaction::AutoScrolling {
+                            origin,
+                            current: *position,
+                            last_frame,
+                        };
+
+                        if (delta.x.abs() >= AUTOSCROLL_DEADZONE
+                            || delta.y.abs() >= AUTOSCROLL_DEADZONE)
+                            && last_frame.is_none()
+                        {
+                            shell.request_redraw();
+                        }
+                    }
+                }
                 Event::Window(window::Event::RedrawRequested(now)) => {
+                    if let Interaction::AutoScrolling {
+                        origin,
+                        current,
+                        last_frame,
+                    } = state.interaction
+                    {
+                        if last_frame == Some(*now) {
+                            shell.request_redraw();
+                            return;
+                        }
+
+                        state.interaction = Interaction::AutoScrolling {
+                            origin,
+                            current,
+                            last_frame: None,
+                        };
+
+                        let mut delta = current - origin;
+
+                        if delta.x.abs() < AUTOSCROLL_DEADZONE {
+                            delta.x = 0.0;
+                        }
+
+                        if delta.y.abs() < AUTOSCROLL_DEADZONE {
+                            delta.y = 0.0;
+                        }
+
+                        if delta.x != 0.0 || delta.y != 0.0 {
+                            let time_delta = if let Some(last_frame) = last_frame {
+                                *now - last_frame
+                            } else {
+                                Duration::ZERO
+                            };
+
+                            let scroll_factor = time_delta.as_secs_f32();
+
+                            state.scroll(
+                                self.direction.align(Vector::new(
+                                    delta.x.signum()
+                                        * delta.x.abs().powf(AUTOSCROLL_SMOOTHNESS)
+                                        * scroll_factor,
+                                    delta.y.signum()
+                                        * delta.y.abs().powf(AUTOSCROLL_SMOOTHNESS)
+                                        * scroll_factor,
+                                )),
+                                viewport_bounds,
+                                content_bounds,
+                            );
+
+                            let has_scrolled = notify_scroll(
+                                state,
+                                &self.on_scroll,
+                                viewport_bounds,
+                                content_bounds,
+                                shell,
+                            );
+
+                            if has_scrolled || time_delta.is_zero() {
+                                state.interaction = Interaction::AutoScrolling {
+                                    origin,
+                                    current,
+                                    last_frame: Some(*now),
+                                };
+
+                                shell.request_redraw();
+                            }
+
+                            return;
+                        }
+                    }
+
                     // Update kinetic scrolling
                     if state.is_kinetic_active() {
-                        if state.update_kinetic(*now, bounds, content_bounds) {
+                        if state.update_kinetic(*now, viewport_bounds, content_bounds) {
                             let _ = notify_scroll(
                                 state,
                                 &self.on_scroll,
-                                bounds,
+                                viewport_bounds,
                                 content_bounds,
                                 shell,
                             );
@@ -1274,11 +1577,11 @@ where
 
                     // Update scroll-to animation
                     if state.is_scroll_to_animating(*now) {
-                        if state.update_scroll_to_animation(*now, bounds, content_bounds) {
+                        if state.update_scroll_to_animation(*now, viewport_bounds, content_bounds) {
                             let _ = notify_scroll(
                                 state,
                                 &self.on_scroll,
-                                bounds,
+                                viewport_bounds,
                                 content_bounds,
                                 shell,
                             );
@@ -1286,7 +1589,13 @@ where
                         }
                     }
 
-                    let _ = notify_viewport(state, &self.on_scroll, bounds, content_bounds, shell);
+                    let _ = notify_viewport(
+                        state,
+                        &self.on_scroll,
+                        viewport_bounds,
+                        content_bounds,
+                        shell,
+                    );
                 }
                 _ => {}
             }
@@ -1361,6 +1670,12 @@ where
         let state = tree.state.downcast_ref::<State>();
         let bounds = layout.bounds();
 
+        let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
+        let viewport_size = Size::new(
+            (bounds.width - right_padding).max(0.0),
+            (bounds.height - bottom_padding).max(0.0),
+        );
+
         let Some(visible_bounds) = bounds.intersection(viewport) else {
             return;
         };
@@ -1380,11 +1695,21 @@ where
             },
         };
 
-        let scrollbars = Scrollbars::new(state, self.direction, bounds, content_bounds);
+        let scrollbars =
+            Scrollbars::new(state, self.direction, bounds, viewport_size, content_bounds);
         let cursor_over_scrollable = cursor.position_over(bounds);
         let (mouse_over_y_scrollbar, mouse_over_x_scrollbar) = scrollbars.is_mouse_over(cursor);
 
-        let translation = state.translation(self.direction, bounds, content_bounds);
+        let translation = state.translation(
+            self.direction,
+            Rectangle {
+                x: bounds.x,
+                y: bounds.y,
+                width: viewport_size.width,
+                height: viewport_size.height,
+            },
+            content_bounds,
+        );
 
         // Virtual scrolling: we render content for the visible viewport, but we do NOT
         // translate the rendered content. Therefore, the content receives viewport-local
@@ -1408,48 +1733,19 @@ where
 
         // Draw virtual content
         if scrollbars.active() {
-            // Calculate visible viewport in content coordinates (+ overscan when needed)
-            let visible_viewport = {
-                let (extra_width, extra_height) = self
-                    .cell_size
-                    .map(|cell_size| {
-                        let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
-                        let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
-
-                        let at_end_x = translation.x >= max_scroll_x;
-                        let at_end_y = translation.y >= max_scroll_y;
-
-                        let extra_width = if cell_size.width > 0.0
-                            && !at_end_x
-                            && (translation.x % cell_size.width) != 0.0
-                        {
-                            cell_size.width
-                        } else {
-                            0.0
-                        };
-
-                        let extra_height = if cell_size.height > 0.0
-                            && !at_end_y
-                            && (translation.y % cell_size.height) != 0.0
-                        {
-                            cell_size.height
-                        } else {
-                            0.0
-                        };
-
-                        (extra_width, extra_height)
-                    })
-                    .unwrap_or((0.0, 0.0));
-
-                let max_width = (content_bounds.width - translation.x).max(0.0);
-                let max_height = (content_bounds.height - translation.y).max(0.0);
-
-                Rectangle {
-                    x: translation.x,
-                    y: translation.y,
-                    width: (bounds.width + extra_width).min(max_width),
-                    height: (bounds.height + extra_height).min(max_height),
-                }
+            // Calculate visible viewport in content coordinates
+            // Like egui: the viewport is simply the visible area offset by the scroll position
+            let visible_viewport = Rectangle {
+                x: translation.x,
+                y: translation.y,
+                width: viewport_size
+                    .width
+                    .min(content_bounds.width - translation.x)
+                    .max(0.0),
+                height: viewport_size
+                    .height
+                    .min(content_bounds.height - translation.y)
+                    .max(0.0),
             };
 
             // Generate content for visible viewport
@@ -1466,36 +1762,16 @@ where
             renderer.with_layer(visible_bounds, |renderer| {
                 if let Some(content_layout) = layout.children().next() {
                     // Calculate translation offset for smooth scrolling
-                    // Use cell_size for sub-cell offset, or fractional pixel offset as fallback
-                    let (offset_x, offset_y) = if let Some(cell_size) = self.cell_size {
-                        let max_scroll_x = (content_bounds.width - bounds.width).max(0.0);
-                        let max_scroll_y = (content_bounds.height - bounds.height).max(0.0);
-
-                        let at_end_x = translation.x >= max_scroll_x;
-                        let at_end_y = translation.y >= max_scroll_y;
-
-                        // Sub-cell offset for smooth cell-based scrolling
-                        let ox = if cell_size.width > 0.0 {
-                            if at_end_x {
-                                0.0
-                            } else {
-                                translation.x % cell_size.width
-                            }
-                        } else {
-                            translation.x - translation.x.floor()
-                        };
-                        let oy = if cell_size.height > 0.0 {
-                            if at_end_y {
-                                0.0
-                            } else {
-                                translation.y % cell_size.height
-                            }
-                        } else {
-                            translation.y - translation.y.floor()
-                        };
-                        (ox, oy)
+                    // Like egui: for row-based scrolling, use sub-row offset (translation % row_height)
+                    // For viewport-based scrolling, use fractional pixel offset
+                    let (offset_x, offset_y) = if let Some(row_height) = self.row_height {
+                        // Row-based smooth scrolling: offset by sub-row amount
+                        let offset_y = translation.y % row_height;
+                        // For horizontal, use fractional pixel if no row width specified
+                        let offset_x = translation.x - translation.x.floor();
+                        (offset_x, offset_y)
                     } else {
-                        // Fractional pixel offset for viewport-based scrolling
+                        // Viewport-based: fractional pixel offset for sub-pixel smoothness
                         (
                             translation.x - translation.x.floor(),
                             translation.y - translation.y.floor(),
@@ -1685,6 +1961,12 @@ where
         let bounds = layout.bounds();
         let cursor_over_scrollable = cursor.position_over(bounds);
 
+        let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
+        let viewport_size = Size::new(
+            (bounds.width - right_padding).max(0.0),
+            (bounds.height - bottom_padding).max(0.0),
+        );
+
         let content_bounds = Rectangle {
             x: bounds.x,
             y: bounds.y,
@@ -1700,14 +1982,24 @@ where
             },
         };
 
-        let scrollbars = Scrollbars::new(state, self.direction, bounds, content_bounds);
+        let scrollbars =
+            Scrollbars::new(state, self.direction, bounds, viewport_size, content_bounds);
         let (mouse_over_y_scrollbar, mouse_over_x_scrollbar) = scrollbars.is_mouse_over(cursor);
 
         if state.scrollers_grabbed() {
             return mouse::Interaction::None;
         }
 
-        let translation = state.translation(self.direction, bounds, content_bounds);
+        let translation = state.translation(
+            self.direction,
+            Rectangle {
+                x: bounds.x,
+                y: bounds.y,
+                width: viewport_size.width,
+                height: viewport_size.height,
+            },
+            content_bounds,
+        );
 
         let cursor = match cursor_over_scrollable {
             Some(cursor_position) if !(mouse_over_x_scrollbar || mouse_over_y_scrollbar) => {
@@ -1720,8 +2012,8 @@ where
         let visible_viewport = Rectangle {
             x: translation.x,
             y: translation.y,
-            width: bounds.width,
-            height: bounds.height,
+            width: viewport_size.width,
+            height: viewport_size.height,
         };
 
         let content = (self.view)(visible_viewport);
@@ -1748,15 +2040,193 @@ where
 
     fn overlay<'b>(
         &'b mut self,
-        _tree: &'b mut Tree,
-        _layout: Layout<'b>,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
         _renderer: &Renderer,
         _viewport: &Rectangle,
         _translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        // Virtual scrollable doesn't support overlays from content
-        // (would require more complex state management)
-        None
+        // Virtual scrollable doesn't support overlays from content.
+        // However, we still render the auto-scroll indicator when active.
+        let state = tree.state.downcast_ref::<State>();
+
+        let Interaction::AutoScrolling { origin, .. } = state.interaction else {
+            return None;
+        };
+
+        let bounds = layout.bounds();
+
+        let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
+        let viewport = Size::new(
+            (bounds.width - right_padding).max(0.0),
+            (bounds.height - bottom_padding).max(0.0),
+        );
+
+        let content_bounds = Rectangle {
+            x: bounds.x,
+            y: bounds.y,
+            width: if self.content_size.width > 0.0 {
+                self.content_size.width
+            } else {
+                bounds.width
+            },
+            height: if self.content_size.height > 0.0 {
+                self.content_size.height
+            } else {
+                bounds.height
+            },
+        };
+
+        let scrollbars = Scrollbars::new(state, self.direction, bounds, viewport, content_bounds);
+
+        Some(overlay::Element::new(Box::new(AutoScrollIcon {
+            origin,
+            vertical: scrollbars.y.is_some(),
+            horizontal: scrollbars.x.is_some(),
+            class: &self.class,
+        })))
+    }
+}
+
+struct AutoScrollIcon<'a, Class> {
+    origin: Point,
+    vertical: bool,
+    horizontal: bool,
+    class: &'a Class,
+}
+
+impl<Class> AutoScrollIcon<'_, Class> {
+    const SIZE: f32 = 40.0;
+    const DOT: f32 = Self::SIZE / 10.0;
+    const PADDING: f32 = Self::SIZE / 10.0;
+}
+
+impl<Message, Theme, Renderer> core::Overlay<Message, Theme, Renderer>
+    for AutoScrollIcon<'_, Theme::Class<'_>>
+where
+    Renderer: text::Renderer,
+    Theme: Catalog,
+{
+    fn layout(&mut self, _renderer: &Renderer, _bounds: Size) -> layout::Node {
+        layout::Node::new(Size::new(Self::SIZE, Self::SIZE))
+            .move_to(self.origin - Vector::new(Self::SIZE, Self::SIZE) / 2.0)
+    }
+
+    fn draw(
+        &self,
+        renderer: &mut Renderer,
+        theme: &Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+    ) {
+        let bounds = layout.bounds();
+        let style = theme
+            .style(
+                self.class,
+                Status::Active {
+                    hover_factor: 0.0,
+                    is_horizontal_scrollbar_disabled: false,
+                    is_vertical_scrollbar_disabled: false,
+                },
+            )
+            .auto_scroll;
+
+        renderer.with_layer(Rectangle::INFINITE, |renderer| {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds,
+                    border: style.border,
+                    shadow: style.shadow,
+                    snap: false,
+                },
+                style.background,
+            );
+
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: Rectangle::new(
+                        bounds.center() - Vector::new(Self::DOT, Self::DOT) / 2.0,
+                        Size::new(Self::DOT, Self::DOT),
+                    ),
+                    border: border::rounded(bounds.width),
+                    snap: false,
+                    ..renderer::Quad::default()
+                },
+                style.icon,
+            );
+
+            let arrow = crate::core::Text {
+                content: String::new(),
+                bounds: bounds.size(),
+                size: Pixels::from(12),
+                line_height: text::LineHeight::Relative(1.0),
+                font: Renderer::ICON_FONT,
+                align_x: text::Alignment::Center,
+                align_y: alignment::Vertical::Center,
+                shaping: text::Shaping::Basic,
+                wrapping: text::Wrapping::None,
+                hint_factor: None,
+            };
+
+            if self.vertical {
+                renderer.fill_text(
+                    crate::core::Text {
+                        content: Renderer::SCROLL_UP_ICON.to_string(),
+                        align_y: alignment::Vertical::Top,
+                        ..arrow
+                    },
+                    Point::new(bounds.center_x(), bounds.y + Self::PADDING),
+                    style.icon,
+                    bounds,
+                );
+
+                renderer.fill_text(
+                    crate::core::Text {
+                        content: Renderer::SCROLL_DOWN_ICON.to_string(),
+                        align_y: alignment::Vertical::Bottom,
+                        ..arrow
+                    },
+                    Point::new(
+                        bounds.center_x(),
+                        bounds.y + bounds.height - Self::PADDING - 0.5,
+                    ),
+                    style.icon,
+                    bounds,
+                );
+            }
+
+            if self.horizontal {
+                renderer.fill_text(
+                    crate::core::Text {
+                        content: Renderer::SCROLL_LEFT_ICON.to_string(),
+                        align_x: text::Alignment::Left,
+                        ..arrow
+                    },
+                    Point::new(bounds.x + Self::PADDING + 1.0, bounds.center_y() + 1.0),
+                    style.icon,
+                    bounds,
+                );
+
+                renderer.fill_text(
+                    crate::core::Text {
+                        content: Renderer::SCROLL_RIGHT_ICON.to_string(),
+                        align_x: text::Alignment::Right,
+                        ..arrow
+                    },
+                    Point::new(
+                        bounds.x + bounds.width - Self::PADDING - 1.0,
+                        bounds.center_y() + 1.0,
+                    ),
+                    style.icon,
+                    bounds,
+                );
+            }
+        });
+    }
+
+    fn index(&self) -> f32 {
+        f32::MAX
     }
 }
 
@@ -1849,17 +2319,28 @@ impl Scrollbars {
         state: &State,
         direction: Direction,
         bounds: Rectangle,
+        viewport: Size,
         content_bounds: Rectangle,
     ) -> Self {
-        let translation = state.translation(direction, bounds, content_bounds);
+        let viewport_bounds = Rectangle {
+            x: bounds.x,
+            y: bounds.y,
+            width: viewport.width,
+            height: viewport.height,
+        };
+
+        let translation = state.translation(direction, viewport_bounds, content_bounds);
+
+        let reserved_width = (bounds.width - viewport.width).max(0.0);
+        let reserved_height = (bounds.height - viewport.height).max(0.0);
 
         let show_scrollbar_x = direction
             .horizontal()
-            .filter(|_scrollbar| content_bounds.width > bounds.width);
+            .filter(|_scrollbar| content_bounds.width > viewport.width);
 
         let show_scrollbar_y = direction
             .vertical()
-            .filter(|_scrollbar| content_bounds.height > bounds.height);
+            .filter(|_scrollbar| content_bounds.height > viewport.height);
 
         let y_scrollbar = if let Some(vertical) = show_scrollbar_y {
             let Scrollbar {
@@ -1869,8 +2350,11 @@ impl Scrollbars {
                 ..
             } = *vertical;
 
-            let x_scrollbar_height =
-                show_scrollbar_x.map_or(0.0, |h| h.width.max(h.scroller_width) + h.margin);
+            let x_scrollbar_height = if reserved_height > 0.0 {
+                0.0
+            } else {
+                show_scrollbar_x.map_or(0.0, |h| h.width.max(h.scroller_width) + 2.0 * h.margin)
+            };
 
             let total_scrollbar_width = width.max(scroller_width) + 2.0 * margin;
 
@@ -1878,24 +2362,24 @@ impl Scrollbars {
                 x: bounds.x + bounds.width - total_scrollbar_width,
                 y: bounds.y,
                 width: total_scrollbar_width,
-                height: (bounds.height - x_scrollbar_height).max(0.0),
+                height: (viewport.height - x_scrollbar_height).max(0.0),
             };
 
             let scrollbar_bounds = Rectangle {
                 x: bounds.x + bounds.width - total_scrollbar_width / 2.0 - width / 2.0,
                 y: bounds.y,
                 width,
-                height: (bounds.height - x_scrollbar_height).max(0.0),
+                height: (viewport.height - x_scrollbar_height).max(0.0),
             };
 
-            let ratio = bounds.height / content_bounds.height;
+            let ratio = viewport.height / content_bounds.height;
 
             let scroller = if ratio >= 1.0 {
                 None
             } else {
                 let scroller_height = (scrollbar_bounds.height * ratio).max(2.0);
                 let scroller_offset =
-                    translation.y * ratio * scrollbar_bounds.height / bounds.height;
+                    translation.y * ratio * scrollbar_bounds.height / viewport.height;
 
                 let scroller_bounds = Rectangle {
                     x: bounds.x + bounds.width - total_scrollbar_width / 2.0 - scroller_width / 2.0,
@@ -1928,32 +2412,36 @@ impl Scrollbars {
                 ..
             } = *horizontal;
 
-            let scrollbar_y_width =
-                y_scrollbar.map_or(0.0, |scrollbar| scrollbar.total_bounds.width);
+            let scrollbar_y_width = if reserved_width > 0.0 {
+                0.0
+            } else {
+                y_scrollbar.map_or(0.0, |scrollbar| scrollbar.total_bounds.width)
+            };
 
             let total_scrollbar_height = width.max(scroller_width) + 2.0 * margin;
 
             let total_scrollbar_bounds = Rectangle {
                 x: bounds.x,
                 y: bounds.y + bounds.height - total_scrollbar_height,
-                width: (bounds.width - scrollbar_y_width).max(0.0),
+                width: (viewport.width - scrollbar_y_width).max(0.0),
                 height: total_scrollbar_height,
             };
 
             let scrollbar_bounds = Rectangle {
                 x: bounds.x,
                 y: bounds.y + bounds.height - total_scrollbar_height / 2.0 - width / 2.0,
-                width: (bounds.width - scrollbar_y_width).max(0.0),
+                width: (viewport.width - scrollbar_y_width).max(0.0),
                 height: width,
             };
 
-            let ratio = bounds.width / content_bounds.width;
+            let ratio = viewport.width / content_bounds.width;
 
             let scroller = if ratio >= 1.0 {
                 None
             } else {
                 let scroller_length = (scrollbar_bounds.width * ratio).max(2.0);
-                let scroller_offset = translation.x * ratio * scrollbar_bounds.width / bounds.width;
+                let scroller_offset =
+                    translation.x * ratio * scrollbar_bounds.width / viewport.width;
 
                 let scroller_bounds = Rectangle {
                     x: (scrollbar_bounds.x + scroller_offset).max(0.0),

@@ -161,7 +161,10 @@ fn view_theme_info(theme: &Theme) -> Element<'static, Message> {
     .into()
 }
 
-fn view_theme_container(theme: &Theme, container_choice: ContainerChoice) -> Element<'static, Message> {
+fn view_theme_container(
+    theme: &Theme,
+    container_choice: ContainerChoice,
+) -> Element<'static, Message> {
     let c = match container_choice {
         ContainerChoice::Background => &theme.background,
         ContainerChoice::Primary => &theme.primary,
@@ -200,7 +203,10 @@ fn view_theme_container(theme: &Theme, container_choice: ContainerChoice) -> Ele
     .into()
 }
 
-fn view_theme_component(theme: &Theme, component_choice: ComponentChoice) -> Element<'static, Message> {
+fn view_theme_component(
+    theme: &Theme,
+    component_choice: ComponentChoice,
+) -> Element<'static, Message> {
     let c = match component_choice {
         ComponentChoice::Accent => &theme.accent,
         ComponentChoice::Success => &theme.success,
@@ -338,7 +344,11 @@ fn view_theme_palette(theme: &Theme) -> Element<'static, Message> {
 // Helper Functions
 // =============================================================================
 
-fn theme_tab_button<'a>(label: &'a str, page: ThemePage, current: ThemePage) -> Element<'a, Message> {
+fn theme_tab_button<'a>(
+    label: &'a str,
+    page: ThemePage,
+    current: ThemePage,
+) -> Element<'a, Message> {
     let is_active = page == current;
 
     if is_active {

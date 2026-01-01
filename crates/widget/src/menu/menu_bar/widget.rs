@@ -34,25 +34,6 @@ where
         Size::new(self.width, self.height)
     }
 
-    fn diff(&self, tree: &mut Tree) {
-        eprintln!(
-            "[MenuBar::diff] Called, tree.children.len={}",
-            tree.children.len()
-        );
-        let state = tree.state.downcast_mut::<MenuBarState>();
-        state.inner.with_data_mut(|inner| {
-            eprintln!(
-                "[MenuBar::diff] inner.tree.children.len BEFORE={}",
-                inner.tree.children.len()
-            );
-            menu_roots_diff(&self.menu_roots, &mut inner.tree);
-            eprintln!(
-                "[MenuBar::diff] inner.tree.children.len AFTER={}",
-                inner.tree.children.len()
-            );
-        });
-    }
-
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<MenuBarState>()
     }
@@ -63,6 +44,10 @@ where
 
     fn children(&self) -> Vec<Tree> {
         menu_roots_children(&self.menu_roots)
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        menu_roots_diff(&self.menu_roots, tree);
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {

@@ -332,16 +332,10 @@ where
     }
 
     impl<T> Operation<T> for CountPreviousFiltered {
-        fn focusable(
-            &mut self,
-            _id: Option<&Id>,
-            _bounds: Rectangle,
-            state: &mut dyn Focusable,
-        ) {
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
-
 
             if state.is_focused() {
                 self.count.focused = Some(self.count.total);
@@ -355,7 +349,6 @@ where
         }
 
         fn finish(&self) -> Outcome<T> {
-
             Outcome::Chain(Box::new(ApplyPreviousFiltered {
                 level: self.level,
                 count: self.count,
@@ -365,12 +358,7 @@ where
     }
 
     impl<T> Operation<T> for ApplyPreviousFiltered {
-        fn focusable(
-            &mut self,
-            _id: Option<&Id>,
-            _bounds: Rectangle,
-            state: &mut dyn Focusable,
-        ) {
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
@@ -379,25 +367,14 @@ where
                 return;
             }
 
-
             match self.count.focused {
-                None if self.current == self.count.total - 1 => {
-                    state.focus()
-                }
-                Some(0) if self.current == 0 => {
-                    state.unfocus()
-                }
+                None if self.current == self.count.total - 1 => state.focus(),
+                Some(0) if self.current == 0 => state.unfocus(),
                 // Wrap: first element focused, now focus last
-                Some(0) if self.current == self.count.total - 1 => {
-                    state.focus()
-                }
+                Some(0) if self.current == self.count.total - 1 => state.focus(),
                 Some(0) => {}
-                Some(focused) if focused == self.current => {
-                    state.unfocus()
-                }
-                Some(focused) if focused - 1 == self.current => {
-                    state.focus()
-                }
+                Some(focused) if focused == self.current => state.unfocus(),
+                Some(focused) if focused - 1 == self.current => state.focus(),
                 _ => {}
             }
 
@@ -433,16 +410,10 @@ where
     }
 
     impl<T> Operation<T> for CountNextFiltered {
-        fn focusable(
-            &mut self,
-            _id: Option<&Id>,
-            _bounds: Rectangle,
-            state: &mut dyn Focusable,
-        ) {
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
-
 
             if state.is_focused() {
                 self.count.focused = Some(self.count.total);
@@ -456,7 +427,6 @@ where
         }
 
         fn finish(&self) -> Outcome<T> {
-
             Outcome::Chain(Box::new(ApplyNextFiltered {
                 level: self.level,
                 count: self.count,
@@ -466,12 +436,7 @@ where
     }
 
     impl<T> Operation<T> for ApplyNextFiltered {
-        fn focusable(
-            &mut self,
-            _id: Option<&Id>,
-            _bounds: Rectangle,
-            state: &mut dyn Focusable,
-        ) {
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
@@ -480,21 +445,14 @@ where
                 return;
             }
 
-
             match self.count.focused {
-                None if self.current == 0 => {
-                    state.focus()
-                }
+                None if self.current == 0 => state.focus(),
                 // Wrap: last element focused, now focus first
                 Some(focused) if focused == self.count.total - 1 && self.current == 0 => {
                     state.focus()
                 }
-                Some(focused) if focused == self.current => {
-                    state.unfocus()
-                }
-                Some(focused) if focused + 1 == self.current => {
-                    state.focus()
-                }
+                Some(focused) if focused == self.current => state.unfocus(),
+                Some(focused) if focused + 1 == self.current => state.focus(),
                 _ => {}
             }
 

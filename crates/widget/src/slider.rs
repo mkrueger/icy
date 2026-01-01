@@ -560,9 +560,9 @@ where
         operation: &mut dyn Operation,
     ) {
         #[cfg(feature = "accessibility")]
-        if let Some(info) = <Self as Widget<Message, Theme, Renderer>>::accessibility(
-            self, tree, layout,
-        ) {
+        if let Some(info) =
+            <Self as Widget<Message, Theme, Renderer>>::accessibility(self, tree, layout)
+        {
             operation.accessibility(self.id.as_ref(), layout.bounds(), info);
         }
 

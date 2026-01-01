@@ -16,8 +16,8 @@
 
 use std::marker::PhantomData;
 
-use crate::core::{self, Element, Length, Padding};
 use crate::core::image::Handle;
+use crate::core::{self, Element, Length, Padding};
 
 use super::Button;
 
@@ -157,7 +157,7 @@ where
 {
     fn from(image_button: ImageButton<'a, Message, Renderer>) -> Self {
         let mut img = crate::Image::new(image_button.handle);
-        
+
         if let Some(w) = image_button.image_width {
             img = img.width(w);
         }

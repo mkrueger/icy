@@ -1,8 +1,6 @@
 //! Example demonstrating the color picker and date picker widgets.
 
-use icy_ui::widget::{
-    button, column, color_picker, container, date_picker, row, space, text,
-};
+use icy_ui::widget::{button, color_picker, column, container, date_picker, row, space, text};
 use icy_ui::{Color, Element, Length, Task};
 
 pub fn main() -> icy_ui::Result {

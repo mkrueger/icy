@@ -55,12 +55,12 @@ use crate::core::renderer;
 use crate::core::widget::tree::{self, Tree};
 use crate::core::widget::{Operation, Widget};
 use crate::core::{
-    Alignment, Border, Clipboard, Element, Event, Length, Padding, Point, Rectangle, Shadow,
-    Shell, Size, Vector,
+    Alignment, Border, Clipboard, Element, Event, Length, Padding, Point, Rectangle, Shadow, Shell,
+    Size, Vector,
 };
-use crate::{button, text, Column, Row};
+use crate::{Column, Row, button, text};
 
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{SlotMap, new_key_type};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Duration as StdDuration;

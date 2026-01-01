@@ -33,7 +33,7 @@ use crate::button;
 use crate::container;
 use crate::core::alignment::Horizontal;
 use crate::core::{Alignment, Element, Length, Padding};
-use crate::{text, Column, Row};
+use crate::{Column, Row, text};
 
 /// A simple date representation (year, month, day).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,7 +53,7 @@ impl Date {
     }
 
     /// Get today's date.
-    /// 
+    ///
     /// Note: Returns a fixed fallback date. For actual current date,
     /// consider using the `chrono` crate in your application code.
     pub fn today() -> Self {
@@ -310,24 +310,20 @@ impl<'a, Message: Clone + 'static> From<DatePicker<'a, Message>>
                 let (day_num, is_current_month, date) = if cell_index < offset {
                     // Previous month
                     let d = days_in_prev_month - (offset - cell_index - 1);
-                    (
-                        d,
-                        false,
-                        Date::new(prev_month.year, prev_month.month, d),
-                    )
+                    (d, false, Date::new(prev_month.year, prev_month.month, d))
                 } else if cell_index - offset < days_in_month {
                     // Current month
                     let d = cell_index - offset + 1;
-                    (d, true, Date::new(picker.visible.year, picker.visible.month, d))
+                    (
+                        d,
+                        true,
+                        Date::new(picker.visible.year, picker.visible.month, d),
+                    )
                 } else {
                     // Next month
                     let next_month = picker.visible.next_month();
                     let d = cell_index - offset - days_in_month + 1;
-                    (
-                        d,
-                        false,
-                        Date::new(next_month.year, next_month.month, d),
-                    )
+                    (d, false, Date::new(next_month.year, next_month.month, d))
                 };
 
                 let is_selected = date == picker.selected;

@@ -40,10 +40,6 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
     Theme: StyleSheet,
 {
     menu.tree.inner.with_data_mut(|state| {
-        // DEBUG
-        eprintln!("[init_root_menu] open={}, menu_states.len={}, active_root={:?}, tree.children.len={}", 
-            state.open, state.menu_states.len(), state.active_root, state.tree.children.len());
-        
         if !state.open {
             return;
         }
@@ -126,12 +122,9 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
             }
 
             if root_bounds.contains(overlay_cursor) {
-                eprintln!("[init_root_menu] Cursor over root {}, mt.children.len={}", i, mt.children.len());
                 let Some(tree_entry) = state.tree.children.get_mut(i) else {
-                    eprintln!("[init_root_menu] ERROR: tree.children.get_mut({}) failed, tree has {} children", i, state.tree.children.len());
                     continue;
                 };
-                eprintln!("[init_root_menu] tree_entry.children.len={}", tree_entry.children.len());
                 let view_center = viewport_size.width * 0.5;
                 let rb_center = root_bounds.center_x();
 

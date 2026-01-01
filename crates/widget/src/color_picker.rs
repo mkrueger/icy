@@ -221,8 +221,7 @@ impl PickerState {
     }
 }
 
-impl<Message> Widget<Message, Theme, crate::Renderer>
-    for ColorPickerInner<'_, Message>
+impl<Message> Widget<Message, Theme, crate::Renderer> for ColorPickerInner<'_, Message>
 where
     Message: Clone + 'static,
 {
@@ -264,8 +263,7 @@ where
         let hue_slider_height = 16.0;
         let preview_height = 40.0;
         let spacing = 12.0;
-        let total_height =
-            self.sv_height + spacing + hue_slider_height + spacing + preview_height;
+        let total_height = self.sv_height + spacing + hue_slider_height + spacing + preview_height;
 
         // Keep the input in sync with the current color when it is not focused.
         let is_focused = tree.children[0]
@@ -291,12 +289,9 @@ where
             .height(Length::Fixed(preview_height));
 
         let preview_y = self.sv_height + spacing + hue_slider_height + spacing;
-        let input_node = self.text_input.layout(
-            &mut tree.children[0],
-            renderer,
-            &input_limits,
-            None,
-        );
+        let input_node =
+            self.text_input
+                .layout(&mut tree.children[0], renderer, &input_limits, None);
 
         layout::Node::with_children(
             Size::new(width, total_height),
@@ -396,8 +391,16 @@ where
         // Draw SV handle (cosmic style - circle with border)
         let handle_x = sv_bounds.x + self.hsv.saturation * sv_bounds.width;
         let handle_y = sv_bounds.y + (1.0 - self.hsv.value) * sv_bounds.height;
-        let is_sv_hover = cursor.position().map(|p| sv_bounds.contains(p)).unwrap_or(false);
-        draw_cosmic_handle(renderer, handle_x, handle_y, state.dragging_sv || is_sv_hover);
+        let is_sv_hover = cursor
+            .position()
+            .map(|p| sv_bounds.contains(p))
+            .unwrap_or(false);
+        draw_cosmic_handle(
+            renderer,
+            handle_x,
+            handle_y,
+            state.dragging_sv || is_sv_hover,
+        );
 
         // Hue slider bounds
         let hue_y = sv_bounds.y + sv_bounds.height + spacing;
@@ -448,8 +451,16 @@ where
         // Draw hue handle
         let hue_handle_x = hue_bounds.x + (self.hsv.hue / 360.0) * hue_bounds.width;
         let hue_handle_y = hue_bounds.y + hue_bounds.height / 2.0;
-        let is_hue_hover = cursor.position().map(|p| hue_bounds.contains(p)).unwrap_or(false);
-        draw_cosmic_handle(renderer, hue_handle_x, hue_handle_y, state.dragging_hue || is_hue_hover);
+        let is_hue_hover = cursor
+            .position()
+            .map(|p| hue_bounds.contains(p))
+            .unwrap_or(false);
+        draw_cosmic_handle(
+            renderer,
+            hue_handle_x,
+            hue_handle_y,
+            state.dragging_hue || is_hue_hover,
+        );
 
         // Color preview with hex - combined into one row
         let preview_y = hue_y + hue_slider_height + spacing;
@@ -587,7 +598,10 @@ where
             .is_focused();
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed { button: mouse::Button::Left, .. }) => {
+            Event::Mouse(mouse::Event::ButtonPressed {
+                button: mouse::Button::Left,
+                ..
+            }) => {
                 if let Some(pos) = cursor.position() {
                     if sv_bounds.contains(pos) {
                         state.dragging_sv = true;
@@ -604,7 +618,10 @@ where
                     }
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased { button: mouse::Button::Left, .. }) => {
+            Event::Mouse(mouse::Event::ButtonReleased {
+                button: mouse::Button::Left,
+                ..
+            }) => {
                 state.dragging_sv = false;
                 state.dragging_hue = false;
             }
@@ -639,13 +656,13 @@ where
         if let Some(input_layout) = layout.children().next() {
             let input_interaction =
                 Widget::<HexInputEvent, Theme, crate::Renderer>::mouse_interaction(
-                &self.text_input,
-                &tree.children[0],
-                input_layout,
-                cursor,
-                viewport,
-                renderer,
-            );
+                    &self.text_input,
+                    &tree.children[0],
+                    input_layout,
+                    cursor,
+                    viewport,
+                    renderer,
+                );
 
             if input_interaction != mouse::Interaction::default() {
                 return input_interaction;
@@ -697,7 +714,12 @@ where
     }
 }
 
-fn draw_cosmic_handle<Renderer: core::Renderer>(renderer: &mut Renderer, x: f32, y: f32, active: bool) {
+fn draw_cosmic_handle<Renderer: core::Renderer>(
+    renderer: &mut Renderer,
+    x: f32,
+    y: f32,
+    active: bool,
+) {
     let radius = if active { 8.0 } else { 6.0 };
     let border_width = if active { 3.0 } else { 2.0 };
 
@@ -742,7 +764,11 @@ fn draw_cosmic_handle<Renderer: core::Renderer>(renderer: &mut Renderer, x: f32,
     );
 }
 
-fn draw_checkerboard<Renderer: core::Renderer>(renderer: &mut Renderer, bounds: Rectangle, _radius: f32) {
+fn draw_checkerboard<Renderer: core::Renderer>(
+    renderer: &mut Renderer,
+    bounds: Rectangle,
+    _radius: f32,
+) {
     let check_size = 6.0;
     let cols = (bounds.width / check_size).ceil() as i32;
     let rows = (bounds.height / check_size).ceil() as i32;
@@ -862,18 +888,19 @@ pub fn color_button<'a, Message: Clone + 'static>(
     color: Color,
     on_press: Option<Message>,
 ) -> button::Button<'a, Message, crate::Theme, crate::Renderer> {
-    let content = container::Container::new(crate::Space::new().width(Length::Fill).height(Length::Fill))
-        .width(Length::Fixed(24.0))
-        .height(Length::Fixed(24.0))
-        .style(move |_theme| container::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                color: Color::from_rgb(0.3, 0.3, 0.3),
-                width: 1.0,
-                radius: 4.0.into(),
-            },
-            ..Default::default()
-        });
+    let content =
+        container::Container::new(crate::Space::new().width(Length::Fill).height(Length::Fill))
+            .width(Length::Fixed(24.0))
+            .height(Length::Fixed(24.0))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(color)),
+                border: Border {
+                    color: Color::from_rgb(0.3, 0.3, 0.3),
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..Default::default()
+            });
 
     let mut btn = button::Button::new(content).padding(4);
     if let Some(msg) = on_press {

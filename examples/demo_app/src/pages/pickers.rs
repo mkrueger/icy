@@ -67,13 +67,19 @@ pub fn view_pickers(state: &PickersState) -> Element<'static, Message> {
         row![
             button(
                 row![
-                    container(space().width(20).height(20))
-                        .style(move |_theme| container::Style {
-                            background: Some(color.into()),
-                            border: icy_ui::Border::default().rounded(4).width(1).color(icy_ui::Color::BLACK),
-                            ..Default::default()
-                        }),
-                    text(if state.show_color_picker { "Close" } else { "Pick Color" }),
+                    container(space().width(20).height(20)).style(move |_theme| container::Style {
+                        background: Some(color.into()),
+                        border: icy_ui::Border::default()
+                            .rounded(4)
+                            .width(1)
+                            .color(icy_ui::Color::BLACK),
+                        ..Default::default()
+                    }),
+                    text(if state.show_color_picker {
+                        "Close"
+                    } else {
+                        "Pick Color"
+                    }),
                 ]
                 .spacing(8)
                 .align_y(Center)
@@ -90,10 +96,11 @@ pub fn view_pickers(state: &PickersState) -> Element<'static, Message> {
         .align_y(Center),
         if state.show_color_picker {
             Element::from(
-                container(
-                    color_picker::color_picker(state.selected_color, Message::ColorChanged)
-                )
-                .padding(10)
+                container(color_picker::color_picker(
+                    state.selected_color,
+                    Message::ColorChanged,
+                ))
+                .padding(10),
             )
         } else {
             Element::from(space().height(0))
@@ -105,32 +112,32 @@ pub fn view_pickers(state: &PickersState) -> Element<'static, Message> {
             button(
                 row![
                     text("📅"),
-                    text(if state.show_date_picker { "Close" } else { "Pick Date" }),
+                    text(if state.show_date_picker {
+                        "Close"
+                    } else {
+                        "Pick Date"
+                    }),
                 ]
                 .spacing(8)
             )
             .on_press(Message::ToggleDatePicker),
             text(format!(
                 "Selected: {:04}-{:02}-{:02}",
-                state.selected_date.year,
-                state.selected_date.month,
-                state.selected_date.day
+                state.selected_date.year, state.selected_date.month, state.selected_date.day
             )),
         ]
         .spacing(20)
         .align_y(Center),
         if state.show_date_picker {
             Element::from(
-                container(
-                    date_picker::date_picker(
-                        state.selected_date,
-                        state.visible_date,
-                        Message::DateChanged,
-                        Message::DatePrevMonth,
-                        Message::DateNextMonth,
-                    )
-                )
-                .padding(10)
+                container(date_picker::date_picker(
+                    state.selected_date,
+                    state.visible_date,
+                    Message::DateChanged,
+                    Message::DatePrevMonth,
+                    Message::DateNextMonth,
+                ))
+                .padding(10),
             )
         } else {
             Element::from(space().height(0))

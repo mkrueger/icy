@@ -201,13 +201,19 @@ where
     /// Embeds the [`Scrollbar`] into the [`ScrollArea`], instead of floating on top.
     ///
     /// The `spacing` provided will be the space between the scrollbar and the contents.
-    /// Only applies to single-direction scrolling.
     pub fn spacing(mut self, new_spacing: impl Into<Pixels>) -> Self {
         match &mut self.direction {
             Direction::Horizontal(scrollbar) | Direction::Vertical(scrollbar) => {
                 scrollbar.spacing = Some(new_spacing.into().0);
             }
-            Direction::Both { .. } => {}
+            Direction::Both {
+                vertical,
+                horizontal,
+            } => {
+                let spacing = new_spacing.into().0;
+                vertical.spacing = Some(spacing);
+                horizontal.spacing = Some(spacing);
+            }
         }
         self
     }
@@ -260,7 +266,14 @@ where
                     scrollable = scrollable.spacing(spacing);
                 }
             }
-            Direction::Both { .. } => {}
+            Direction::Both {
+                vertical,
+                horizontal,
+            } => {
+                if let Some(spacing) = vertical.spacing.or(horizontal.spacing) {
+                    scrollable = scrollable.spacing(spacing);
+                }
+            }
         }
 
         if let Some(style) = self.style {
@@ -305,8 +318,9 @@ where
     where
         Theme::Class<'a>: From<StyleFn<'a, Theme>>,
     {
-        let mut virtual_scrollable =
-            VirtualScrollable::new(content_size, view).direction(self.direction);
+        let mut virtual_scrollable = VirtualScrollable::new(content_size, view)
+            .direction(self.direction)
+            .auto_scroll(self.auto_scroll);
 
         if let Some(id) = self.id {
             virtual_scrollable = virtual_scrollable.id(id);
@@ -370,8 +384,9 @@ where
     where
         Theme::Class<'a>: From<StyleFn<'a, Theme>>,
     {
-        let mut virtual_scrollable =
-            VirtualScrollable::with_rows(row_height, total_rows, view).direction(self.direction);
+        let mut virtual_scrollable = VirtualScrollable::with_rows(row_height, total_rows, view)
+            .direction(self.direction)
+            .auto_scroll(self.auto_scroll);
 
         if let Some(id) = self.id {
             virtual_scrollable = virtual_scrollable.id(id);

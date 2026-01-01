@@ -58,12 +58,6 @@ pub(crate) fn menu_roots_diff<'a, Message, Theme, Renderer>(
     Message: Clone,
     Renderer: renderer::Renderer,
 {
-    eprintln!(
-        "[menu_roots_diff] BEFORE: tree.children.len={}, menu_roots.len={}",
-        tree.children.len(),
-        menu_roots.len()
-    );
-
     if tree.children.len() > menu_roots.len() {
         tree.children.truncate(menu_roots.len());
     }
@@ -87,11 +81,6 @@ pub(crate) fn menu_roots_diff<'a, Message, Theme, Renderer>(
         });
         tree.children.extend(extended);
     }
-
-    eprintln!(
-        "[menu_roots_diff] AFTER: tree.children.len={}",
-        tree.children.len()
-    );
 }
 
 /// A `MenuBar` collects `MenuTree`s and handles all the layout, event processing, and drawing.
@@ -128,20 +117,6 @@ where
     #[must_use]
     pub fn new(menu_roots: Vec<MenuTree<'a, Message, Theme, Renderer>>) -> Self {
         let mut menu_roots = menu_roots;
-
-        // DEBUG: Print menu structure
-        eprintln!(
-            "[MenuBar::new] Creating menu bar with {} roots",
-            menu_roots.len()
-        );
-        for (i, root) in menu_roots.iter().enumerate() {
-            eprintln!(
-                "[MenuBar::new]   Root {}: {} children",
-                i,
-                root.children.len()
-            );
-        }
-
         menu_roots.iter_mut().for_each(MenuTree::set_index);
 
         Self {

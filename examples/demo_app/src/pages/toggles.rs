@@ -81,7 +81,8 @@ pub fn view_toggles(state: &TogglesState) -> Element<'static, Message> {
         .spacing(8),
         text(format!(
             "Selected: {}",
-            state.radio_value
+            state
+                .radio_value
                 .map(|r| r.to_string())
                 .unwrap_or_else(|| "None".into())
         ))

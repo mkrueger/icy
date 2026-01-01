@@ -24,7 +24,8 @@ pub type Compositor = renderer::Compositor;
 
 #[cfg(all(feature = "wgpu-bare", feature = "tiny-skia"))]
 mod renderer {
-    pub type Renderer = crate::fallback::Renderer<icy_ui_wgpu::Renderer, icy_ui_tiny_skia::Renderer>;
+    pub type Renderer =
+        crate::fallback::Renderer<icy_ui_wgpu::Renderer, icy_ui_tiny_skia::Renderer>;
 
     pub type Compositor = crate::fallback::Compositor<
         icy_ui_wgpu::window::Compositor,

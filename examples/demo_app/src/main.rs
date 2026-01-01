@@ -8,16 +8,18 @@ mod pages;
 use std::collections::HashMap;
 
 use icy_ui::keyboard::Key;
+use icy_ui::widget::menu::{bar, items, root, Item, KeyBind, Modifier, Tree};
 use icy_ui::widget::{
-    button, column, container, date_picker, row, rule, scrollable, space, text, toaster,
+    button, column, container, date_picker, pane_grid, row, rule, scrollable, space, text,
+    text_editor, toaster,
 };
-use icy_ui::widget::menu::{Item, KeyBind, Modifier, Tree, bar, items, root};
 use icy_ui::{Element, Fill, Subscription, Task, Theme};
 
 use pages::{
-    AnchorPosition, ButtonsState, ComponentChoice, ContainerChoice, ContextMenuState, ListsState,
-    PickersState, ScrollDirection, ScrollStylePreset, ScrollablesTab, ScrollingState, SlidersState,
-    TextInputsState, ThemePage, ThemePageState, ToastsState, TogglesState,
+    AnchorPosition, ButtonsState, CanvasPageState, ComponentChoice, ContainerChoice,
+    ContextMenuState, ListsState, MarkdownPageState, PaneGridPageState, PickersState, QrCodeState,
+    ScrollDirection, ScrollablesTab, ScrollingState, ShaderState, SlidersState, TextInputsState,
+    ThemePage, ThemePageState, ToastsState, TogglesState,
 };
 
 pub fn main() -> icy_ui::Result {
@@ -45,6 +47,11 @@ pub enum Page {
     Theme,
     Toasts,
     ContextMenu,
+    QrCode,
+    Shader,
+    Canvas,
+    PaneGrid,
+    Markdown,
 }
 
 impl Page {
@@ -60,6 +67,11 @@ impl Page {
         Page::Theme,
         Page::Toasts,
         Page::ContextMenu,
+        Page::QrCode,
+        Page::Shader,
+        Page::Canvas,
+        Page::PaneGrid,
+        Page::Markdown,
     ];
 
     fn name(&self) -> &'static str {
@@ -67,14 +79,19 @@ impl Page {
             Page::Overview => "Overview",
             Page::Buttons => "Buttons",
             Page::TextInputs => "Text Inputs",
-            Page::Sliders => "Sliders & Progress",
-            Page::Toggles => "Toggles & Checkboxes",
-            Page::Pickers => "Color & Date Pickers",
-            Page::Lists => "Pick Lists & Combos",
+            Page::Sliders => "Progressbar",
+            Page::Toggles => "Toggles",
+            Page::Pickers => "Pickers",
+            Page::Lists => "Pick Lists",
             Page::Scrolling => "Scrollables",
             Page::Theme => "Theme",
             Page::Toasts => "Toasts",
             Page::ContextMenu => "Context Menu",
+            Page::QrCode => "QR Code",
+            Page::Shader => "Shader",
+            Page::Canvas => "Canvas",
+            Page::PaneGrid => "Pane Grid",
+            Page::Markdown => "Markdown",
         }
     }
 
@@ -91,6 +108,32 @@ impl Page {
             Page::Theme => "🎭",
             Page::Toasts => "🔔",
             Page::ContextMenu => "📌",
+            Page::QrCode => "📱",
+            Page::Shader => "✨",
+            Page::Canvas => "🎨",
+            Page::PaneGrid => "📰",
+            Page::Markdown => "📝",
+        }
+    }
+
+    fn source_file(&self) -> Option<&'static str> {
+        match self {
+            Page::Overview => None,
+            Page::Buttons => Some("examples/demo_app/src/pages/buttons.rs"),
+            Page::TextInputs => Some("examples/demo_app/src/pages/text_inputs.rs"),
+            Page::Sliders => Some("examples/demo_app/src/pages/sliders.rs"),
+            Page::Toggles => Some("examples/demo_app/src/pages/toggles.rs"),
+            Page::Pickers => Some("examples/demo_app/src/pages/pickers.rs"),
+            Page::Lists => Some("examples/demo_app/src/pages/lists.rs"),
+            Page::Scrolling => Some("examples/demo_app/src/pages/scrolling.rs"),
+            Page::Theme => Some("examples/demo_app/src/pages/theme_page.rs"),
+            Page::Toasts => Some("examples/demo_app/src/pages/toasts.rs"),
+            Page::ContextMenu => Some("examples/demo_app/src/pages/context_menu.rs"),
+            Page::QrCode => Some("examples/demo_app/src/pages/qr_code.rs"),
+            Page::Shader => Some("examples/demo_app/src/pages/shader_page.rs"),
+            Page::Canvas => Some("examples/demo_app/src/pages/canvas_page.rs"),
+            Page::PaneGrid => Some("examples/demo_app/src/pages/pane_grid_page.rs"),
+            Page::Markdown => Some("examples/demo_app/src/pages/markdown_page.rs"),
         }
     }
 }
@@ -204,13 +247,18 @@ struct DemoApp {
     theme_page: ThemePageState,
     toasts: ToastsState,
     context_menu: ContextMenuState,
+    qr_code: QrCodeState,
+    shader: ShaderState,
+    canvas: CanvasPageState,
+    pane_grid: PaneGridPageState,
+    markdown: MarkdownPageState,
 }
 
 impl Default for DemoApp {
     fn default() -> Self {
         Self {
             current_page: Page::default(),
-            dark_mode: false,
+            dark_mode: true,
             status_message: "Welcome to Demo App!".into(),
             buttons: ButtonsState::default(),
             text_inputs: TextInputsState::default(),
@@ -222,6 +270,11 @@ impl Default for DemoApp {
             theme_page: ThemePageState::default(),
             toasts: ToastsState::default(),
             context_menu: ContextMenuState::default(),
+            qr_code: QrCodeState::default(),
+            shader: ShaderState::default(),
+            canvas: CanvasPageState::default(),
+            pane_grid: PaneGridPageState::default(),
+            markdown: MarkdownPageState::default(),
         }
     }
 }
@@ -247,6 +300,7 @@ pub enum Message {
 
     // Sliders
     SliderChanged(f32),
+    VerticalSliderChanged(f32),
     ProgressTick,
 
     // Toggles
@@ -269,7 +323,7 @@ pub enum Message {
     ScrollablesTabSelected(ScrollablesTab),
     Scrolled(scrollable::Viewport),
     RowHeightChanged(f32),
-    ScrollStylePresetChanged(ScrollStylePreset),
+    ScrollStylePresetChanged(scrollable::Preset),
     ScrollDirectionChanged(ScrollDirection),
     ScrollbarWidthChanged(u32),
     ScrollbarMarginChanged(u32),
@@ -287,6 +341,37 @@ pub enum Message {
 
     // Context menu
     ContextAction(String),
+
+    // QR Code
+    QrCodeInputChanged(String),
+
+    // Shader
+    ShaderCRealChanged(f32),
+    ShaderCImagChanged(f32),
+    ShaderZoomChanged(f32),
+
+    // Canvas
+    CanvasStartLine(icy_ui::Point),
+    CanvasAddPoint(icy_ui::Point),
+    CanvasEndLine,
+    CanvasStrokeWidthChanged(f32),
+    CanvasColorChanged(pages::StrokeColor),
+    CanvasClear,
+
+    // Pane Grid
+    PaneGridSplitHorizontal(pane_grid::Pane),
+    PaneGridSplitVertical(pane_grid::Pane),
+    PaneGridClose(pane_grid::Pane),
+    PaneGridDragged(pane_grid::DragEvent),
+    PaneGridResized(pane_grid::ResizeEvent),
+    PaneGridClicked(pane_grid::Pane),
+
+    // Markdown
+    MarkdownEditorAction(text_editor::Action),
+    MarkdownLinkClicked(String),
+
+    // Global
+    OpenUrl(String),
 }
 
 // =============================================================================
@@ -297,6 +382,10 @@ impl DemoApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         // Handle global messages first
         match &message {
+            Message::OpenUrl(url) => {
+                let _ = open::that(url);
+                return Task::none();
+            }
             Message::GoToPage(page) => {
                 self.current_page = *page;
                 self.status_message = format!("Switched to {} page", page.name());
@@ -306,10 +395,8 @@ impl DemoApp {
                 match action {
                     MenuAction::ToggleDarkMode => {
                         self.dark_mode = !self.dark_mode;
-                        self.status_message = format!(
-                            "Theme: {}",
-                            if self.dark_mode { "Dark" } else { "Light" }
-                        );
+                        self.status_message =
+                            format!("Theme: {}", if self.dark_mode { "Dark" } else { "Light" });
                     }
                     MenuAction::About => {
                         self.status_message =
@@ -373,6 +460,26 @@ impl DemoApp {
             return Task::none();
         }
 
+        if pages::update_qr_code(&mut self.qr_code, &message) {
+            return Task::none();
+        }
+
+        if pages::update_shader(&mut self.shader, &message) {
+            return Task::none();
+        }
+
+        if pages::update_canvas(&mut self.canvas, &message) {
+            return Task::none();
+        }
+
+        if pages::update_pane_grid(&mut self.pane_grid, &message) {
+            return Task::none();
+        }
+
+        if pages::update_markdown(&mut self.markdown, &message) {
+            return Task::none();
+        }
+
         Task::none()
     }
 
@@ -396,9 +503,14 @@ impl DemoApp {
             }
         });
 
-        let progress_sub = time::every(Duration::from_millis(50)).map(|_| Message::ProgressTick);
-
-        Subscription::batch([keyboard_sub, progress_sub])
+        // Only run progress animation when on the Sliders page
+        if self.current_page == Page::Sliders {
+            let progress_sub =
+                time::every(Duration::from_millis(50)).map(|_| Message::ProgressTick);
+            Subscription::batch([keyboard_sub, progress_sub])
+        } else {
+            keyboard_sub
+        }
     }
 
     fn theme(&self) -> Theme {
@@ -491,7 +603,10 @@ impl DemoApp {
             help_menu = help_menu.mnemonic(m);
         }
 
-        bar(vec![file_menu, view_menu, pages_menu, help_menu]).into()
+        container(bar(vec![file_menu, view_menu, pages_menu, help_menu]))
+            .style(container::secondary)
+            .width(Fill)
+            .into()
     }
 
     fn view_sidebar(&self) -> Element<'_, Message> {
@@ -543,6 +658,11 @@ impl DemoApp {
             Page::Theme => pages::view_theme(self.theme(), &self.theme_page),
             Page::Toasts => pages::view_toasts(&self.toasts),
             Page::ContextMenu => pages::view_context_menu(&self.context_menu),
+            Page::QrCode => pages::view_qr_code(&self.qr_code),
+            Page::Shader => pages::view_shader(&self.shader),
+            Page::Canvas => pages::canvas_page_view(&self.canvas),
+            Page::PaneGrid => pages::view_pane_grid(&self.pane_grid),
+            Page::Markdown => pages::view_markdown(&self.markdown),
         };
 
         let header = text(format!(
@@ -552,16 +672,36 @@ impl DemoApp {
         ))
         .size(24);
 
+        let header_row: Element<'_, Message> =
+            if let Some(source_file) = self.current_page.source_file() {
+                let github_url = format!(
+                    "https://github.com/mkrueger/icy/blob/master/{}",
+                    source_file
+                );
+                row![
+                    header,
+                    space().width(Fill),
+                    button::hyperlink("💻 Source Code", github_url)
+                ]
+                .align_y(icy_ui::Center)
+                .into()
+            } else {
+                header.into()
+            };
+
         let body: Element<'_, Message> = match self.current_page {
             // The Scrollables page contains its own scrollables; avoid wrapping it in
             // another scrollable to prevent awkward nested scrolling.
-            Page::Scrolling => page_content,
+            // Canvas, PaneGrid, and Markdown pages need full control of their layout.
+            Page::Scrolling | Page::Canvas | Page::PaneGrid | Page::Markdown => page_content,
             _ => scrollable(page_content).height(Fill).into(),
         };
 
-        container(column![header, rule::horizontal(1), space().height(10), body]
-            .spacing(10)
-            .padding(20))
+        container(
+            column![header_row, rule::horizontal(1), space().height(10), body]
+                .spacing(10)
+                .padding(20),
+        )
         .width(Fill)
         .height(Fill)
         .into()

@@ -1,8 +1,10 @@
 use icy_ui::widget::{
-    button, column, container, pick_list, progress_bar, radio_group, row, rule, scroll_area,
-    scrollable, slider, space, text,
+    button, canvas, column, container, pick_list, progress_bar, radio_group, row, rule,
+    scroll_area, scrollable, slider, space, text,
 };
-use icy_ui::{Border, Center, Color, Element, Fill, Length, Rectangle, Size, Task, Theme};
+use icy_ui::{
+    Border, Center, Color, Element, Fill, Font, Length, Pixels, Point, Rectangle, Size, Task, Theme,
+};
 
 pub fn main() -> icy_ui::Result {
     icy_ui::application(
@@ -344,7 +346,6 @@ impl ScrollableDemo {
             .show_viewport(Size::new(CANVAS_SIZE, CANVAS_SIZE), move |viewport| {
                 Self::render_tiles(viewport, tile_size)
             })
-            .with_cell_size(Size::new(tile_size, tile_size))
             .on_scroll(Message::Scrolled);
 
         let pos_x = self.current_scroll_offset.x * CANVAS_SIZE;
@@ -375,56 +376,121 @@ impl ScrollableDemo {
     }
 
     fn render_tiles(viewport: Rectangle, tile_size: f32) -> Element<'static, Message> {
-        // Calculate visible tile range
-        let first_col = (viewport.x / tile_size).floor() as i32;
-        let last_col = ((viewport.x + viewport.width) / tile_size).ceil() as i32;
-        let first_row = (viewport.y / tile_size).floor() as i32;
-        let last_row = ((viewport.y + viewport.height) / tile_size).ceil() as i32;
+        // Use canvas for custom drawing - this is the correct approach for show_viewport
+        // The viewport gives us the visible area in content coordinates
+        struct TileCanvas {
+            viewport: Rectangle,
+            tile_size: f32,
+        }
 
-        // Build rows of tiles
-        let rows: Vec<Element<'static, Message>> = (first_row..=last_row)
-            .map(|r| {
-                let cols: Vec<Element<'static, Message>> = (first_col..=last_col)
-                    .map(|c| {
-                        let tile_x = c as f32 * tile_size;
-                        let tile_y = r as f32 * tile_size;
+        impl canvas::Program<Message> for TileCanvas {
+            type State = ();
+
+            fn draw(
+                &self,
+                _state: &Self::State,
+                renderer: &icy_ui::Renderer,
+                _theme: &Theme,
+                bounds: Rectangle,
+                _cursor: icy_ui::mouse::Cursor,
+            ) -> Vec<canvas::Geometry<icy_ui::Renderer>> {
+                // Calculate visible tile range based on viewport
+                let first_col = (self.viewport.x / self.tile_size).floor() as i32;
+                let last_col =
+                    ((self.viewport.x + self.viewport.width) / self.tile_size).ceil() as i32;
+                let first_row = (self.viewport.y / self.tile_size).floor() as i32;
+                let last_row =
+                    ((self.viewport.y + self.viewport.height) / self.tile_size).ceil() as i32;
+
+                // Create a frame and draw tiles
+                let mut frame = canvas::Frame::new(renderer, bounds.size());
+
+                for r in first_row..=last_row {
+                    for c in first_col..=last_col {
+                        // Calculate tile position relative to viewport (screen coordinates)
+                        let tile_x = c as f32 * self.tile_size - self.viewport.x;
+                        let tile_y = r as f32 * self.tile_size - self.viewport.y;
+
+                        // Skip if outside visible bounds
+                        if tile_x + self.tile_size < 0.0
+                            || tile_y + self.tile_size < 0.0
+                            || tile_x > bounds.width
+                            || tile_y > bounds.height
+                        {
+                            continue;
+                        }
 
                         // Color based on position
                         let hue = ((c + r) as f32 * 0.05) % 1.0;
                         let color = hsv_to_rgb(hue, 0.4, 0.2);
 
-                        container(
-                            column![
-                                text(format!("({}, {})", c, r))
-                                    .size(16)
-                                    .color(Color::from_rgb(0.8, 0.8, 0.8)),
-                                text(format!("{:.0},{:.0}", tile_x, tile_y))
-                                    .size(11)
-                                    .color(Color::from_rgb(0.5, 0.5, 0.5)),
-                            ]
-                            .spacing(4)
-                            .align_x(Center),
-                        )
-                        .width(tile_size)
-                        .height(tile_size)
-                        .center(Fill)
-                        .style(move |_theme| container::Style {
-                            background: Some(color.into()),
-                            border: Border {
-                                color: Color::from_rgba(1.0, 1.0, 1.0, 0.15),
-                                width: 1.0,
-                                radius: 0.0.into(),
-                            },
-                            ..Default::default()
-                        })
-                        .into()
-                    })
-                    .collect();
-                row(cols).into()
-            })
-            .collect();
+                        // Draw tile background
+                        frame.fill_rectangle(
+                            Point::new(tile_x, tile_y),
+                            Size::new(self.tile_size, self.tile_size),
+                            color,
+                        );
 
-        column(rows).into()
+                        // Draw tile border
+                        frame.stroke(
+                            &canvas::Path::rectangle(
+                                Point::new(tile_x, tile_y),
+                                Size::new(self.tile_size, self.tile_size),
+                            ),
+                            canvas::Stroke::default()
+                                .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.15))
+                                .with_width(1.0),
+                        );
+
+                        // Draw tile label
+                        let label = format!("({}, {})", c, r);
+                        frame.fill_text(canvas::Text {
+                            content: label,
+                            position: Point::new(
+                                tile_x + self.tile_size / 2.0,
+                                tile_y + self.tile_size / 2.0 - 8.0,
+                            ),
+                            color: Color::from_rgb(0.8, 0.8, 0.8),
+                            size: Pixels::from(16.0),
+                            font: Font::DEFAULT,
+                            align_x: icy_ui::widget::text::Alignment::Center,
+                            align_y: icy_ui::alignment::Vertical::Center,
+                            ..Default::default()
+                        });
+
+                        // Draw coordinate info
+                        let coord = format!(
+                            "{:.0},{:.0}",
+                            c as f32 * self.tile_size,
+                            r as f32 * self.tile_size
+                        );
+                        frame.fill_text(canvas::Text {
+                            content: coord,
+                            position: Point::new(
+                                tile_x + self.tile_size / 2.0,
+                                tile_y + self.tile_size / 2.0 + 10.0,
+                            ),
+                            color: Color::from_rgb(0.5, 0.5, 0.5),
+                            size: Pixels::from(11.0),
+                            font: Font::DEFAULT,
+                            align_x: icy_ui::widget::text::Alignment::Center,
+                            align_y: icy_ui::alignment::Vertical::Center,
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                vec![frame.into_geometry()]
+            }
+        }
+
+        canvas(TileCanvas {
+            viewport,
+            tile_size,
+        })
+        .width(Fill)
+        .height(Fill)
+        .into()
     }
 
     fn view_style_options(&self) -> Element<'_, Message> {

@@ -38,6 +38,42 @@ use crate::core::{
     Padding, Pixels, Point, Rectangle, Shadow, Shell, Size, Theme, Vector, Widget,
 };
 
+/// Built-in scrollbar presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Preset {
+    /// Scrollbars fade in on hover and float over the content.
+    #[default]
+    Floating,
+    /// Thin bars that expand on hover.
+    Thin,
+    /// Always visible scrollbars that allocate space (embedded).
+    Solid,
+}
+
+impl Preset {
+    /// All available presets.
+    pub const ALL: [Preset; 3] = [Preset::Floating, Preset::Thin, Preset::Solid];
+
+    /// Returns the [`ScrollStyle`] associated with this preset.
+    pub fn scroll_style(self) -> ScrollStyle {
+        match self {
+            Preset::Floating => ScrollStyle::floating(),
+            Preset::Thin => ScrollStyle::thin(),
+            Preset::Solid => ScrollStyle::solid(),
+        }
+    }
+}
+
+impl std::fmt::Display for Preset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Preset::Floating => write!(f, "Floating"),
+            Preset::Thin => write!(f, "Thin"),
+            Preset::Solid => write!(f, "Solid"),
+        }
+    }
+}
+
 pub use operation::scrollable::{AbsoluteOffset, RelativeOffset};
 
 /// A widget that can vertically display an infinite amount of content with a
@@ -212,7 +248,14 @@ where
             Direction::Horizontal(scrollbar) | Direction::Vertical(scrollbar) => {
                 scrollbar.spacing = Some(new_spacing.into().0);
             }
-            Direction::Both { .. } => {}
+            Direction::Both {
+                vertical,
+                horizontal,
+            } => {
+                let spacing = new_spacing.into().0;
+                vertical.spacing = Some(spacing);
+                horizontal.spacing = Some(spacing);
+            }
         }
 
         self
@@ -243,6 +286,28 @@ where
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.class = class.into();
         self
+    }
+}
+
+impl<'a, Message, Renderer> Scrollable<'a, Message, crate::Theme, Renderer>
+where
+    Renderer: text::Renderer,
+{
+    /// Applies the built-in `solid` scrollbar preset and embeds scrollbars,
+    /// allocating space (like the classic `iced` scrollable).
+    ///
+    /// This is a convenience helper so callers do not need to manually combine
+    /// `.style(...)` + `.spacing(0)`.
+    #[must_use]
+    pub fn solid(self) -> Self
+    where
+        <crate::Theme as Catalog>::Class<'a>: From<StyleFn<'a, crate::Theme>>,
+    {
+        self.spacing(0).style(|theme, status| {
+            let mut style = default(theme, status);
+            style.scroll = ScrollStyle::solid();
+            style
+        })
     }
 }
 
@@ -377,6 +442,18 @@ impl Scrollbar {
         self.spacing = Some(spacing.into().0);
         self
     }
+
+    /// Applies a built-in scrollbar preset configuration.
+    ///
+    /// In particular, `Solid` scrollbars are embedded (reserve layout space).
+    pub fn preset(mut self, preset: Preset) -> Self {
+        self.spacing = match preset {
+            Preset::Solid => Some(0.0),
+            Preset::Floating | Preset::Thin => None,
+        };
+
+        self
+    }
 }
 
 /// The anchor of the scroller of the [`Scrollable`] relative to its [`Viewport`]
@@ -465,65 +542,136 @@ where
             )
         };
 
-        match self.direction {
+        let (y_padding, x_padding) = match self.direction {
             Direction::Vertical(Scrollbar {
                 width,
                 margin,
+                scroller_width,
                 spacing: Some(spacing),
                 ..
-            })
-            | Direction::Horizontal(Scrollbar {
+            }) => (
+                Some(width.max(scroller_width) + margin * 2.0 + spacing),
+                None,
+            ),
+            Direction::Horizontal(Scrollbar {
                 width,
                 margin,
+                scroller_width,
                 spacing: Some(spacing),
                 ..
-            }) => {
-                let is_vertical = matches!(self.direction, Direction::Vertical(_));
+            }) => (
+                None,
+                Some(width.max(scroller_width) + margin * 2.0 + spacing),
+            ),
+            Direction::Both {
+                vertical,
+                horizontal,
+            } => (
+                vertical.spacing.map(|spacing| {
+                    vertical.width.max(vertical.scroller_width) + vertical.margin * 2.0 + spacing
+                }),
+                horizontal.spacing.map(|spacing| {
+                    horizontal.width.max(horizontal.scroller_width)
+                        + horizontal.margin * 2.0
+                        + spacing
+                }),
+            ),
+            _ => (None, None),
+        };
 
-                let padding = width + margin * 2.0 + spacing;
-                let state = tree.state.downcast_mut::<State>();
+        let y_embedded = y_padding.is_some();
+        let x_embedded = x_padding.is_some();
 
-                let status_quo = layout(
-                    if is_vertical && state.is_scrollbar_visible {
-                        padding
-                    } else {
-                        0.0
-                    },
-                    if !is_vertical && state.is_scrollbar_visible {
-                        padding
-                    } else {
-                        0.0
-                    },
-                );
+        if !y_embedded && !x_embedded {
+            return layout(0.0, 0.0);
+        }
 
-                let is_scrollbar_visible = if is_vertical {
-                    status_quo.children()[0].size().height > status_quo.size().height
+        let y_padding = y_padding.unwrap_or(0.0);
+        let x_padding = x_padding.unwrap_or(0.0);
+
+        let state = tree.state.downcast_mut::<State>();
+        let mut is_y_scrollbar_visible = state.is_y_scrollbar_visible;
+        let mut is_x_scrollbar_visible = state.is_x_scrollbar_visible;
+
+        if self.direction.vertical().is_none() {
+            is_y_scrollbar_visible = false;
+        }
+
+        if self.direction.horizontal().is_none() {
+            is_x_scrollbar_visible = false;
+        }
+
+        if !y_embedded {
+            is_y_scrollbar_visible = false;
+        }
+
+        if !x_embedded {
+            is_x_scrollbar_visible = false;
+        }
+
+        let mut node = layout(
+            if is_y_scrollbar_visible {
+                y_padding
+            } else {
+                0.0
+            },
+            if is_x_scrollbar_visible {
+                x_padding
+            } else {
+                0.0
+            },
+        );
+
+        for _ in 0..2 {
+            let content_size = node.children()[0].size();
+
+            let viewport_width = node.size().width
+                - if is_y_scrollbar_visible {
+                    y_padding
                 } else {
-                    status_quo.children()[0].size().width > status_quo.size().width
+                    0.0
                 };
 
-                if state.is_scrollbar_visible == is_scrollbar_visible {
-                    status_quo
+            let viewport_height = node.size().height
+                - if is_x_scrollbar_visible {
+                    x_padding
                 } else {
-                    log::trace!("Scrollbar status quo has changed");
-                    state.is_scrollbar_visible = is_scrollbar_visible;
+                    0.0
+                };
 
-                    layout(
-                        if is_vertical && state.is_scrollbar_visible {
-                            padding
-                        } else {
-                            0.0
-                        },
-                        if !is_vertical && state.is_scrollbar_visible {
-                            padding
-                        } else {
-                            0.0
-                        },
-                    )
-                }
+            let y_needed = y_embedded && content_size.height > viewport_height;
+            let x_needed = x_embedded && content_size.width > viewport_width;
+
+            if y_needed == is_y_scrollbar_visible && x_needed == is_x_scrollbar_visible {
+                break;
             }
-            _ => layout(0.0, 0.0),
+
+            is_y_scrollbar_visible = y_needed;
+            is_x_scrollbar_visible = x_needed;
+
+            node = layout(
+                if is_y_scrollbar_visible {
+                    y_padding
+                } else {
+                    0.0
+                },
+                if is_x_scrollbar_visible {
+                    x_padding
+                } else {
+                    0.0
+                },
+            );
         }
+
+        if state.is_y_scrollbar_visible != is_y_scrollbar_visible
+            || state.is_x_scrollbar_visible != is_x_scrollbar_visible
+        {
+            log::trace!("Scrollbar status quo has changed");
+            state.is_y_scrollbar_visible = is_y_scrollbar_visible;
+            state.is_x_scrollbar_visible = is_x_scrollbar_visible;
+        }
+
+        node
     }
 
     fn operate(
@@ -1205,18 +1353,67 @@ where
             let draw_scrollbar = |renderer: &mut Renderer,
                                   scroll_style: &ScrollStyle,
                                   scrollbar: &internals::Scrollbar,
+                                  is_vertical: bool,
                                   is_hovered: bool,
                                   is_dragged: bool| {
+                let is_interacting = is_hovered || is_dragged;
+
+                let shrink_axis = |bounds: Rectangle, target_thickness: f32| -> Rectangle {
+                    let target_thickness = target_thickness.max(0.0).min(if is_vertical {
+                        bounds.width
+                    } else {
+                        bounds.height
+                    });
+
+                    if is_vertical {
+                        Rectangle {
+                            // Flush to the outer edge (right)
+                            x: bounds.x + bounds.width - target_thickness,
+                            width: target_thickness,
+                            ..bounds
+                        }
+                    } else {
+                        Rectangle {
+                            // Flush to the outer edge (bottom)
+                            y: bounds.y + bounds.height - target_thickness,
+                            height: target_thickness,
+                            ..bounds
+                        }
+                    }
+                };
+
+                // For the `thin` preset we want a collapsed thin line unless the user is
+                // hovering/dragging the scrollbar itself.
+                //
+                // We distinguish it from regular `floating` by the fact that `thin` allocates
+                // a small width (`floating_allocated_width > 0`), while `floating` allocates none.
+                let is_thin_like =
+                    scroll_style.floating && scroll_style.floating_allocated_width > 0.0;
+
+                let scrollbar_bounds = if is_thin_like && !is_interacting {
+                    shrink_axis(scrollbar.bounds, scroll_style.floating_width)
+                } else {
+                    scrollbar.bounds
+                };
+
+                let scroller_bounds = if is_thin_like && !is_interacting {
+                    scrollbar
+                        .scroller
+                        .map(|s| shrink_axis(s.bounds, scroll_style.floating_width))
+                } else {
+                    scrollbar.scroller.map(|s| s.bounds)
+                };
+
                 // Draw rail background
-                if scrollbar.bounds.width > 0.0
-                    && scrollbar.bounds.height > 0.0
+                if scrollbar_bounds.width > 0.0
+                    && scrollbar_bounds.height > 0.0
                     && scroll_style.rail_background.is_some()
                 {
                     let bg_color = scroll_style.rail_background.unwrap_or(Color::TRANSPARENT);
                     if bg_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
-                                bounds: scrollbar.bounds,
+                                bounds: scrollbar_bounds,
                                 border: corner_radius,
                                 ..renderer::Quad::default()
                             },
@@ -1226,9 +1423,9 @@ where
                 }
 
                 // Draw handle/scroller
-                if let Some(scroller) = scrollbar.scroller
-                    && scroller.bounds.width > 0.0
-                    && scroller.bounds.height > 0.0
+                if let Some(bounds) = scroller_bounds
+                    && bounds.width > 0.0
+                    && bounds.height > 0.0
                 {
                     let handle_color = if is_dragged {
                         scroll_style.handle_color_dragged
@@ -1241,7 +1438,7 @@ where
                     if handle_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
-                                bounds: scroller.bounds,
+                                bounds,
                                 border: corner_radius,
                                 ..renderer::Quad::default()
                             },
@@ -1288,6 +1485,7 @@ where
                             renderer,
                             scroll_style,
                             &scrollbar,
+                            true,
                             is_v_hovered,
                             is_v_dragged,
                         );
@@ -1298,6 +1496,7 @@ where
                             renderer,
                             scroll_style,
                             &scrollbar,
+                            false,
                             is_h_hovered,
                             is_h_dragged,
                         );
@@ -1660,7 +1859,8 @@ struct State {
     interaction: Interaction,
     last_notified: Option<Viewport>,
     last_scrolled: Option<Instant>,
-    is_scrollbar_visible: bool,
+    is_y_scrollbar_visible: bool,
+    is_x_scrollbar_visible: bool,
     /// Animation for scrollbar hover state (0.0 = dormant, 1.0 = fully visible)
     hover_animation: Animation<bool>,
     /// Whether the mouse is currently over the scroll area
@@ -1701,7 +1901,8 @@ impl Default for State {
             interaction: Interaction::None,
             last_notified: None,
             last_scrolled: None,
-            is_scrollbar_visible: true,
+            is_y_scrollbar_visible: true,
+            is_x_scrollbar_visible: true,
             hover_animation: Animation::new(false).quick(),
             is_mouse_over_area: false,
             velocity: Vector::new(0.0, 0.0),
@@ -2133,6 +2334,9 @@ impl Scrollbars {
                 ..
             } = *vertical;
 
+            // Ensure the visible scroller is never thicker than the bar itself.
+            let effective_scroller_width = scroller_width.min(width);
+
             // Adjust the height of the vertical scrollbar if the horizontal scrollbar
             // is present
             let x_scrollbar_height =
@@ -2167,9 +2371,11 @@ impl Scrollbars {
                     translation.y * ratio * scrollbar_bounds.height / bounds.height;
 
                 let scroller_bounds = Rectangle {
-                    x: bounds.x + bounds.width - total_scrollbar_width / 2.0 - scroller_width / 2.0,
+                    x: bounds.x + bounds.width
+                        - total_scrollbar_width / 2.0
+                        - effective_scroller_width / 2.0,
                     y: (scrollbar_bounds.y + scroller_offset).max(0.0),
-                    width: scroller_width,
+                    width: effective_scroller_width,
                     height: scroller_height,
                 };
 
@@ -2196,6 +2402,9 @@ impl Scrollbars {
                 scroller_width,
                 ..
             } = *horizontal;
+
+            // Ensure the visible scroller is never thicker than the bar itself.
+            let effective_scroller_width = scroller_width.min(width);
 
             // Need to adjust the width of the horizontal scrollbar if the vertical scrollbar
             // is present
@@ -2233,9 +2442,9 @@ impl Scrollbars {
                     x: (scrollbar_bounds.x + scroller_offset).max(0.0),
                     y: bounds.y + bounds.height
                         - total_scrollbar_height / 2.0
-                        - scroller_width / 2.0,
+                        - effective_scroller_width / 2.0,
                     width: scroller_length,
-                    height: scroller_width,
+                    height: effective_scroller_width,
                 };
 
                 Some(internals::Scroller {
@@ -2541,19 +2750,23 @@ impl ScrollStyle {
     }
 
     /// Thin scroll bars that expand on hover.
+    /// Shows a thin 2px line normally, expands to full width as overlay on hover.
     pub fn thin() -> Self {
         Self {
             floating: true,
             bar_width: 10.0,
-            floating_allocated_width: 6.0,
-            foreground_color: false,
-            dormant_background_opacity: 1.0,
-            dormant_handle_opacity: 1.0,
-            active_background_opacity: 1.0,
-            active_handle_opacity: 1.0,
-            // Be translucent when expanded so we can see the content
+            floating_width: 2.0,
+            floating_allocated_width: 2.0,
+            foreground_color: true,
+            // Always visible as a thin line
+            dormant_background_opacity: 0.3,
+            dormant_handle_opacity: 0.6,
+            // More visible when hovering the scroll area
+            active_background_opacity: 0.5,
+            active_handle_opacity: 0.8,
+            // Full visibility when hovering scrollbar, semi-transparent to see content
             interact_background_opacity: 0.6,
-            interact_handle_opacity: 0.6,
+            interact_handle_opacity: 1.0,
             ..Self::solid()
         }
     }
