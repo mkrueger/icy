@@ -47,7 +47,7 @@ use crate::core::theme;
 use crate::core::time::Instant;
 use crate::core::widget::operation;
 use crate::core::widget::operation::focusable::FocusLevel;
-use crate::core::{Point, Renderer, Size};
+use crate::core::{Point, Size};
 use crate::futures::futures::channel::mpsc;
 use crate::futures::futures::channel::oneshot;
 use crate::futures::futures::task;
@@ -69,6 +69,9 @@ use std::mem::ManuallyDrop;
 use std::slice;
 use std::sync::Arc;
 
+#[cfg(target_os = "macos")]
+use std::sync::mpsc as std_mpsc;
+
 /// Runs a [`Program`] with the provided settings.
 pub fn run<P>(program: P) -> Result<(), Error>
 where
@@ -80,6 +83,10 @@ where
     let boot_span = debug::boot();
     let settings = program.settings();
     let window_settings = program.window();
+
+    // Install URL handler on macOS before event loop starts
+    #[cfg(target_os = "macos")]
+    let url_receiver = icy_ui_macos::UrlHandler::install().into_receiver();
 
     let event_loop = EventLoop::with_user_event()
         .build()
@@ -143,6 +150,8 @@ where
         settings.fonts,
         settings.focus_level,
         system_theme_receiver,
+        #[cfg(target_os = "macos")]
+        url_receiver,
     ));
 
     let context = task::Context::from_waker(task::noop_waker_ref());
@@ -244,15 +253,6 @@ where
             );
         }
 
-        fn received_url(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, url: String) {
-            self.process_event(
-                event_loop,
-                Event::EventLoopAwakened(winit::event::Event::PlatformSpecific(
-                    winit::event::PlatformSpecific::MacOS(winit::event::MacOS::ReceivedUrl(url)),
-                )),
-            );
-        }
-
         fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
             self.process_event(
                 event_loop,
@@ -274,7 +274,11 @@ where
                 return;
             }
 
-            self.sender.start_send(event).expect("Send event");
+            if self.sender.start_send(event).is_err() {
+                // Channel disconnected, exit gracefully
+                event_loop.exit();
+                return;
+            }
 
             loop {
                 let poll = self.instance.as_mut().poll(&mut self.context);
@@ -351,7 +355,7 @@ where
                                     ));
 
                                 #[cfg(not(feature = "accessibility"))]
-                                let accessibility = ();
+                                let _accessibility = ();
 
                                 #[cfg(target_os = "macos")]
                                 if let Some(position) = position {
@@ -506,6 +510,7 @@ async fn run_instance<P>(
     default_fonts: Vec<Cow<'static, [u8]>>,
     focus_level: FocusLevel,
     mut _system_theme: oneshot::Receiver<theme::Mode>,
+    #[cfg(target_os = "macos")] url_receiver: std_mpsc::Receiver<String>,
 ) where
     P: Program + 'static,
     P::Theme: theme::Base,
@@ -779,15 +784,6 @@ async fn run_instance<P>(
                             }
                             _ => {}
                         }
-                    }
-                    event::Event::PlatformSpecific(event::PlatformSpecific::MacOS(
-                        event::MacOS::ReceivedUrl(url),
-                    )) => {
-                        runtime.broadcast(subscription::Event::PlatformSpecific(
-                            subscription::PlatformSpecific::MacOS(
-                                subscription::MacOS::ReceivedUrl(url),
-                            ),
-                        ));
                     }
                     event::Event::UserEvent(action) => {
                         run_action(
@@ -1137,6 +1133,16 @@ async fn run_instance<P>(
                         if actions > 0 {
                             proxy.free_slots(actions);
                             actions = 0;
+                        }
+
+                        // Poll for URL events on macOS
+                        #[cfg(target_os = "macos")]
+                        while let Ok(url) = url_receiver.try_recv() {
+                            runtime.broadcast(subscription::Event::PlatformSpecific(
+                                subscription::PlatformSpecific::MacOS(
+                                    subscription::MacOS::ReceivedUrl(url),
+                                ),
+                            ));
                         }
 
                         #[cfg(feature = "accessibility")]

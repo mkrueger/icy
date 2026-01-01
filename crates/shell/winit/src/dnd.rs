@@ -1,4 +1,4 @@
-//! Drag and Drop support for Wayland (via smithay-clipboard).
+//! Drag and Drop support for Wayland (via smithay-clipboard) and macOS (via icy_ui_macos).
 //!
 //! This module provides the platform integration for DnD operations.
 
@@ -8,9 +8,7 @@ use crate::futures::futures::channel::oneshot;
 use crate::runtime::dnd::Action;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 use winit::window::Window;
 
 #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
@@ -58,7 +56,19 @@ struct State {
     surface_registered: bool,
 }
 
-#[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+/// macOS-specific DnD state using icy_ui_macos.
+#[cfg(target_os = "macos")]
+struct State {
+    /// The drag source for initiating drags
+    drag_source: Option<icy_ui_macos::DragSource>,
+    /// Active drag channel (if we initiated a drag)
+    active_drag: Option<ActiveDrag>,
+}
+
+#[cfg(not(any(
+    all(feature = "wayland", unix, not(target_os = "macos")),
+    target_os = "macos"
+)))]
 struct State {
     unavailable: (),
 }
@@ -208,9 +218,45 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+            let drag_source = if let Ok(window_handle) = window.window_handle() {
+                if let RawWindowHandle::AppKit(appkit) = window_handle.as_raw() {
+                    match icy_ui_macos::DragSource::new(appkit.ns_view) {
+                        Ok(source) => {
+                            log::debug!("DnD: Created macOS drag source");
+                            Some(source)
+                        }
+                        Err(e) => {
+                            log::warn!("DnD: Failed to create macOS drag source: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let _ = wakeup; // Not needed for macOS (yet)
+            DndManager {
+                state: State {
+                    drag_source,
+                    active_drag: None,
+                },
+            }
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             let _ = window;
+            let _ = wakeup;
             DndManager {
                 state: State { unavailable: () },
             }
@@ -237,7 +283,20 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            DndManager {
+                state: State {
+                    drag_source: None,
+                    active_drag: None,
+                },
+            }
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             DndManager {
                 state: State { unavailable: () },
@@ -251,7 +310,16 @@ impl DndManager {
         {
             self.state.clipboard.is_some() && self.state.dnd_initialized
         }
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+
+        #[cfg(target_os = "macos")]
+        {
+            self.state.drag_source.is_some()
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             false
         }
@@ -289,7 +357,41 @@ impl DndManager {
             icy_events
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, check for completed drag operations
+            if let Some(ref drag_source) = self.state.drag_source {
+                if let Some(result) = drag_source.try_recv_result() {
+                    // Convert macOS result to our DropResult
+                    let drop_result = match result {
+                        icy_ui_macos::dnd::DragResult::Copied => {
+                            DropResult::Dropped(DndAction::Copy)
+                        }
+                        icy_ui_macos::dnd::DragResult::Moved => {
+                            DropResult::Dropped(DndAction::Move)
+                        }
+                        icy_ui_macos::dnd::DragResult::Linked => {
+                            DropResult::Dropped(DndAction::Link)
+                        }
+                        icy_ui_macos::dnd::DragResult::Cancelled => DropResult::Cancelled,
+                    };
+
+                    // Complete the active drag if there is one
+                    if let Some(drag) = self.state.active_drag.take() {
+                        let _ = drag.channel.send(drop_result);
+                    }
+                }
+            }
+
+            // macOS receives drops via winit's native events (DroppedFile, HoveredFile)
+            // No additional polling needed here
+            Vec::new()
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             Vec::new()
         }
@@ -362,7 +464,41 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(ref drag_source) = self.state.drag_source {
+                // Get the first MIME type for the drag (use text/plain as fallback)
+                let mime_type = data
+                    .mime_types
+                    .first()
+                    .map(|s| s.as_ref())
+                    .unwrap_or("text/plain");
+
+                // Convert our DndAction to macOS DragOperation
+                let operations = match allowed_actions {
+                    DndAction::Copy => icy_ui_macos::dnd::DragOperation::COPY,
+                    DndAction::Move => icy_ui_macos::dnd::DragOperation::MOVE,
+                    DndAction::Link => icy_ui_macos::dnd::DragOperation::LINK,
+                    _ => icy_ui_macos::dnd::DragOperation::ALL,
+                };
+
+                match drag_source.start_drag(&data.data, mime_type, operations) {
+                    Ok(_) => {
+                        // Store the channel to receive completion notification
+                        self.state.active_drag = Some(ActiveDrag { channel });
+                        return;
+                    }
+                    Err(e) => {
+                        log::warn!("DnD: Failed to start macOS drag: {}", e);
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             let _ = (data, allowed_actions);
         }
@@ -402,7 +538,21 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, drop zones are handled by the native drag session
+            // The entire window acts as a drop target via winit's HoveredFile/DroppedFile events
+            log::debug!(
+                "DnD set_drop_zones: {} zones (macOS uses native drop handling)",
+                zones.len()
+            );
+            let _ = zones;
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             let _ = zones;
         }
@@ -423,7 +573,17 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, drag acceptance is handled automatically by the native drag session
+            log::debug!("DnD accept_drag: {:?} (macOS uses native handling)", action);
+            let _ = action;
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             let _ = action;
         }
@@ -436,6 +596,12 @@ impl DndManager {
                 clipboard.set_dnd_action(WlDndAction::None);
                 log::debug!("DnD reject_drag called");
             }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, drag rejection is handled by the native drag session
+            log::debug!("DnD reject_drag (macOS uses native handling)");
         }
     }
 
@@ -462,23 +628,54 @@ impl DndManager {
             }
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, data is delivered directly via winit's DroppedFile events
+            // For in-app drags, we'd need to implement NSPasteboard reading
+            log::debug!(
+                "DnD request_data: {} (macOS - not yet implemented for in-app drags)",
+                mime_type
+            );
+            let _ = mime_type;
+        }
+
         // If we can't request data, send None
         let _ = channel.send(None);
     }
 
     /// Finish the current DnD operation (accept the drop).
-    #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+    #[cfg(any(
+        all(feature = "wayland", unix, not(target_os = "macos")),
+        target_os = "macos"
+    ))]
     pub fn finish_dnd(&mut self) {
+        #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
         if let Some(ref clipboard) = self.state.clipboard {
             clipboard.finish_dnd();
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, the drag session handles completion automatically
+            log::debug!("DnD finish_dnd (macOS)");
         }
     }
 
     /// Cancel/end the current DnD operation.
-    #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+    #[cfg(any(
+        all(feature = "wayland", unix, not(target_os = "macos")),
+        target_os = "macos"
+    ))]
     pub fn end_dnd(&mut self) {
+        #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
         if let Some(ref clipboard) = self.state.clipboard {
             clipboard.end_dnd();
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, the drag session handles cancellation automatically
+            log::debug!("DnD end_dnd (macOS)");
         }
     }
 
@@ -575,7 +772,17 @@ impl DndManager {
             }
         }
 
-        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(drag) = self.state.active_drag.take() {
+                let _ = drag.channel.send(result);
+            }
+        }
+
+        #[cfg(not(any(
+            all(feature = "wayland", unix, not(target_os = "macos")),
+            target_os = "macos"
+        )))]
         {
             let _ = result;
         }

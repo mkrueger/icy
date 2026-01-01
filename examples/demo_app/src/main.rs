@@ -19,9 +19,10 @@ use icy_ui::{Element, Fill, Point, Subscription, Task, Theme};
 
 use pages::{
     AnchorPosition, ButtonsState, CanvasPageState, ComponentChoice, ContainerChoice,
-    ContextMenuState, DndPageState, ListsState, MarkdownPageState, PaneGridPageState, PickersState,
-    QrCodeState, ScrollDirection, ScrollablesTab, ScrollingState, ShaderState, SlidersState,
-    TextInputsState, ThemePage, ThemePageState, ToastsState, TogglesState,
+    ContextMenuState, DndPageState, EventLogState, ListsState, MarkdownPageState,
+    PaneGridPageState, PickersState, QrCodeState, ScrollDirection, ScrollablesTab, ScrollingState,
+    ShaderState, SlidersState, TextInputsState, ThemePage, ThemePageState, ToastsState,
+    TogglesState,
 };
 
 pub fn main() -> icy_ui::Result {
@@ -55,6 +56,7 @@ pub enum Page {
     Canvas,
     PaneGrid,
     Markdown,
+    EventLog,
 }
 
 impl Page {
@@ -76,6 +78,7 @@ impl Page {
         Page::Canvas,
         Page::PaneGrid,
         Page::Markdown,
+        Page::EventLog,
     ];
 
     fn name(&self) -> &'static str {
@@ -97,6 +100,7 @@ impl Page {
             Page::Canvas => "Canvas",
             Page::PaneGrid => "Pane Grid",
             Page::Markdown => "Markdown",
+            Page::EventLog => "Event Log",
         }
     }
 
@@ -119,6 +123,7 @@ impl Page {
             Page::Canvas => "🎨",
             Page::PaneGrid => "📰",
             Page::Markdown => "📝",
+            Page::EventLog => "📊",
         }
     }
 
@@ -141,6 +146,7 @@ impl Page {
             Page::Canvas => Some("examples/demo_app/src/pages/canvas_page.rs"),
             Page::PaneGrid => Some("examples/demo_app/src/pages/pane_grid_page.rs"),
             Page::Markdown => Some("examples/demo_app/src/pages/markdown_page.rs"),
+            Page::EventLog => Some("examples/demo_app/src/pages/event_log.rs"),
         }
     }
 }
@@ -260,6 +266,7 @@ struct DemoApp {
     canvas: CanvasPageState,
     pane_grid: PaneGridPageState,
     markdown: MarkdownPageState,
+    event_log: EventLogState,
 }
 
 impl Default for DemoApp {
@@ -282,6 +289,7 @@ impl Default for DemoApp {
             qr_code: QrCodeState::default(),
             shader: ShaderState::default(),
             canvas: CanvasPageState::default(),
+            event_log: EventLogState::default(),
             pane_grid: PaneGridPageState::default(),
             markdown: MarkdownPageState::default(),
         }
@@ -398,6 +406,13 @@ pub enum Message {
     MarkdownEditorAction(text_editor::Action),
     MarkdownLinkClicked(String),
 
+    // Event Log
+    EventLogReceived {
+        event_type: String,
+        details: String,
+    },
+    EventLogClear,
+
     // Global
     OpenUrl(String),
 }
@@ -512,6 +527,11 @@ impl DemoApp {
             return Task::none();
         }
 
+        if let Some(status) = pages::update_event_log(&mut self.event_log, &message) {
+            self.status_message = status;
+            return Task::none();
+        }
+
         Task::none()
     }
 
@@ -543,6 +563,10 @@ impl DemoApp {
 
         if self.current_page == Page::Dnd {
             subs.push(pages::subscription_dnd());
+        }
+
+        if self.current_page == Page::EventLog {
+            subs.push(pages::subscription_event_log());
         }
 
         Subscription::batch(subs)
@@ -699,6 +723,7 @@ impl DemoApp {
             Page::Canvas => pages::canvas_page_view(&self.canvas),
             Page::PaneGrid => pages::view_pane_grid(&self.pane_grid),
             Page::Markdown => pages::view_markdown(&self.markdown),
+            Page::EventLog => pages::view_event_log(&self.event_log),
         };
 
         let header = text(format!(

@@ -29,6 +29,7 @@ members = [
 
     # Shell/windowing
     "crates/shell/winit",
+    "crates/shell/macos",
 
     # Developer tools
     "crates/tools/beacon",
@@ -73,6 +74,7 @@ icy_ui_wgpu = { version = "0.1.0", path = "crates/backends/wgpu", default-featur
 
 # Shell/windowing
 icy_ui_winit = { version = "0.1.0", path = "crates/shell/winit", default-features = false }
+icy_ui_macos = { version = "0.1.0", path = "crates/shell/macos" }
 
 # Developer tools
 icy_ui_beacon = { version = "0.1.0", path = "crates/tools/beacon" }
@@ -147,9 +149,7 @@ wgpu = { version = "27.0", default-features = false, features = [
     "std",
     "wgsl",
 ] }
-winit = { git = "https://github.com/iced-rs/winit.git", rev = "05b8ff17a06562f0a10bb46e6eaacbe2a95cb5ed", default-features = false, features = [
-    "rwh_06",
-] }
+winit = { version = "0.30.12", default-features = false, features = ["rwh_06"] }
 
 # Accessibility
 accesskit = "0.18"
@@ -157,7 +157,9 @@ accesskit_winit = "0.24"
 
 # Clipboard backends
 clipboard-rs = "0.3"
-smithay-clipboard = { git = "https://github.com/mkrueger/smithay-clipboard.git", rev = "0be79e9828bb42ea6591afe95e2f189458577054", features = ["dnd"] }
+smithay-clipboard = { git = "https://github.com/mkrueger/smithay-clipboard.git", rev = "0be79e9828bb42ea6591afe95e2f189458577054", features = [
+    "dnd",
+] }
 wayland-client = "0.31"
 
 [workspace.lints.rust]
@@ -186,7 +188,3 @@ useless_conversion = "deny"
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "forbid"
-
-# Patch winit so accesskit_winit uses the same version as icy_ui
-[patch.crates-io]
-winit = { git = "https://github.com/iced-rs/winit.git", rev = "05b8ff17a06562f0a10bb46e6eaacbe2a95cb5ed" }

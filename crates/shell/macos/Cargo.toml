@@ -1,0 +1,44 @@
+[package]
+name = "icy_ui_macos"
+description = "macOS platform integration for icy_ui (URL handling, DnD, etc.)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["url-handler", "dnd"]
+url-handler = []
+dnd = []
+
+[dependencies]
+log.workspace = true
+
+# Objective-C runtime bindings (only on macOS)
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+    "NSString",
+    "NSArray",
+    "NSData",
+    "NSObject",
+    "NSDictionary",
+] }
+objc2-app-kit = { version = "0.3", features = [
+    "NSApplication",
+    "NSEvent",
+    "NSView",
+    "NSWindow",
+    "NSPasteboard",
+    "NSDragging",
+    "NSImage",
+    "NSBitmapImageRep",
+    "NSGraphicsContext",
+] }
+block2 = "0.6"

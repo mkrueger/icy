@@ -524,6 +524,7 @@ impl Clipboard {
 }
 
 /// Parse a text/uri-list into PathBufs
+#[allow(dead_code)]
 fn parse_file_uri_list(text: &str) -> Vec<PathBuf> {
     text.lines()
         .filter(|line| !line.starts_with('#') && !line.is_empty())
@@ -542,6 +543,7 @@ fn parse_file_uri_list(text: &str) -> Vec<PathBuf> {
 }
 
 /// Convert paths to a text/uri-list format
+#[allow(dead_code)]
 fn paths_to_uri_list(paths: &[PathBuf]) -> String {
     paths
         .iter()
@@ -552,6 +554,7 @@ fn paths_to_uri_list(paths: &[PathBuf]) -> String {
 }
 
 /// Simple percent decoding for file URIs
+#[allow(dead_code)]
 fn percent_decode(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();

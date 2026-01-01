@@ -21,8 +21,18 @@ hinting = []
 unconditional-rendering = []
 linux-theme-detection = ["dep:mundy", "mundy/async-io", "mundy/color-scheme"]
 x11 = ["winit/x11", "dep:clipboard-rs"]
-wayland = ["winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "dep:smithay-clipboard", "dep:wayland-client"]
-accessibility = ["dep:accesskit_winit", "dep:accesskit", "icy_ui_program/accessibility"]
+wayland = [
+    "winit/wayland",
+    "winit/wayland-dlopen",
+    "winit/wayland-csd-adwaita",
+    "dep:smithay-clipboard",
+    "dep:wayland-client",
+]
+accessibility = [
+    "dep:accesskit_winit",
+    "dep:accesskit",
+    "icy_ui_program/accessibility",
+]
 
 [dependencies]
 icy_ui_debug.workspace = true
@@ -51,6 +61,10 @@ clipboard-rs.workspace = true
 clipboard-rs = { workspace = true, optional = true }
 smithay-clipboard = { workspace = true, optional = true }
 wayland-client = { workspace = true, optional = true }
+
+# macOS platform integration (URL handler, DnD initiation)
+[target.'cfg(target_os = "macos")'.dependencies]
+icy_ui_macos.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys.workspace = true

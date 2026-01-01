@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>demo_app</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.icy_ui.demo</string>
+    <key>CFBundleName</key>
+    <string>DemoApp</string>
+    <key>CFBundleDisplayName</key>
+    <string>Demo App</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.icy_ui.demo.url</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>demoapp</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
