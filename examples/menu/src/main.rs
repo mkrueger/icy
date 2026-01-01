@@ -1,11 +1,11 @@
-use iced::keyboard::{Key, key::Named};
-use iced::widget::{column, container, text};
-use iced::{Center, Element, Fill};
+use icy_ui::keyboard::{Key, key::Named};
+use icy_ui::widget::{column, container, text};
+use icy_ui::{Center, Element, Fill};
 
 use std::collections::HashMap;
 
-pub fn main() -> iced::Result {
-    iced::application(App::default, App::update, App::view)
+pub fn main() -> icy_ui::Result {
+    icy_ui::application(App::default, App::update, App::view)
         .subscription(App::subscription)
         .run()
 }
@@ -40,7 +40,7 @@ enum MenuAction {
     About,
 }
 
-impl iced::widget::menu::Action for MenuAction {
+impl icy_ui::widget::menu::Action for MenuAction {
     type Message = Message;
 
     fn message(&self) -> Self::Message {
@@ -64,8 +64,8 @@ impl App {
         }
     }
 
-    fn subscription(&self) -> iced::Subscription<Message> {
-        use iced::keyboard;
+    fn subscription(&self) -> icy_ui::Subscription<Message> {
+        use icy_ui::keyboard;
 
         fn handle_hotkey(event: keyboard::Event) -> Option<Message> {
             match event {
@@ -98,7 +98,7 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        use iced::widget::menu::{Item, KeyBind, MenuBar, Modifier, Tree, bar, items, root};
+        use icy_ui::widget::menu::{Item, KeyBind, MenuBar, Modifier, Tree, bar, items, root};
 
         // Define key bindings for display in menu
         let key_binds: HashMap<KeyBind, MenuAction> = [

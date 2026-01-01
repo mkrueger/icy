@@ -13,7 +13,7 @@ pub fn convert(
     }
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("iced_wgpu.offscreen.sampler"),
+        label: Some("icy_ui_wgpu.offscreen.sampler"),
         ..wgpu::SamplerDescriptor::default()
     });
 
@@ -38,7 +38,7 @@ pub fn convert(
     });
 
     let constant_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.sampler_layout"),
+        label: Some("icy_ui_wgpu.offscreen.blit.sampler_layout"),
         entries: &[
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -60,7 +60,7 @@ pub fn convert(
     });
 
     let constant_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("iced_wgpu.offscreen.sampler.bind_group"),
+        label: Some("icy_ui_wgpu.offscreen.sampler.bind_group"),
         layout: &constant_layout,
         entries: &[
             wgpu::BindGroupEntry {
@@ -75,7 +75,7 @@ pub fn convert(
     });
 
     let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.texture_layout"),
+        label: Some("icy_ui_wgpu.offscreen.blit.texture_layout"),
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -89,18 +89,18 @@ pub fn convert(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.pipeline_layout"),
+        label: Some("icy_ui_wgpu.offscreen.blit.pipeline_layout"),
         bind_group_layouts: &[&constant_layout, &texture_layout],
         push_constant_ranges: &[],
     });
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.shader"),
+        label: Some("icy_ui_wgpu.offscreen.blit.shader"),
         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader/blit.wgsl"))),
     });
 
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.pipeline"),
+        label: Some("icy_ui_wgpu.offscreen.blit.pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -141,7 +141,7 @@ pub fn convert(
     });
 
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("iced_wgpu.offscreen.conversion.source_texture"),
+        label: Some("icy_ui_wgpu.offscreen.conversion.source_texture"),
         size: source.size(),
         mip_level_count: 1,
         sample_count: 1,
@@ -154,7 +154,7 @@ pub fn convert(
     let view = &texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.texture_bind_group"),
+        label: Some("icy_ui_wgpu.offscreen.blit.texture_bind_group"),
         layout: &texture_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
@@ -165,7 +165,7 @@ pub fn convert(
     });
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("iced_wgpu.offscreen.blit.render_pass"),
+        label: Some("icy_ui_wgpu.offscreen.blit.render_pass"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             depth_slice: None,

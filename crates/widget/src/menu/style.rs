@@ -111,7 +111,7 @@ pub fn menu_item(theme: &Theme, status: Status) -> button::Style {
     };
 
     match status {
-        Status::Active | Status::Hovered | Status::Pressed => base,
+        Status::Active | Status::Hovered | Status::Pressed | Status::Selected => base,
         Status::Disabled => button::Style {
             text_color: theme.background.on.scale_alpha(0.5),
             ..base
@@ -130,7 +130,7 @@ pub fn menu_root_style(theme: &Theme, status: Status) -> button::Style {
     };
 
     match status {
-        Status::Active | Status::Hovered | Status::Pressed => base,
+        Status::Active | Status::Hovered | Status::Pressed | Status::Selected => base,
         Status::Disabled => base, // Menu roots should not appear disabled
     }
 }

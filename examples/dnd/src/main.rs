@@ -10,17 +10,17 @@
 //! 2. **Drag Source**: Starting a drag to other applications
 //!    - Click and drag from the "Drag me!" box to start a drag
 
-use iced::dnd::{self, DragData, DropResult};
-use iced::event::{self, Event};
-use iced::mouse;
-use iced::widget::{column, container, row, text, text_input, Space};
-use iced::window;
-use iced::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
+use icy_ui::dnd::{self, DragData, DropResult};
+use icy_ui::event::{self, Event};
+use icy_ui::mouse;
+use icy_ui::widget::{column, container, row, text, text_input, Space};
+use icy_ui::window;
+use icy_ui::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
 
 use std::path::PathBuf;
 
-pub fn main() -> iced::Result {
-    iced::application(DndDemo::default, DndDemo::update, DndDemo::view)
+pub fn main() -> icy_ui::Result {
+    icy_ui::application(DndDemo::default, DndDemo::update, DndDemo::view)
         .subscription(DndDemo::subscription)
         .title("Drag and Drop Demo")
         .run()
@@ -318,7 +318,7 @@ impl DndDemo {
                 };
                 container::Style {
                     background: Some(bg.into()),
-                    border: iced::Border {
+                    border: icy_ui::Border {
                         color: theme.success.on,
                         width: 2.0,
                         radius: 8.0.into(),
@@ -329,7 +329,7 @@ impl DndDemo {
             });
 
         // Wrap in mouse_area to detect press
-        let draggable = iced::widget::mouse_area(drag_box)
+        let draggable = icy_ui::widget::mouse_area(drag_box)
             .on_press(Message::StartDrag)
             .interaction(if self.is_dragging {
                 mouse::Interaction::Grabbing
@@ -356,7 +356,7 @@ impl DndDemo {
             .center_x(Fill)
             .style(|theme: &Theme| container::Style {
                 background: Some(theme.primary.component.base.into()),
-                border: iced::Border {
+                border: icy_ui::Border {
                     color: theme.primary.base,
                     width: 1.0,
                     radius: 12.0.into(),
@@ -384,7 +384,7 @@ impl DndDemo {
             .center_y(Fill)
             .style(|theme: &Theme| container::Style {
                 background: Some(theme.primary.base.into()),
-                border: iced::Border {
+                border: icy_ui::Border {
                     color: theme.primary.on,
                     width: 2.0,
                     radius: 12.0.into(),
@@ -489,7 +489,7 @@ impl DndDemo {
                 };
                 container::Style {
                     background: Some(bg.into()),
-                    border: iced::Border {
+                    border: icy_ui::Border {
                         color: theme.accent.on,
                         width: 3.0,
                         radius: 12.0.into(),

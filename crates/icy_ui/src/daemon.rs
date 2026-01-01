@@ -7,7 +7,7 @@ use crate::theme;
 use crate::window;
 use crate::{Element, Executor, Font, Preset, Result, Settings, Subscription, Task, Theme};
 
-use iced_debug as debug;
+use icy_ui_debug as debug;
 
 use std::borrow::Cow;
 
@@ -58,7 +58,7 @@ where
         type Message = Message;
         type Theme = Theme;
         type Renderer = Renderer;
-        type Executor = iced_futures::backend::default::Executor;
+        type Executor = icy_ui_futures::backend::default::Executor;
 
         fn name() -> &'static str {
             let name = std::any::type_name::<State>();
@@ -70,7 +70,7 @@ where
             Settings::default()
         }
 
-        fn window(&self) -> Option<iced_core::window::Settings> {
+        fn window(&self) -> Option<icy_ui_core::window::Settings> {
             None
         }
 
@@ -129,13 +129,13 @@ impl<P: Program> Daemon<P> {
         P::Message: message::MaybeDebug + message::MaybeClone,
         P: Program<Theme = Theme>,
     {
-        iced_debug::init(iced_debug::Metadata {
+        icy_ui_debug::init(icy_ui_debug::Metadata {
             name: P::name(),
             theme: None,
             can_time_travel: cfg!(feature = "time-travel"),
         });
 
-        let program = iced_devtools::attach(self);
+        let program = icy_ui_devtools::attach(self);
 
         Ok(shell::run(program)?)
     }
@@ -148,14 +148,14 @@ impl<P: Program> Daemon<P> {
         P::Message: message::MaybeDebug + message::MaybeClone,
     {
         #[cfg(feature = "debug")]
-        iced_debug::init(iced_debug::Metadata {
+        icy_ui_debug::init(icy_ui_debug::Metadata {
             name: P::name(),
             theme: None,
             can_time_travel: cfg!(feature = "time-travel"),
         });
 
         #[cfg(feature = "tester")]
-        let program = iced_tester::attach(self);
+        let program = icy_ui_tester::attach(self);
 
         #[cfg(not(feature = "tester"))]
         let program = self;
@@ -326,7 +326,7 @@ impl<P: Program> Program for Daemon<P> {
         debug::hot(|| self.raw.subscription(state))
     }
 
-    fn theme(&self, state: &Self::State, window: iced_core::window::Id) -> Option<Self::Theme> {
+    fn theme(&self, state: &Self::State, window: icy_ui_core::window::Id) -> Option<Self::Theme> {
         debug::hot(|| self.raw.theme(state, window))
     }
 
@@ -395,13 +395,13 @@ where
 /// Any implementors of this trait can be provided as an argument to
 /// [`Daemon::theme`].
 ///
-/// `iced` provides two implementors:
+/// `icy_ui` provides two implementors:
 /// - the built-in [`Theme`] itself
 /// - and any `Fn(&State, window::Id) -> impl Into<Option<Theme>>`.
 pub trait ThemeFn<State, Theme> {
     /// Returns the theme of the [`Daemon`] for the current state and window.
     ///
-    /// If `None` is returned, `iced` will try to use a theme that
+    /// If `None` is returned, `icy_ui` will try to use a theme that
     /// matches the system color scheme.
     fn theme(&self, state: &State, window: window::Id) -> Option<Theme>;
 }

@@ -1,6 +1,6 @@
 [package]
-name = "iced_highlighter"
-description = "A syntax highlighter for iced"
+name = "icy_ui_highlighter"
+description = "A syntax highlighter for icy_ui"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -14,6 +14,6 @@ keywords.workspace = true
 workspace = true
 
 [dependencies]
-iced_core.workspace = true
+icy_ui_core.workspace = true
 
 two-face.workspace = true

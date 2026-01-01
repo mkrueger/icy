@@ -89,8 +89,8 @@ impl<'a, Message, Theme, Renderer> Element<'a, Message, Theme, Renderer> {
     ///
     /// ```no_run
     /// # mod iced {
-    /// #     pub use iced_core::Function;
-    /// #     pub type Element<'a, Message> = iced_core::Element<'a, Message, iced_core::Theme, ()>;
+    /// #     pub use icy_ui_core::Function;
+    /// #     pub type Element<'a, Message> = icy_ui_core::Element<'a, Message, icy_ui_core::Theme, ()>;
     /// #
     /// #     pub mod widget {
     /// #         pub fn row<'a, Message>(iter: impl IntoIterator<Item = super::Element<'a, Message>>) -> super::Element<'a, Message> {
@@ -104,7 +104,7 @@ impl<'a, Message, Theme, Renderer> Element<'a, Message, Theme, Renderer> {
     /// #     pub enum Message {}
     /// #     pub struct Counter;
     /// #
-    /// #     pub type Element<'a, Message> = iced_core::Element<'a, Message, iced_core::Theme, ()>;
+    /// #     pub type Element<'a, Message> = icy_ui_core::Element<'a, Message, icy_ui_core::Theme, ()>;
     /// #
     /// #     impl Counter {
     /// #         pub fn view(&self) -> Element<Message> {
@@ -115,8 +115,8 @@ impl<'a, Message, Theme, Renderer> Element<'a, Message, Theme, Renderer> {
     /// #
     /// use counter::Counter;
     ///
-    /// use iced::widget::row;
-    /// use iced::{Element, Function};
+    /// use icy_ui::widget::row;
+    /// use icy_ui::{Element, Function};
     ///
     /// struct ManyCounters {
     ///     counters: Vec<Counter>,

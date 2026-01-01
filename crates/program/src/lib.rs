@@ -1,8 +1,8 @@
 //! The definition of an iced program.
-pub use iced_graphics as graphics;
-pub use iced_runtime as runtime;
-pub use iced_runtime::core;
-pub use iced_runtime::futures;
+pub use icy_ui_graphics as graphics;
+pub use icy_ui_runtime as runtime;
+pub use icy_ui_runtime::core;
+pub use icy_ui_runtime::futures;
 
 pub mod message;
 

@@ -1,6 +1,6 @@
 [package]
-name = "iced_futures"
-description = "Commands, subscriptions, and future executors for iced"
+name = "icy_ui_futures"
+description = "Commands, subscriptions, and future executors for icy_ui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -21,7 +21,7 @@ all-features = true
 thread-pool = ["futures/thread-pool"]
 
 [dependencies]
-iced_core.workspace = true
+icy_ui_core.workspace = true
 futures.workspace = true
 log.workspace = true
 rustc-hash.workspace = true

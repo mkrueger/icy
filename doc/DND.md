@@ -16,8 +16,8 @@ DnD support uses the native platform mechanisms:
 Handle files dropped onto your application:
 
 ```rust
-use iced::{Event, Task};
-use iced::dnd::{DndEvent, DropEvent};
+use icy_ui::{Event, Task};
+use icy_ui::dnd::{DndEvent, DropEvent};
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -56,8 +56,8 @@ fn update(&mut self, message: Message) -> Task<Message> {
 Define specific areas that accept drops:
 
 ```rust
-use iced::dnd::{set_drop_zones, DropZone};
-use iced::Rectangle;
+use icy_ui::dnd::{set_drop_zones, DropZone};
+use icy_ui::Rectangle;
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -86,7 +86,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 Control whether a drop is accepted:
 
 ```rust
-use iced::dnd::{accept_drag, reject_drag};
+use icy_ui::dnd::{accept_drag, reject_drag};
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -108,7 +108,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 Request data in a specific format when a drop occurs:
 
 ```rust
-use iced::dnd::request_data;
+use icy_ui::dnd::request_data;
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -133,7 +133,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 ### Starting a Drag Operation
 
 ```rust
-use iced::dnd::{start_drag, DragData};
+use icy_ui::dnd::{start_drag, DragData};
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -160,7 +160,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 Specify allowed drag actions (copy, move, link):
 
 ```rust
-use iced::dnd::{start_drag_with_actions, DragData, DndAction};
+use icy_ui::dnd::{start_drag_with_actions, DragData, DndAction};
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -236,8 +236,8 @@ DndEvent::Enter { mime_types, .. } => {
 ## Example: File Drop Zone Widget
 
 ```rust
-use iced::widget::{container, text, Column};
-use iced::{Element, Length};
+use icy_ui::widget::{container, text, Column};
+use icy_ui::{Element, Length};
 
 fn view(&self) -> Element<Message> {
     let drop_zone = container(
@@ -296,7 +296,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 
 ## API Reference
 
-### Types (from `iced::dnd`)
+### Types (from `icy_ui::dnd`)
 
 | Type | Description |
 |------|-------------|
@@ -306,7 +306,7 @@ fn update(&mut self, message: Message) -> Task<Message> {
 | `DropZone` | Definition of a drop target area |
 | `DndAction` | Drag action flags (Copy, Move, Link) |
 
-### Functions (from `iced::dnd`)
+### Functions (from `icy_ui::dnd`)
 
 | Function | Description |
 |----------|-------------|

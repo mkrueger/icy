@@ -44,7 +44,7 @@ impl std::error::Error for LoadError {}
 /// # Example
 ///
 /// ```ignore
-/// use iced_core::theme::load_theme_from_file;
+/// use icy_ui_core::theme::load_theme_from_file;
 ///
 /// let theme = load_theme_from_file("my-theme.ron")?;
 /// ```
@@ -102,7 +102,7 @@ fn load_ron_theme(_path: &Path) -> Result<Theme, LoadError> {
 /// # Example
 ///
 /// ```
-/// use iced_core::theme::load_system_theme;
+/// use icy_ui_core::theme::load_system_theme;
 ///
 /// let theme = load_system_theme(true); // Prefer dark if no system theme
 /// ```

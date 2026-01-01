@@ -94,14 +94,14 @@ pub type Hasher = rustc_hash::FxHasher;
 /// ```
 /// # mod iced {
 /// #     pub mod time {
-/// #         pub use iced_futures::backend::default::time::every;
+/// #         pub use icy_ui_futures::backend::default::time::every;
 /// #         pub use std::time::{Duration, Instant};
 /// #     }
 /// #
-/// #     pub use iced_futures::Subscription;
+/// #     pub use icy_ui_futures::Subscription;
 /// # }
-/// use iced::time::{self, Duration, Instant};
-/// use iced::Subscription;
+/// use icy_ui::time::{self, Duration, Instant};
+/// use icy_ui::Subscription;
 ///
 /// struct State {
 ///     timer_enabled: bool,
@@ -136,22 +136,22 @@ impl<T> Subscription<T> {
     /// # Creating an asynchronous worker with bidirectional communication
     /// You can leverage this helper to create a [`Subscription`] that spawns
     /// an asynchronous worker in the background and establish a channel of
-    /// communication with an `iced` application.
+    /// communication with an `icy_ui` application.
     ///
     /// You can achieve this by creating an `mpsc` channel inside the closure
     /// and returning the `Sender` as a `Message` for the `Application`:
     ///
     /// ```
     /// # mod iced {
-    /// #     pub use iced_futures::Subscription;   
-    /// #     pub use iced_futures::futures;
-    /// #     pub use iced_futures::stream;
+    /// #     pub use icy_ui_futures::Subscription;   
+    /// #     pub use icy_ui_futures::futures;
+    /// #     pub use icy_ui_futures::stream;
     /// # }
-    /// use iced::futures::channel::mpsc;
-    /// use iced::futures::sink::SinkExt;
-    /// use iced::futures::Stream;
-    /// use iced::stream;
-    /// use iced::Subscription;
+    /// use icy_ui::futures::channel::mpsc;
+    /// use icy_ui::futures::sink::SinkExt;
+    /// use icy_ui::futures::Stream;
+    /// use icy_ui::stream;
+    /// use icy_ui::Subscription;
     ///
     /// pub enum Event {
     ///     Ready(mpsc::Sender<Input>),
@@ -173,7 +173,7 @@ impl<T> Subscription<T> {
     ///         output.send(Event::Ready(sender)).await;
     ///
     ///         loop {
-    ///             use iced_futures::futures::StreamExt;
+    ///             use icy_ui_futures::futures::StreamExt;
     ///
     ///             // Read next input sent from `Application`
     ///             let input = receiver.select_next_some().await;

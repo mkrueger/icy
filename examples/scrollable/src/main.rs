@@ -1,11 +1,11 @@
-use iced::widget::{
+use icy_ui::widget::{
     button, column, container, pick_list, progress_bar, radio_group, row, rule, scroll_area,
     scrollable, slider, space, text,
 };
-use iced::{Border, Center, Color, Element, Fill, Length, Rectangle, Size, Task, Theme};
+use icy_ui::{Border, Center, Color, Element, Fill, Length, Rectangle, Size, Task, Theme};
 
-pub fn main() -> iced::Result {
-    iced::application(
+pub fn main() -> icy_ui::Result {
+    icy_ui::application(
         ScrollableDemo::default,
         ScrollableDemo::update,
         ScrollableDemo::view,

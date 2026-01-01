@@ -134,7 +134,7 @@ impl State {
 impl Pipeline {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Pipeline {
         let constant_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("iced_wgpu::quad uniforms layout"),
+            label: Some("icy_ui_wgpu::quad uniforms layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX,
@@ -168,14 +168,14 @@ pub struct Layer {
 impl Layer {
     pub fn new(device: &wgpu::Device, constant_layout: &wgpu::BindGroupLayout) -> Self {
         let constants_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iced_wgpu::quad uniforms buffer"),
+            label: Some("icy_ui_wgpu::quad uniforms buffer"),
             size: mem::size_of::<Uniforms>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let constants = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("iced_wgpu::quad uniforms bind group"),
+            label: Some("icy_ui_wgpu::quad uniforms bind group"),
             layout: constant_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,

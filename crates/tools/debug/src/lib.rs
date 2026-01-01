@@ -1,5 +1,5 @@
-pub use iced_core as core;
-pub use iced_futures as futures;
+pub use icy_ui_core as core;
+pub use icy_ui_futures as futures;
 
 use crate::core::theme;
 use crate::core::window;
@@ -135,7 +135,7 @@ mod internal {
     use crate::futures::futures::Stream;
     use crate::{Command, Metadata, Primitive};
 
-    use iced_beacon as beacon;
+    use icy_ui_beacon as beacon;
 
     use beacon::client::{self, Client};
     use beacon::span;

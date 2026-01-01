@@ -16,14 +16,14 @@ The theme system is organized into several key concepts:
 ## Quick Start
 
 ```rust
-use iced::Theme;
+use icy_ui::Theme;
 
 // Use built-in themes
 let dark = Theme::dark();
 let light = Theme::light();
 
 // Create a custom theme
-use iced::theme::Palette;
+use icy_ui::theme::Palette;
 let custom = Theme::custom("My Theme", Palette::dark());
 
 // Get all available themes
@@ -129,7 +129,7 @@ let bg_color = theme.background.base;
 let text_color = theme.background.on;
 
 // Or by layer enum
-use iced::theme::Layer;
+use icy_ui::theme::Layer;
 let container = theme.container(Layer::Primary);
 ```
 
@@ -286,7 +286,7 @@ pub struct CornerRadii {
 ### From a Palette
 
 ```rust
-use iced::theme::{Theme, Palette};
+use icy_ui::theme::{Theme, Palette};
 
 // Start with a base palette
 let mut palette = Palette::dark();
@@ -304,7 +304,7 @@ let theme = Theme::custom("My Dark Theme", palette);
 The theme system supports loading from RON files (requires `serde` feature):
 
 ```rust
-use iced::theme::load_theme_from_file;
+use icy_ui::theme::load_theme_from_file;
 
 let theme = load_theme_from_file("my-theme.ron")?;
 ```
@@ -326,7 +326,7 @@ let theme = load_theme_from_file("my-theme.ron")?;
 On Pop!_OS, you can load the system theme:
 
 ```rust
-use iced::theme::load_system_theme;
+use icy_ui::theme::load_system_theme;
 
 let theme = load_system_theme(true)?; // prefer_dark = true
 ```

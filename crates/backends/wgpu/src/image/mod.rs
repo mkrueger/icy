@@ -56,7 +56,7 @@ impl Pipeline {
         });
 
         let constant_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("iced_wgpu::image constants layout"),
+            label: Some("icy_ui_wgpu::image constants layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -78,7 +78,7 @@ impl Pipeline {
         });
 
         let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("iced_wgpu::image texture atlas layout"),
+            label: Some("icy_ui_wgpu::image texture atlas layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -92,13 +92,13 @@ impl Pipeline {
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("iced_wgpu::image pipeline layout"),
+            label: Some("icy_ui_wgpu::image pipeline layout"),
             push_constant_ranges: &[],
             bind_group_layouts: &[&constant_layout, &texture_layout],
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("iced_wgpu image shader"),
+            label: Some("icy_ui_wgpu image shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(concat!(
                 include_str!("../shader/vertex.wgsl"),
                 "\n",
@@ -107,7 +107,7 @@ impl Pipeline {
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("iced_wgpu::image pipeline"),
+            label: Some("icy_ui_wgpu::image pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -393,7 +393,7 @@ impl Layer {
         linear_sampler: &wgpu::Sampler,
     ) -> Self {
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iced_wgpu::image uniforms buffer"),
+            label: Some("icy_ui_wgpu::image uniforms buffer"),
             size: mem::size_of::<Uniforms>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -401,13 +401,13 @@ impl Layer {
 
         let instances = Buffer::new(
             device,
-            "iced_wgpu::image instance buffer",
+            "icy_ui_wgpu::image instance buffer",
             Instance::INITIAL,
             wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         );
 
         let nearest_layout = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("iced_wgpu::image constants bind group"),
+            label: Some("icy_ui_wgpu::image constants bind group"),
             layout: constant_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -426,7 +426,7 @@ impl Layer {
         });
 
         let linear_layout = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("iced_wgpu::image constants bind group"),
+            label: Some("icy_ui_wgpu::image constants bind group"),
             layout: constant_layout,
             entries: &[
                 wgpu::BindGroupEntry {

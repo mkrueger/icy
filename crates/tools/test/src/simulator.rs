@@ -67,7 +67,7 @@ where
         }
 
         let mut renderer = {
-            let backend = env::var("ICED_TEST_BACKEND").ok();
+            let backend = env::var("ICY_UI_TEST_BACKEND").ok();
 
             crate::futures::futures::executor::block_on(Renderer::new(
                 default_font,

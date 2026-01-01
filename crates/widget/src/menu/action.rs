@@ -14,7 +14,7 @@
 /// # Example
 ///
 /// ```
-/// use iced_widget::menu::action::MenuAction;
+/// use icy_ui_widget::menu::action::MenuAction;
 ///
 /// #[derive(Clone, Copy, Eq, PartialEq)]
 /// enum MyMessage {

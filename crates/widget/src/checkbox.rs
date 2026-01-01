@@ -2,6 +2,10 @@
 //!
 //! # Example
 //! ```no_run
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! #
+//! use icy_ui::widget::checkbox;
 //!
 //! struct State {
 //!    is_checked: bool,
@@ -26,7 +30,7 @@
 //!     }
 //! }
 //! ```
-//! ![Checkbox drawn by `iced_wgpu`](https://github.com/iced-rs/iced/blob/7760618fb112074bc40b148944521f312152012a/docs/images/checkbox.png?raw=true)
+//! ![Checkbox drawn by `icy_ui_wgpu`](https://github.com/iced-rs/iced/blob/7760618fb112074bc40b148944521f312152012a/docs/images/checkbox.png?raw=true)
 use crate::core::alignment;
 use crate::core::keyboard;
 use crate::core::keyboard::key::{self, Key};
@@ -50,10 +54,10 @@ use crate::focus::FocusRing;
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 /// #
-/// use iced::widget::checkbox;
+/// use icy_ui::widget::checkbox;
 ///
 /// struct State {
 ///    is_checked: bool,
@@ -78,7 +82,7 @@ use crate::focus::FocusRing;
 ///     }
 /// }
 /// ```
-/// ![Checkbox drawn by `iced_wgpu`](https://github.com/iced-rs/iced/blob/7760618fb112074bc40b148944521f312152012a/docs/images/checkbox.png?raw=true)
+/// ![Checkbox drawn by `icy_ui_wgpu`](https://github.com/iced-rs/iced/blob/7760618fb112074bc40b148944521f312152012a/docs/images/checkbox.png?raw=true)
 pub struct Checkbox<'a, Message, Theme = crate::Theme, Renderer = crate::Renderer>
 where
     Renderer: text::Renderer,

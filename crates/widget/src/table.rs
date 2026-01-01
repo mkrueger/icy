@@ -44,9 +44,9 @@ where
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::{row, text, table};
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::{row, text, table};
 ///
 /// enum Message {}
 ///

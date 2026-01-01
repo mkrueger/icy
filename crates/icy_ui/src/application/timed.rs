@@ -6,7 +6,7 @@ use crate::time::Instant;
 use crate::window;
 use crate::{Element, Program, Settings, Subscription, Task};
 
-use iced_debug as debug;
+use icy_ui_debug as debug;
 
 /// Creates an [`Application`] with an `update` function that also
 /// takes the [`Instant`] of each `Message`.
@@ -59,7 +59,7 @@ where
         type Message = (Message, Instant);
         type Theme = Theme;
         type Renderer = Renderer;
-        type Executor = iced_futures::backend::default::Executor;
+        type Executor = icy_ui_futures::backend::default::Executor;
 
         fn name() -> &'static str {
             let name = std::any::type_name::<State>();
@@ -71,7 +71,7 @@ where
             Settings::default()
         }
 
-        fn window(&self) -> Option<iced_core::window::Settings> {
+        fn window(&self) -> Option<icy_ui_core::window::Settings> {
             Some(window::Settings::default())
         }
 

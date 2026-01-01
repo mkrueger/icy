@@ -2,7 +2,7 @@
 //!
 //! ![The native path of the Iced ecosystem](https://github.com/iced-rs/iced/blob/0525d76ff94e828b7b21634fa94a747022001c83/docs/graphs/native.png?raw=true)
 //!
-//! `iced_winit` offers some convenient abstractions on top of [`iced_runtime`]
+//! `icy_ui_winit` offers some convenient abstractions on top of [`icy_ui_runtime`]
 //! to quickstart development when using [`winit`].
 //!
 //! It exposes a renderer-agnostic [`Program`] trait that can be implemented
@@ -11,15 +11,15 @@
 //! Additionally, a [`conversion`] module is available for users that decide to
 //! implement a custom event loop.
 //!
-//! [`iced_runtime`]: https://github.com/iced-rs/iced/tree/master/runtime
+//! [`icy_ui_runtime`]: https://github.com/iced-rs/iced/tree/master/runtime
 //! [`winit`]: https://github.com/rust-windowing/winit
 //! [`conversion`]: crate::conversion
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/iced-rs/iced/9ab6923e943f784985e9ef9ca28b10278297225d/docs/logo.svg"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-pub use iced_debug as debug;
-pub use iced_program as program;
+pub use icy_ui_debug as debug;
+pub use icy_ui_program as program;
 pub use program::core;
 pub use program::graphics;
 pub use program::runtime;
@@ -47,6 +47,7 @@ use crate::core::theme;
 use crate::core::time::Instant;
 use crate::core::widget::operation;
 use crate::core::{Point, Renderer, Size};
+use crate::core::widget::operation::focusable::FocusLevel;
 use crate::futures::futures::channel::mpsc;
 use crate::futures::futures::channel::oneshot;
 use crate::futures::futures::task;
@@ -140,6 +141,7 @@ where
         is_daemon,
         graphics_settings,
         settings.fonts,
+        settings.focus_level,
         system_theme_receiver,
     ));
 
@@ -502,6 +504,7 @@ async fn run_instance<P>(
     is_daemon: bool,
     graphics_settings: graphics::Settings,
     default_fonts: Vec<Cow<'static, [u8]>>,
+    focus_level: FocusLevel,
     mut _system_theme: oneshot::Receiver<theme::Mode>,
 ) where
     P: Program + 'static,
@@ -1277,6 +1280,65 @@ async fn run_instance<P>(
                                 }
                                 user_interface::State::Outdated => {
                                     uis_stale = true;
+                                }
+                            }
+
+                            // Handle automatic Tab focus navigation.
+                            //
+                            // We purposely do NOT require `Status::Ignored` here because widgets
+                            // may conservatively report `Captured` for key events.
+                            //
+                            // If an application wants to handle Tab itself (e.g. text editors
+                            // using Tab for indentation), it can set `FocusLevel::Manual`.
+                            if focus_level != FocusLevel::Manual {
+                                for event in window_events.iter() {
+                                    if let core::Event::Keyboard(core::keyboard::Event::KeyPressed {
+                                        key: core::keyboard::Key::Named(core::keyboard::key::Named::Tab),
+                                        modifiers,
+                                        ..
+                                    }) = event
+                                    {
+                                        let ui = user_interfaces
+                                            .get_mut(&id)
+                                            .expect("Get user interface");
+
+                                        // NOTE: `UserInterface::operate` only performs a single traversal.
+                                        // Focus operations rely on `Operation::finish()` to chain the
+                                        // counting pass into an applying pass.
+                                        let mut current_operation: Option<Box<dyn core::widget::Operation>> =
+                                            Some(if modifiers.shift() {
+                                                Box::new(
+                                                    core::widget::operation::focusable::focus_previous_filtered(
+                                                        focus_level,
+                                                    ),
+                                                )
+                                            } else {
+                                                Box::new(
+                                                    core::widget::operation::focusable::focus_next_filtered(
+                                                        focus_level,
+                                                    ),
+                                                )
+                                            });
+
+                                        while let Some(mut operation) = current_operation.take() {
+                                            ui.operate(&window.renderer, operation.as_mut());
+
+                                            match operation.finish() {
+                                                core::widget::operation::Outcome::None => {}
+                                                core::widget::operation::Outcome::Some(()) => {}
+                                                core::widget::operation::Outcome::Chain(next) => {
+                                                    current_operation = Some(next);
+                                                }
+                                            }
+                                        }
+
+                                        // Ensure the focus change becomes visible immediately.
+                                        #[cfg(feature = "unconditional-rendering")]
+                                        window.request_redraw(window::RedrawRequest::NextFrame);
+
+                                        #[cfg(not(feature = "unconditional-rendering"))]
+                                        window.request_redraw(window::RedrawRequest::NextFrame);
+                                    }
                                 }
                             }
 

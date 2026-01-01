@@ -48,7 +48,7 @@ where
     /// is naive way to set up our application loop:
     ///
     /// ```no_run
-    /// # mod iced_wgpu {
+    /// # mod icy_ui_wgpu {
     /// #     pub type Renderer = ();
     /// # }
     /// #
@@ -56,12 +56,12 @@ where
     /// #
     /// # impl Counter {
     /// #     pub fn new() -> Self { Counter }
-    /// #     pub fn view(&self) -> iced_core::Element<(), (), Renderer> { unimplemented!() }
+    /// #     pub fn view(&self) -> icy_ui_core::Element<(), (), Renderer> { unimplemented!() }
     /// #     pub fn update(&mut self, _: ()) {}
     /// # }
-    /// use iced_runtime::core::Size;
-    /// use iced_runtime::user_interface::{self, UserInterface};
-    /// use iced_wgpu::Renderer;
+    /// use icy_ui_runtime::core::Size;
+    /// use icy_ui_runtime::user_interface::{self, UserInterface};
+    /// use icy_ui_wgpu::Renderer;
     ///
     /// // Initialization
     /// let mut counter = Counter::new();
@@ -124,7 +124,7 @@ where
     /// completing [the previous example](#example):
     ///
     /// ```no_run
-    /// # mod iced_wgpu {
+    /// # mod icy_ui_wgpu {
     /// #     pub type Renderer = ();
     /// # }
     /// #
@@ -132,14 +132,14 @@ where
     /// #
     /// # impl Counter {
     /// #     pub fn new() -> Self { Counter }
-    /// #     pub fn view(&self) -> iced_core::Element<(), (), Renderer> { unimplemented!() }
+    /// #     pub fn view(&self) -> icy_ui_core::Element<(), (), Renderer> { unimplemented!() }
     /// #     pub fn update(&mut self, _: ()) {}
     /// # }
-    /// use iced_runtime::core::clipboard;
-    /// use iced_runtime::core::mouse;
-    /// use iced_runtime::core::Size;
-    /// use iced_runtime::user_interface::{self, UserInterface};
-    /// use iced_wgpu::Renderer;
+    /// use icy_ui_runtime::core::clipboard;
+    /// use icy_ui_runtime::core::mouse;
+    /// use icy_ui_runtime::core::Size;
+    /// use icy_ui_runtime::user_interface::{self, UserInterface};
+    /// use icy_ui_wgpu::Renderer;
     ///
     /// let mut counter = Counter::new();
     /// let mut cache = user_interface::Cache::new();
@@ -410,7 +410,7 @@ where
     /// [completing the last example](#example-1):
     ///
     /// ```no_run
-    /// # mod iced_wgpu {
+    /// # mod icy_ui_wgpu {
     /// #     pub type Renderer = ();
     /// #     pub type Theme = ();
     /// # }
@@ -422,12 +422,12 @@ where
     /// #     pub fn view(&self) -> Element<(), (), Renderer> { unimplemented!() }
     /// #     pub fn update(&mut self, _: ()) {}
     /// # }
-    /// use iced_runtime::core::clipboard;
-    /// use iced_runtime::core::mouse;
-    /// use iced_runtime::core::renderer;
-    /// use iced_runtime::core::{Element, Size};
-    /// use iced_runtime::user_interface::{self, UserInterface};
-    /// use iced_wgpu::{Renderer, Theme};
+    /// use icy_ui_runtime::core::clipboard;
+    /// use icy_ui_runtime::core::mouse;
+    /// use icy_ui_runtime::core::renderer;
+    /// use icy_ui_runtime::core::{Element, Size};
+    /// use icy_ui_runtime::user_interface::{self, UserInterface};
+    /// use icy_ui_wgpu::{Renderer, Theme};
     ///
     /// let mut counter = Counter::new();
     /// let mut cache = user_interface::Cache::new();

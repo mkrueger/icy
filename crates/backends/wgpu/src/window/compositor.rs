@@ -153,7 +153,7 @@ impl Compositor {
         for required_limits in limits {
             let result = adapter
                 .request_device(&wgpu::DeviceDescriptor {
-                    label: Some("iced_wgpu::window::compositor device descriptor"),
+                    label: Some("icy_ui_wgpu::window::compositor device descriptor"),
                     required_features: wgpu::Features::empty(),
                     required_limits: required_limits.clone(),
                     memory_hints: wgpu::MemoryHints::MemoryUsage,

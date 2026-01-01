@@ -260,12 +260,16 @@ impl<P: Program + 'static> Emulator<P> {
                     // TODO
                     dbg!(action);
                 }
-                iced_runtime::Action::Image(action) => {
+                icy_ui_runtime::Action::Image(action) => {
                     // TODO
                     dbg!(action);
                 }
-                iced_runtime::Action::Tick => {
+                icy_ui_runtime::Action::Tick => {
                     // TODO
+                }
+                icy_ui_runtime::Action::Accessibility(action) => {
+                    // TODO
+                    dbg!(action);
                 }
                 runtime::Action::Exit => {
                     // TODO

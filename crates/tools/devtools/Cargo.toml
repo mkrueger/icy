@@ -1,6 +1,6 @@
 [package]
-name = "iced_devtools"
-description = "Attachable developer tools for any iced program"
+name = "icy_ui_devtools"
+description = "Attachable developer tools for any icy_ui program"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -15,12 +15,12 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-time-travel = ["iced_program/time-travel"]
+time-travel = ["icy_ui_program/time-travel"]
 
 [dependencies]
-iced_debug.workspace = true
-iced_widget.workspace = true
+icy_ui_debug.workspace = true
+icy_ui_widget.workspace = true
 log.workspace = true
 
-iced_program.workspace = true
-iced_program.features = ["debug"]
+icy_ui_program.workspace = true
+icy_ui_program.features = ["debug"]

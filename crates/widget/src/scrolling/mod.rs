@@ -11,9 +11,9 @@
 //! For most use cases, use the [`scroll_area()`](crate::scroll_area) helper:
 //!
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::{column, scroll_area, space};
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::{column, scroll_area, space};
 //!
 //! enum Message {}
 //!
@@ -30,7 +30,7 @@
 //!
 //! // Virtual scrolling for large lists
 //! fn view_virtual(items: &[String]) -> Element<'_, Message> {
-//!     use iced::widget::text;
+//!     use icy_ui::widget::text;
 //!     scroll_area()
 //!         .show_rows(30.0, items.len(), |range| {
 //!             column(

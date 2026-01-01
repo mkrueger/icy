@@ -1,4 +1,4 @@
-pub use iced_core as core;
+pub use icy_ui_core as core;
 pub use semver::Version;
 
 pub mod client;

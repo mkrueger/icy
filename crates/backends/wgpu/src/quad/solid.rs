@@ -26,7 +26,7 @@ impl Layer {
     pub fn new(device: &wgpu::Device) -> Self {
         let instances = Buffer::new(
             device,
-            "iced_wgpu.quad.solid.buffer",
+            "icy_ui_wgpu.quad.solid.buffer",
             quad::INITIAL_INSTANCES,
             wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         );
@@ -63,13 +63,13 @@ impl Pipeline {
         constants_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("iced_wgpu.quad.solid.pipeline"),
+            label: Some("icy_ui_wgpu.quad.solid.pipeline"),
             push_constant_ranges: &[],
             bind_group_layouts: &[constants_layout],
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("iced_wgpu.quad.solid.shader"),
+            label: Some("icy_ui_wgpu.quad.solid.shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(concat!(
                 include_str!("../shader/color.wgsl"),
                 "\n",
@@ -82,7 +82,7 @@ impl Pipeline {
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("iced_wgpu.quad.solid.pipeline"),
+            label: Some("icy_ui_wgpu.quad.solid.pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,

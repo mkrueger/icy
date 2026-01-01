@@ -34,7 +34,7 @@ Most widgets automatically provide accessibility information:
 ### Examples
 
 ```rust
-use iced::widget::{button, checkbox, text_input, slider};
+use icy_ui::widget::{button, checkbox, text_input, slider};
 
 // Button - label automatically derived from text child
 button("Press me!")  // Screen reader: "Press me!, Button"
@@ -55,8 +55,8 @@ slider(0.0..=100.0, volume, Message::VolumeChanged)  // Screen reader: "50, Slid
 When a screen reader user interacts with your app, you receive `Event::Accessibility` events:
 
 ```rust
-use iced::{Event, Task};
-use iced::accessibility::Event as AccessibilityEvent;
+use icy_ui::{Event, Task};
+use icy_ui::accessibility::Event as AccessibilityEvent;
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -95,7 +95,7 @@ Screen readers can trigger these actions:
 You can send announcements to the screen reader:
 
 ```rust
-use iced::accessibility::{announce, Priority};
+use icy_ui::accessibility::{announce, Priority};
 
 fn update(&mut self, message: Message) -> Task<Message> {
     match message {
@@ -117,8 +117,8 @@ fn update(&mut self, message: Message) -> Task<Message> {
 To make a custom widget accessible, implement the `accessibility()` method:
 
 ```rust
-use iced::advanced::Widget;
-use iced::accessibility::WidgetInfo;
+use icy_ui::advanced::Widget;
+use icy_ui::accessibility::WidgetInfo;
 
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for MyWidget {
     // ... other methods ...
@@ -141,7 +141,7 @@ impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for MyWidget {
 ### WidgetInfo Builders
 
 ```rust
-use iced::accessibility::WidgetInfo;
+use icy_ui::accessibility::WidgetInfo;
 
 // Button
 WidgetInfo::button("Click me")
@@ -201,7 +201,7 @@ Parent widgets can then query this to get their label automatically.
 
 ## API Reference
 
-### Types (from `iced::accessibility`)
+### Types (from `icy_ui::accessibility`)
 
 | Type | Description |
 |------|-------------|
@@ -213,7 +213,7 @@ Parent widgets can then query this to get their label automatically.
 | `NodeId` | Unique identifier for accessibility nodes |
 | `Role` | Widget role (Button, CheckBox, Slider, etc.) |
 
-### Functions (from `iced::accessibility`)
+### Functions (from `icy_ui::accessibility`)
 
 | Function | Description |
 |----------|-------------|

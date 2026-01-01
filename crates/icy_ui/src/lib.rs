@@ -34,7 +34,7 @@
 //!     iced::run(update, view)
 //! }
 //! # fn update(state: &mut (), message: ()) {}
-//! # fn view(state: &()) -> iced::Element<'_, ()> { iced::widget::text("").into() }
+//! # fn view(state: &()) -> icy_ui::Element<'_, ()> { iced::widget::text("").into() }
 //! ```
 //!
 //! Define an `update` function to __change__ your state:
@@ -52,8 +52,8 @@
 //! Define a `view` function to __display__ your state:
 //!
 //! ```standalone_crate
-//! use iced::widget::{button, text};
-//! use iced::Element;
+//! use icy_ui::widget::{button, text};
+//! use icy_ui::Element;
 //!
 //! fn view(counter: &u64) -> Element<'_, Message> {
 //!     button(text(counter)).on_press(Message::Increment).into()
@@ -87,8 +87,8 @@
 //! # struct Counter { value: u64 }
 //! # #[derive(Clone)]
 //! # enum Message { Increment }
-//! # use iced::widget::{button, text};
-//! # use iced::Element;
+//! # use icy_ui::widget::{button, text};
+//! # use icy_ui::Element;
 //! fn update(counter: &mut Counter, message: Message) {
 //!     match message {
 //!         Message::Increment => counter.value += 1,
@@ -112,8 +112,8 @@
 //! # struct Counter { value: u64 }
 //! # #[derive(Clone)]
 //! # enum Message { Increment }
-//! use iced::widget::{button, column, text};
-//! use iced::Element;
+//! use icy_ui::widget::{button, column, text};
+//! use icy_ui::Element;
 //!
 //! fn view(counter: &Counter) -> Element<'_, Message> {
 //!     column![
@@ -141,8 +141,8 @@
 //! ```standalone_crate
 //! # struct State;
 //! # enum Message {}
-//! use iced::widget::{column, container, row};
-//! use iced::{Fill, Element};
+//! use icy_ui::widget::{column, container, row};
+//! use icy_ui::{Fill, Element};
 //!
 //! fn view(state: &State) -> Element<'_, Message> {
 //!     container(
@@ -184,8 +184,8 @@
 //! ```standalone_crate
 //! # struct State;
 //! # enum Message {}
-//! use iced::widget::container;
-//! use iced::Element;
+//! use icy_ui::widget::container;
+//! use icy_ui::Element;
 //!
 //! fn view(state: &State) -> Element<'_, Message> {
 //!     container("I am 300px tall!").height(300).into()
@@ -199,7 +199,7 @@
 //!
 //! ```no_run,standalone_crate
 //! # struct State;
-//! use iced::Theme;
+//! use icy_ui::Theme;
 //!
 //! pub fn main() -> iced::Result {
 //!     iced::application(new, update, view)
@@ -216,7 +216,7 @@
 //!     Theme::TokyoNight
 //! }
 //! # fn update(state: &mut State, message: ()) {}
-//! # fn view(state: &State) -> iced::Element<'_, ()> { iced::widget::text("").into() }
+//! # fn view(state: &State) -> icy_ui::Element<'_, ()> { iced::widget::text("").into() }
 //! ```
 //!
 //! The `theme` function takes the current state of the application, allowing the
@@ -234,8 +234,8 @@
 //! ```standalone_crate
 //! # struct State;
 //! # enum Message {}
-//! use iced::widget::container;
-//! use iced::Element;
+//! use icy_ui::widget::container;
+//! use icy_ui::Element;
 //!
 //! fn view(state: &State) -> Element<'_, Message> {
 //!     container("I am a rounded box!").style(container::rounded_box).into()
@@ -249,8 +249,8 @@
 //! # struct State;
 //! # #[derive(Clone)]
 //! # enum Message {}
-//! use iced::widget::button;
-//! use iced::{Element, Theme};
+//! use icy_ui::widget::button;
+//! use icy_ui::{Element, Theme};
 //!
 //! fn view(state: &State) -> Element<'_, Message> {
 //!     button("I am a styled button!").style(|theme: &Theme, status| {
@@ -293,7 +293,7 @@
 //! ```standalone_crate
 //! # #[derive(Clone)]
 //! # struct Weather;
-//! use iced::Task;
+//! use icy_ui::Task;
 //!
 //! struct State {
 //!     weather: Option<Weather>,
@@ -340,8 +340,8 @@
 //!
 //! ```no_run,standalone_crate
 //! # struct State;
-//! use iced::window;
-//! use iced::{Size, Subscription};
+//! use icy_ui::window;
+//! use icy_ui::{Size, Subscription};
 //!
 //! #[derive(Debug, Clone)]
 //! enum Message {
@@ -359,7 +359,7 @@
 //! }
 //! # fn new() -> State { State }
 //! # fn update(state: &mut State, message: Message) {}
-//! # fn view(state: &State) -> iced::Element<'_, Message> { iced::widget::text("").into() }
+//! # fn view(state: &State) -> icy_ui::Element<'_, Message> { iced::widget::text("").into() }
 //! ```
 //!
 //! A [`Subscription`] is [a _declarative_ builder of streams](Subscription#the-lifetime-of-a-subscription)
@@ -381,7 +381,7 @@
 //!
 //! ```standalone_crate
 //! # mod contacts {
-//! #     use iced::{Element, Task};
+//! #     use icy_ui::{Element, Task};
 //! #     pub struct Contacts;
 //! #     impl Contacts {
 //! #         pub fn update(&mut self, message: Message) -> Action { unimplemented!() }
@@ -392,7 +392,7 @@
 //! #     pub enum Action { None, Run(Task<Message>), Chat(()) }
 //! # }
 //! # mod conversation {
-//! #     use iced::{Element, Task};
+//! #     use icy_ui::{Element, Task};
 //! #     pub struct Conversation;
 //! #     impl Conversation {
 //! #         pub fn new(contact: ()) -> (Self, Task<Message>) { unimplemented!() }
@@ -405,7 +405,7 @@
 //! use contacts::Contacts;
 //! use conversation::Conversation;
 //!
-//! use iced::{Element, Task};
+//! use icy_ui::{Element, Task};
 //!
 //! struct State {
 //!     screen: Screen,
@@ -474,15 +474,15 @@
     html_logo_url = "https://raw.githubusercontent.com/iced-rs/iced/bdf0430880f5c29443f5f0a0ae4895866dfef4c6/docs/logo.svg"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-use iced_widget::graphics;
-use iced_widget::renderer;
-use iced_winit as shell;
-use iced_winit::core;
-use iced_winit::program;
-use iced_winit::runtime;
+use icy_ui_widget::graphics;
+use icy_ui_widget::renderer;
+use icy_ui_winit as shell;
+use icy_ui_winit::core;
+use icy_ui_winit::program;
+use icy_ui_winit::runtime;
 
-pub use iced_futures::futures;
-pub use iced_futures::stream;
+pub use icy_ui_futures::futures;
+pub use icy_ui_futures::stream;
 
 #[cfg(not(any(
     target_arch = "wasm32",
@@ -509,10 +509,10 @@ compile_error!(
 );
 
 #[cfg(feature = "highlighter")]
-pub use iced_highlighter as highlighter;
+pub use icy_ui_highlighter as highlighter;
 
 #[cfg(feature = "wgpu")]
-pub use iced_renderer::wgpu::wgpu;
+pub use icy_ui_renderer::wgpu::wgpu;
 
 mod error;
 
@@ -539,7 +539,7 @@ pub use crate::core::{
 pub use crate::program::Preset;
 pub use crate::program::message;
 pub use crate::runtime::exit;
-pub use iced_futures::Subscription;
+pub use icy_ui_futures::Subscription;
 
 pub use Alignment::Center;
 pub use Length::{Fill, FillPortion, Shrink};
@@ -548,7 +548,7 @@ pub use alignment::Vertical::{Bottom, Top};
 
 pub mod debug {
     //! Debug your applications.
-    pub use iced_debug::{Span, time, time_with};
+    pub use icy_ui_debug::{Span, time, time_with};
 }
 
 pub mod task {
@@ -565,7 +565,7 @@ pub mod clipboard {
     //! # Example
     //!
     //! ```no_run
-    //! use iced::clipboard::{STANDARD, PRIMARY, Format};
+    //! use icy_ui::clipboard::{STANDARD, PRIMARY, Format};
     //!
     //! // Read text from the standard clipboard
     //! let task = STANDARD.read_text();
@@ -595,7 +595,7 @@ pub mod dnd {
     //!
     //! # Example
     //! ```ignore
-    //! use iced::dnd::{self, DragData};
+    //! use icy_ui::dnd::{self, DragData};
     //!
     //! // Start a drag with text data
     //! let task = dnd::start_drag(
@@ -635,7 +635,7 @@ pub mod accessibility {
     //!
     //! # Example
     //! ```ignore
-    //! use iced::accessibility::{WidgetInfo, Action, Event};
+    //! use icy_ui::accessibility::{WidgetInfo, Action, Event};
     //!
     //! // Create accessibility info for a button
     //! let info = WidgetInfo::button("Press me!");
@@ -657,8 +657,8 @@ pub mod accessibility {
 
 pub mod executor {
     //! Choose your preferred executor to power your application.
-    pub use iced_futures::Executor;
-    pub use iced_futures::backend::default::Executor as Default;
+    pub use icy_ui_futures::Executor;
+    pub use icy_ui_futures::backend::default::Executor as Default;
 }
 
 pub mod font {
@@ -670,14 +670,14 @@ pub mod font {
 pub mod event {
     //! Handle events of a user interface.
     pub use crate::core::event::{Event, Status};
-    pub use iced_futures::event::{listen, listen_raw, listen_url, listen_with};
+    pub use icy_ui_futures::event::{listen, listen_raw, listen_url, listen_with};
 }
 
 pub mod keyboard {
     //! Listen and react to keyboard events.
     pub use crate::core::keyboard::key;
     pub use crate::core::keyboard::{Event, Key, Location, Modifiers};
-    pub use iced_futures::keyboard::listen;
+    pub use icy_ui_futures::keyboard::listen;
 }
 
 pub mod mouse {
@@ -704,7 +704,7 @@ pub mod overlay {
     pub type Element<'a, Message, Theme = crate::Renderer, Renderer = crate::Renderer> =
         crate::core::overlay::Element<'a, Message, Theme, Renderer>;
 
-    pub use iced_widget::overlay::*;
+    pub use icy_ui_widget::overlay::*;
 }
 
 pub mod touch {
@@ -715,17 +715,17 @@ pub mod touch {
 #[allow(hidden_glob_reexports)]
 pub mod widget {
     //! Use the built-in widgets or create your own.
-    pub use iced_runtime::widget::*;
-    pub use iced_widget::*;
+    pub use icy_ui_runtime::widget::*;
+    pub use icy_ui_widget::*;
 
     #[cfg(feature = "image")]
     pub mod image {
         //! Images display raster graphics in different formats (PNG, JPG, etc.).
-        pub use iced_runtime::image::{Allocation, Error, allocate};
-        pub use iced_widget::image::*;
+        pub use icy_ui_runtime::image::{Allocation, Error, allocate};
+        pub use icy_ui_widget::image::*;
     }
 
-    // We hide the re-exported modules by `iced_widget`
+    // We hide the re-exported modules by `icy_ui_widget`
     mod core {}
     mod graphics {}
     mod renderer {}
@@ -763,7 +763,7 @@ pub type Result = std::result::Result<(), Error>;
 ///
 /// # Example
 /// ```no_run,standalone_crate
-/// use iced::widget::{button, column, text, Column};
+/// use icy_ui::widget::{button, column, text, Column};
 ///
 /// pub fn main() -> iced::Result {
 ///     iced::run(update, view)

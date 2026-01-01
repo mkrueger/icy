@@ -1,5 +1,5 @@
 //! Build and draw curves.
-use iced_core::{Point, Radians, Vector};
+use icy_ui_core::{Point, Radians, Vector};
 
 /// A segment of a differentiable curve.
 #[derive(Debug, Clone, Copy)]

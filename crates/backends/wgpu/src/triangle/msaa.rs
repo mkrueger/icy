@@ -24,7 +24,7 @@ impl Pipeline {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         let constant_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("iced_wgpu::triangle:msaa uniforms layout"),
+            label: Some("icy_ui_wgpu::triangle:msaa uniforms layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -46,7 +46,7 @@ impl Pipeline {
         });
 
         let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("iced_wgpu::triangle::msaa texture layout"),
+            label: Some("icy_ui_wgpu::triangle::msaa texture layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -60,20 +60,20 @@ impl Pipeline {
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("iced_wgpu::triangle::msaa pipeline layout"),
+            label: Some("icy_ui_wgpu::triangle::msaa pipeline layout"),
             push_constant_ranges: &[],
             bind_group_layouts: &[&constant_layout, &texture_layout],
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("iced_wgpu triangle blit_shader"),
+            label: Some("icy_ui_wgpu triangle blit_shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
                 "../shader/blit.wgsl"
             ))),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("iced_wgpu::triangle::msaa pipeline"),
+            label: Some("icy_ui_wgpu::triangle::msaa pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -143,7 +143,7 @@ impl Pipeline {
         let targets = targets.as_ref().unwrap();
 
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("iced_wgpu.triangle.render_pass"),
+            label: Some("icy_ui_wgpu.triangle.render_pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &targets.attachment,
                 depth_slice: None,
@@ -183,7 +183,7 @@ impl Targets {
         };
 
         let attachment = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("iced_wgpu::triangle::msaa attachment"),
+            label: Some("icy_ui_wgpu::triangle::msaa attachment"),
             size: extent,
             mip_level_count: 1,
             sample_count,
@@ -194,7 +194,7 @@ impl Targets {
         });
 
         let resolve = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("iced_wgpu::triangle::msaa resolve target"),
+            label: Some("icy_ui_wgpu::triangle::msaa resolve target"),
             size: extent,
             mip_level_count: 1,
             sample_count: 1,
@@ -209,7 +209,7 @@ impl Targets {
         let resolve = resolve.create_view(&wgpu::TextureViewDescriptor::default());
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("iced_wgpu::triangle::msaa texture bind group"),
+            label: Some("icy_ui_wgpu::triangle::msaa texture bind group"),
             layout: texture_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
@@ -245,14 +245,14 @@ pub struct State {
 impl State {
     pub fn new(device: &wgpu::Device, pipeline: &Pipeline) -> Self {
         let ratio = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iced_wgpu::triangle::msaa ratio"),
+            label: Some("icy_ui_wgpu::triangle::msaa ratio"),
             size: std::mem::size_of::<Ratio>() as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
 
         let constants = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("iced_wgpu::triangle::msaa uniforms bind group"),
+            label: Some("icy_ui_wgpu::triangle::msaa uniforms bind group"),
             layout: &pipeline.constant_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -312,7 +312,7 @@ impl State {
         target: &wgpu::TextureView,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("iced_wgpu::triangle::msaa render pass"),
+            label: Some("icy_ui_wgpu::triangle::msaa render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 depth_slice: None,

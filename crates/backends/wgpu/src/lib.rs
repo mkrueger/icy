@@ -6,7 +6,7 @@
 //! DX12 (OpenGL and WebGL are still WIP). Additionally, it will support the
 //! incoming [WebGPU API].
 //!
-//! Currently, `iced_wgpu` supports the following primitives:
+//! Currently, `icy_ui_wgpu` supports the following primitives:
 //! - Text, which is rendered using [`glyphon`].
 //! - Quads or rectangles, with rounded borders and a solid background color.
 //! - Clip areas, useful to implement scrollables or hide overflowing content.
@@ -47,9 +47,9 @@ mod image;
 
 use buffer::Buffer;
 
-use iced_debug as debug;
-pub use iced_graphics as graphics;
-pub use iced_graphics::core;
+use icy_ui_debug as debug;
+pub use icy_ui_graphics as graphics;
+pub use icy_ui_graphics::core;
 
 pub use wgpu;
 
@@ -67,10 +67,10 @@ use crate::graphics::mesh;
 use crate::graphics::text::{Editor, Paragraph};
 use crate::graphics::{Shell, Viewport};
 
-/// A [`wgpu`] graphics renderer for [`iced`].
+/// A [`wgpu`] graphics renderer for [`icy_ui`].
 ///
 /// [`wgpu`]: https://github.com/gfx-rs/wgpu-rs
-/// [`iced`]: https://github.com/iced-rs/iced
+/// [`icy_ui`]: https://github.com/iced-rs/iced
 pub struct Renderer {
     engine: Engine,
 
@@ -132,7 +132,7 @@ impl Renderer {
             self.engine
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("iced_wgpu encoder"),
+                    label: Some("icy_ui_wgpu encoder"),
                 });
 
         self.prepare(&mut encoder, viewport);
@@ -207,7 +207,7 @@ impl Renderer {
         };
 
         let texture = self.engine.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("iced_wgpu.offscreen.source_texture"),
+            label: Some("icy_ui_wgpu.offscreen.source_texture"),
             size: texture_extent,
             mip_level_count: 1,
             sample_count: 1,
@@ -235,7 +235,7 @@ impl Renderer {
         );
 
         let output_buffer = self.engine.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iced_wgpu.offscreen.output_texture_buffer"),
+            label: Some("icy_ui_wgpu.offscreen.output_texture_buffer"),
             size: (dimensions.padded_bytes_per_row * dimensions.height as usize) as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -401,7 +401,7 @@ impl Renderer {
 
         let mut render_pass =
             ManuallyDrop::new(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("iced_wgpu render pass"),
+                label: Some("icy_ui_wgpu render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: frame,
                     depth_slice: None,
@@ -484,7 +484,7 @@ impl Renderer {
 
                 render_pass =
                     ManuallyDrop::new(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("iced_wgpu render pass"),
+                        label: Some("icy_ui_wgpu render pass"),
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: frame,
                             depth_slice: None,
@@ -571,7 +571,7 @@ impl Renderer {
 
                     render_pass =
                         ManuallyDrop::new(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: Some("iced_wgpu render pass"),
+                            label: Some("icy_ui_wgpu render pass"),
                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                 view: frame,
                                 depth_slice: None,
@@ -889,7 +889,7 @@ impl renderer::Headless for Renderer {
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                label: Some("iced_wgpu [headless]"),
+                label: Some("icy_ui_wgpu [headless]"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits {
                     max_bind_groups: 2,

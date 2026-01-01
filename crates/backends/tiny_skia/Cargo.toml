@@ -1,6 +1,6 @@
 [package]
-name = "iced_tiny_skia"
-description = "A software renderer for iced on top of tiny-skia"
+name = "icy_ui_tiny_skia"
+description = "A software renderer for icy_ui on top of tiny-skia"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -15,15 +15,15 @@ workspace = true
 
 [features]
 default = ["x11", "wayland"]
-image = ["iced_graphics/image"]
-svg = ["iced_graphics/svg", "resvg"]
-geometry = ["iced_graphics/geometry"]
+image = ["icy_ui_graphics/image"]
+svg = ["icy_ui_graphics/svg", "resvg"]
+geometry = ["icy_ui_graphics/geometry"]
 x11 = ["softbuffer/x11", "softbuffer/x11-dlopen"]
 wayland = ["softbuffer/wayland", "softbuffer/wayland-dlopen"]
 
 [dependencies]
-iced_debug.workspace = true
-iced_graphics.workspace = true
+icy_ui_debug.workspace = true
+icy_ui_graphics.workspace = true
 
 bytemuck.workspace = true
 cosmic-text.workspace = true

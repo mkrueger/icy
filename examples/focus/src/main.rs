@@ -1,31 +1,28 @@
-//! This example demonstrates the focus system with various controls.
+//! This example demonstrates the automatic focus system in icy.
 //!
-//! Use Tab to move focus forward, Shift+Tab to move focus backward.
-//! The focus mode can be toggled between TextOnly and AllControls.
+//! Tab navigation is handled automatically by the framework based on the
+//! `focus_level` setting. No manual keyboard subscription is needed!
+//!
+//! The default `FocusLevel::AllControls` enables Tab focus for all interactive widgets.
+//! Use `FocusLevel::TextOnly` for macOS-like behavior (only text inputs get Tab focus).
 
-use iced::keyboard::{self, key::Named, Key};
-use iced::widget::operation::{focus_next_filtered, focus_previous_filtered, FocusLevel};
-use iced::widget::{
+use icy_ui::widget::{
     button, checkbox, column, container, pick_list, radio_group, row, scrollable, slider, text,
     text_input, toggler, Space,
 };
-use iced::{Center, Element, Fill, Subscription, Task};
+use icy_ui::{Center, Element, Fill, Task};
 
-pub fn main() -> iced::Result {
-    iced::application(Focus::default, Focus::update, Focus::view)
-        .subscription(Focus::subscription)
-        .run()
+pub fn main() -> icy_ui::Result {
+    // The focus_level can be configured via Settings:
+    // icy_ui::application(...)
+    //     .settings(Settings { focus_level: FocusLevel::TextOnly, ..Default::default() })
+    //
+    // Default is FocusLevel::AllControls for full keyboard accessibility.
+    icy_ui::application(Focus::default, Focus::update, Focus::view).run()
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    // Focus navigation
-    FocusNext,
-    FocusPrevious,
-
-    // Focus level toggle
-    FocusLevelChanged(bool),
-
     // Widget interactions
     TextInputChanged(String),
     TextInput2Changed(String),
@@ -54,8 +51,8 @@ impl std::fmt::Display for RadioChoice {
     }
 }
 
+#[derive(Default)]
 struct Focus {
-    focus_level: FocusLevel,
     text_input_value: String,
     text_input2_value: String,
     button_presses: u32,
@@ -66,38 +63,9 @@ struct Focus {
     pick_list_selection: Option<String>,
 }
 
-impl Default for Focus {
-    fn default() -> Self {
-        Self {
-            focus_level: FocusLevel::TextOnly,
-            text_input_value: String::new(),
-            text_input2_value: String::new(),
-            button_presses: 0,
-            checkbox_checked: false,
-            toggler_enabled: false,
-            radio_choice: None,
-            slider_value: 50.0,
-            pick_list_selection: None,
-        }
-    }
-}
-
 impl Focus {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::FocusNext => {
-                return focus_next_filtered(self.focus_level);
-            }
-            Message::FocusPrevious => {
-                return focus_previous_filtered(self.focus_level);
-            }
-            Message::FocusLevelChanged(all_controls) => {
-                self.focus_level = if all_controls {
-                    FocusLevel::AllControls
-                } else {
-                    FocusLevel::TextOnly
-                };
-            }
             Message::TextInputChanged(value) => {
                 self.text_input_value = value;
             }
@@ -128,27 +96,18 @@ impl Focus {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let focus_mode_info = text(format!(
-            "Focus Mode: {} (Tab/Shift+Tab to navigate)",
-            match self.focus_level {
-                FocusLevel::TextOnly => "Text Only - Only text inputs receive focus",
-                FocusLevel::AllControls => "All Controls - All interactive widgets receive focus",
-                FocusLevel::Manual => "Manual",
-            }
-        ))
-        .size(14);
-
-        let focus_toggle = toggler(self.focus_level == FocusLevel::AllControls)
-            .label("Enable Full Keyboard Access (All Controls)")
-            .on_toggle(Message::FocusLevelChanged);
-
         let header = column![
-            text("Focus System Demo").size(24),
-            focus_mode_info,
-            focus_toggle,
+            text("Automatic Focus System Demo").size(24),
+            text("Tab navigation is handled automatically by icy!").size(14),
+            text("Press Tab to move forward, Shift+Tab to move backward.").size(14),
+            Space::new().height(10),
+            text("Configure focus behavior via Settings::focus_level:").size(12),
+            text("  • AllControls (default): All widgets receive Tab focus").size(12),
+            text("  • TextOnly: Only text inputs receive Tab focus").size(12),
+            text("  • Manual: Application handles focus via subscriptions").size(12),
             Space::new().height(20),
         ]
-        .spacing(10);
+        .spacing(5);
 
         // Text inputs (always focusable)
         let text_section = column![
@@ -164,7 +123,7 @@ impl Focus {
 
         // Buttons
         let button_section = column![
-            text("Buttons (focusable with All Controls):").size(18),
+            text("Buttons (focusable with AllControls):").size(18),
             row![
                 button("Press Me (Space/Enter)")
                     .on_press(Message::ButtonPressed)
@@ -178,7 +137,7 @@ impl Focus {
 
         // Checkbox
         let checkbox_section = column![
-            text("Checkbox (focusable with All Controls):").size(18),
+            text("Checkbox (focusable with AllControls):").size(18),
             checkbox(self.checkbox_checked)
                 .label("Check me (Space to toggle)")
                 .on_toggle(Message::CheckboxToggled)
@@ -188,7 +147,7 @@ impl Focus {
 
         // Toggler
         let toggler_section = column![
-            text("Toggler (focusable with All Controls):").size(18),
+            text("Toggler (focusable with AllControls):").size(18),
             toggler(self.toggler_enabled)
                 .label("Toggle me (Space to toggle)")
                 .on_toggle(Message::TogglerToggled)
@@ -196,9 +155,9 @@ impl Focus {
         ]
         .spacing(10);
 
-        // Radio buttons (using RadioGroup for proper keyboard navigation)
+        // Radio buttons
         let radio_section = column![
-            text("Radio Group (Arrow Up/Down to navigate, single Tab stop):").size(18),
+            text("Radio Group (Arrow Up/Down to navigate):").size(18),
             radio_group(
                 [
                     RadioChoice::Option1,
@@ -214,7 +173,7 @@ impl Focus {
 
         // Slider
         let slider_section = column![
-            text("Slider (focusable with All Controls):").size(18),
+            text("Slider (focusable with AllControls):").size(18),
             row![
                 slider(0.0..=100.0, self.slider_value, Message::SliderChanged)
                     .id("slider-1")
@@ -234,7 +193,7 @@ impl Focus {
             "Choice C".to_string(),
         ];
         let pick_list_section = column![
-            text("Pick List (focusable with All Controls):").size(18),
+            text("Pick List (focusable with AllControls):").size(18),
             pick_list(
                 pick_list_options,
                 self.pick_list_selection.clone(),
@@ -269,37 +228,5 @@ impl Focus {
             .width(Fill)
             .height(Fill)
             .into()
-    }
-
-    fn subscription(&self) -> Subscription<Message> {
-        fn handle_tab(event: keyboard::Event) -> Option<Message> {
-            let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
-                return None;
-            };
-
-            println!(
-                "[focus] key pressed: {:?} (shift={}, ctrl={}, alt={}, logo={})",
-                key,
-                modifiers.shift(),
-                modifiers.control(),
-                modifiers.alt(),
-                modifiers.logo()
-            );
-
-            match key.as_ref() {
-                Key::Named(Named::Tab) => {
-                    if modifiers.shift() {
-                        println!("[focus] -> FocusPrevious (Shift+Tab)");
-                        Some(Message::FocusPrevious)
-                    } else {
-                        println!("[focus] -> FocusNext (Tab)");
-                        Some(Message::FocusNext)
-                    }
-                }
-                _ => None,
-            }
-        }
-
-        keyboard::listen().filter_map(handle_tab)
     }
 }

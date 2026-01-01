@@ -86,8 +86,8 @@ pub enum Purpose {
 impl InputMethod {
     /// Merges two [`InputMethod`] strategies, prioritizing the first one when both open:
     /// ```
-    /// # use iced_core::input_method::{InputMethod, Purpose, Preedit};
-    /// # use iced_core::{Point, Rectangle, Size};
+    /// # use icy_ui_core::input_method::{InputMethod, Purpose, Preedit};
+    /// # use icy_ui_core::{Point, Rectangle, Size};
     ///
     /// let open = InputMethod::Enabled {
     ///     cursor: Rectangle::new(Point::ORIGIN, Size::UNIT),

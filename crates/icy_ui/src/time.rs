@@ -6,7 +6,7 @@ pub use crate::core::time::*;
     docsrs,
     doc(cfg(any(feature = "tokio", feature = "smol", target_arch = "wasm32")))
 )]
-pub use iced_futures::backend::default::time::*;
+pub use icy_ui_futures::backend::default::time::*;
 
 use crate::Task;
 

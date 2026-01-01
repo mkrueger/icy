@@ -263,7 +263,7 @@ where
 
         let backends = backend
             .map(str::to_owned)
-            .or_else(|| env::var("ICED_BACKEND").ok());
+            .or_else(|| env::var("ICY_UI_BACKEND").ok());
 
         let mut candidates: Vec<_> = backends
             .map(|backends| {
@@ -412,12 +412,12 @@ where
 }
 
 #[cfg(feature = "wgpu-bare")]
-impl<A, B> iced_wgpu::primitive::Renderer for Renderer<A, B>
+impl<A, B> icy_ui_wgpu::primitive::Renderer for Renderer<A, B>
 where
-    A: iced_wgpu::primitive::Renderer,
+    A: icy_ui_wgpu::primitive::Renderer,
     B: core::Renderer,
 {
-    fn draw_primitive(&mut self, bounds: Rectangle, primitive: impl iced_wgpu::Primitive) {
+    fn draw_primitive(&mut self, bounds: Rectangle, primitive: impl icy_ui_wgpu::Primitive) {
         match self {
             Self::Primary(renderer) => {
                 renderer.draw_primitive(bounds, primitive);

@@ -17,9 +17,9 @@ mod vector;
 #[cfg(feature = "geometry")]
 pub mod geometry;
 
-use iced_debug as debug;
-pub use iced_graphics as graphics;
-pub use iced_graphics::core;
+use icy_ui_debug as debug;
+pub use icy_ui_graphics as graphics;
+pub use icy_ui_graphics::core;
 
 pub use layer::Layer;
 pub use primitive::Primitive;
@@ -35,10 +35,10 @@ use crate::graphics::Viewport;
 use crate::graphics::compositor;
 use crate::graphics::text::{Editor, Paragraph};
 
-/// A [`tiny-skia`] graphics renderer for [`iced`].
+/// A [`tiny-skia`] graphics renderer for [`icy_ui`].
 ///
 /// [`tiny-skia`]: https://github.com/RazrFalcon/tiny-skia
-/// [`iced`]: https://github.com/iced-rs/iced
+/// [`icy_ui`]: https://github.com/iced-rs/iced
 #[derive(Debug)]
 pub struct Renderer {
     default_font: Font,
@@ -347,11 +347,11 @@ impl graphics::geometry::Renderer for Renderer {
 
 impl graphics::mesh::Renderer for Renderer {
     fn draw_mesh(&mut self, _mesh: graphics::Mesh) {
-        log::warn!("iced_tiny_skia does not support drawing meshes");
+        log::warn!("icy_ui_tiny_skia does not support drawing meshes");
     }
 
-    fn draw_mesh_cache(&mut self, _cache: iced_graphics::mesh::Cache) {
-        log::warn!("iced_tiny_skia does not support drawing meshes");
+    fn draw_mesh_cache(&mut self, _cache: icy_ui_graphics::mesh::Cache) {
+        log::warn!("icy_ui_tiny_skia does not support drawing meshes");
     }
 }
 

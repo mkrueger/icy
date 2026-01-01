@@ -5,16 +5,16 @@ use iced::alignment;
 use iced::mouse;
 use iced::widget::{canvas, scrollable, stack, text};
 use iced::{Color, Element, Font, Length, Pixels, Point, Rectangle, Size, Theme};
-use iced_wgpu::Renderer;
-use iced_wgpu::wgpu;
+use icy_ui_wgpu::Renderer;
+use icy_ui_wgpu::wgpu;
 
 criterion_main!(benches);
 criterion_group!(benches, wgpu_benchmark);
 
 #[allow(unused_results)]
 pub fn wgpu_benchmark(c: &mut Criterion) {
-    use iced_futures::futures::executor;
-    use iced_wgpu::wgpu;
+    use icy_ui_futures::futures::executor;
+    use icy_ui_wgpu::wgpu;
 
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
@@ -76,15 +76,15 @@ fn benchmark<'a>(
     queue: &wgpu::Queue,
     view: impl Fn(usize) -> Element<'a, (), Theme, Renderer>,
 ) {
-    use iced_wgpu::graphics;
-    use iced_wgpu::graphics::{Antialiasing, Shell};
-    use iced_wgpu::wgpu;
+    use icy_ui_wgpu::graphics;
+    use icy_ui_wgpu::graphics::{Antialiasing, Shell};
+    use icy_ui_wgpu::wgpu;
     use iced_winit::core;
     use iced_winit::runtime;
 
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
 
-    let engine = iced_wgpu::Engine::new(
+    let engine = icy_ui_wgpu::Engine::new(
         adapter,
         device.clone(),
         queue.clone(),

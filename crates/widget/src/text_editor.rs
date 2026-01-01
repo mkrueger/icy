@@ -2,10 +2,10 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 //! #
-//! use iced::widget::text_editor;
+//! use icy_ui::widget::text_editor;
 //!
 //! struct State {
 //!    content: text_editor::Content,
@@ -65,10 +65,10 @@ pub use text::editor::{Action, Cursor, Edit, Line, LineEnding, Motion, Position,
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 /// #
-/// use iced::widget::text_editor;
+/// use icy_ui::widget::text_editor;
 ///
 /// struct State {
 ///    content: text_editor::Content,
@@ -239,13 +239,13 @@ where
     pub fn highlight(
         self,
         syntax: &str,
-        theme: iced_highlighter::Theme,
-    ) -> TextEditor<'a, iced_highlighter::Highlighter, Message, Theme, Renderer>
+        theme: icy_ui_highlighter::Theme,
+    ) -> TextEditor<'a, icy_ui_highlighter::Highlighter, Message, Theme, Renderer>
     where
         Renderer: text::Renderer<Font = crate::core::Font>,
     {
-        self.highlight_with::<iced_highlighter::Highlighter>(
-            iced_highlighter::Settings {
+        self.highlight_with::<icy_ui_highlighter::Highlighter>(
+            icy_ui_highlighter::Settings {
                 theme,
                 token: syntax.to_owned(),
             },
@@ -588,7 +588,7 @@ where
         tree: &mut widget::Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
-    ) -> iced_renderer::core::layout::Node {
+    ) -> icy_ui_renderer::core::layout::Node {
         let mut internal = self.content.0.borrow_mut();
         let state = tree.state.downcast_mut::<State<Highlighter>>();
 

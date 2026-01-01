@@ -6,7 +6,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 pub use futures;
-pub use iced_core as core;
+pub use icy_ui_core as core;
 
 mod maybe;
 mod runtime;

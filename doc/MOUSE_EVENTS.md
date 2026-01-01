@@ -7,8 +7,8 @@ Icy extends iced's mouse events by adding keyboard modifier information to all m
 All mouse events now include a `modifiers` field containing the current keyboard modifier state:
 
 ```rust
-use iced::mouse;
-use iced::keyboard::Modifiers;
+use icy_ui::mouse;
+use icy_ui::keyboard::Modifiers;
 
 match event {
     mouse::Event::ButtonPressed { button, modifiers } => {

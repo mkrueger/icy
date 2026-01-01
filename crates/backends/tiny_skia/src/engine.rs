@@ -586,11 +586,11 @@ impl Engine {
             }
             #[cfg(not(feature = "image"))]
             Image::Raster { .. } => {
-                log::warn!("Unsupported primitive in `iced_tiny_skia`: {image:?}",);
+                log::warn!("Unsupported primitive in `icy_ui_tiny_skia`: {image:?}",);
             }
             #[cfg(not(feature = "svg"))]
             Image::Vector { .. } => {
-                log::warn!("Unsupported primitive in `iced_tiny_skia`: {image:?}",);
+                log::warn!("Unsupported primitive in `icy_ui_tiny_skia`: {image:?}",);
             }
         }
     }

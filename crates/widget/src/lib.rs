@@ -3,9 +3,9 @@
     html_logo_url = "https://raw.githubusercontent.com/iced-rs/iced/9ab6923e943f784985e9ef9ca28b10278297225d/docs/logo.svg"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-pub use iced_renderer as renderer;
-pub use iced_renderer::core;
-pub use iced_renderer::graphics;
+pub use icy_ui_renderer as renderer;
+pub use icy_ui_renderer::core;
+pub use icy_ui_renderer::graphics;
 
 pub use core::widget::Id;
 
@@ -19,8 +19,10 @@ mod stack;
 
 pub mod button;
 pub mod checkbox;
+pub mod color_picker;
 pub mod combo_box;
 pub mod container;
+pub mod date_picker;
 pub mod float;
 pub mod focus;
 pub mod grid;
@@ -38,10 +40,12 @@ pub mod scrolling;
 pub mod sensor;
 pub mod slider;
 pub mod space;
+pub mod spin_button;
 pub mod table;
 pub mod text;
 pub mod text_editor;
 pub mod text_input;
+pub mod toaster;
 pub mod toggler;
 pub mod tooltip;
 pub mod vertical_slider;
@@ -63,13 +67,19 @@ pub use crate::lazy::helpers::*;
 #[doc(no_inline)]
 pub use button::Button;
 #[doc(no_inline)]
+pub use button::Hyperlink;
+#[doc(no_inline)]
 pub use checkbox::Checkbox;
+#[doc(no_inline)]
+pub use color_picker::{color_picker, ColorPicker, Hsv};
 #[doc(no_inline)]
 pub use column::Column;
 #[doc(no_inline)]
 pub use combo_box::ComboBox;
 #[doc(no_inline)]
 pub use container::Container;
+#[doc(no_inline)]
+pub use date_picker::{date_picker, Date, DatePicker, FirstDayOfWeek};
 #[doc(no_inline)]
 pub use dnd::{Draggable, DropTarget};
 #[doc(no_inline)]
@@ -109,6 +119,8 @@ pub use slider::Slider;
 #[doc(no_inline)]
 pub use space::Space;
 #[doc(no_inline)]
+pub use spin_button::SpinButton;
+#[doc(no_inline)]
 pub use stack::Stack;
 #[doc(no_inline)]
 pub use text::Text;
@@ -116,6 +128,8 @@ pub use text::Text;
 pub use text_editor::TextEditor;
 #[doc(no_inline)]
 pub use text_input::TextInput;
+#[doc(no_inline)]
+pub use toaster::{Toast, Toaster, Toasts};
 #[doc(no_inline)]
 pub use toggler::Toggler;
 #[doc(no_inline)]

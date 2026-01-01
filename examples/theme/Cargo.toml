@@ -6,8 +6,8 @@ edition = "2021"
 publish = false
 
 [dependencies]
-iced.workspace = true
-iced.default-features = true
-iced_core.workspace = true
-iced_core.features = ["serde"]
+icy_ui.workspace = true
+icy_ui.default-features = true
+icy_ui_core.workspace = true
+icy_ui_core.features = ["serde"]
 rfd.workspace = true

@@ -1,4 +1,5 @@
 //! Configure your application.
+use crate::widget::operation::focusable::FocusLevel;
 use crate::{Font, Pixels};
 
 use std::borrow::Cow;
@@ -40,6 +41,16 @@ pub struct Settings {
     ///
     /// By default, it is enabled.
     pub vsync: bool,
+
+    /// The focus level for Tab navigation.
+    ///
+    /// Controls which widgets participate in keyboard Tab navigation.
+    /// - [`FocusLevel::TextOnly`]: Only text inputs receive Tab focus (like macOS default).
+    /// - [`FocusLevel::AllControls`]: All interactive widgets receive Tab focus.
+    /// - [`FocusLevel::Manual`]: Application handles focus manually via subscriptions.
+    ///
+    /// By default, it is [`FocusLevel::AllControls`] for full keyboard accessibility.
+    pub focus_level: FocusLevel,
 }
 
 impl Default for Settings {
@@ -51,6 +62,7 @@ impl Default for Settings {
             default_text_size: Pixels(16.0),
             antialiasing: true,
             vsync: true,
+            focus_level: FocusLevel::default(),
         }
     }
 }

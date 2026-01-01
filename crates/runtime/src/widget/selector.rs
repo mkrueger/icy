@@ -1,5 +1,5 @@
 //! Find and query widgets in your applications.
-pub use iced_selector::{Bounded, Candidate, Selector, Target, Text, id, is_focused};
+pub use icy_ui_selector::{Bounded, Candidate, Selector, Target, Text, id, is_focused};
 
 use crate::Task;
 use crate::task;

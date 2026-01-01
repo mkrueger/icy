@@ -2,13 +2,13 @@
 //!
 //! # Example: Drawing a Simple Circle
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
 //! # pub type State = ();
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 //! #
-//! use iced::mouse;
-//! use iced::widget::canvas;
-//! use iced::{Color, Rectangle, Renderer, Theme};
+//! use icy_ui::mouse;
+//! use icy_ui::widget::canvas;
+//! use icy_ui::{Color, Rectangle, Renderer, Theme};
 //!
 //! // First, we define the data we need for drawing
 //! #[derive(Debug)]
@@ -87,13 +87,13 @@ pub type Frame<Renderer = crate::Renderer> = geometry::Frame<Renderer>;
 ///
 /// # Example: Drawing a Simple Circle
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 /// #
-/// use iced::mouse;
-/// use iced::widget::canvas;
-/// use iced::{Color, Rectangle, Renderer, Theme};
+/// use icy_ui::mouse;
+/// use icy_ui::widget::canvas;
+/// use icy_ui::{Color, Rectangle, Renderer, Theme};
 ///
 /// // First, we define the data we need for drawing
 /// #[derive(Debug)]

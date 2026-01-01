@@ -1,4 +1,4 @@
-//! The underlying implementations of the `iced_futures` contract!
+//! The underlying implementations of the `icy_ui_futures` contract!
 pub mod null;
 
 #[cfg(not(target_arch = "wasm32"))]

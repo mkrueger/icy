@@ -2,12 +2,12 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub fn text<T>(t: T) -> iced_core::widget::Text<'static, iced_core::Theme, ()> { unimplemented!() } }
-//! #            pub use iced_core::color; }
+//! # mod iced { pub mod widget { pub fn text<T>(t: T) -> icy_ui_core::widget::Text<'static, icy_ui_core::Theme, ()> { unimplemented!() } }
+//! #            pub use icy_ui_core::color; }
 //! # pub type State = ();
-//! # pub type Element<'a, Message> = iced_core::Element<'a, Message, iced_core::Theme, ()>;
-//! use iced::widget::text;
-//! use iced::color;
+//! # pub type Element<'a, Message> = icy_ui_core::Element<'a, Message, icy_ui_core::Theme, ()>;
+//! use icy_ui::widget::text;
+//! use icy_ui::color;
 //!
 //! enum Message {
 //!     // ...
@@ -35,12 +35,12 @@ pub use text::{Alignment, LineHeight, Shaping, Wrapping};
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub fn text<T>(t: T) -> iced_core::widget::Text<'static, iced_core::Theme, ()> { unimplemented!() } }
-/// #            pub use iced_core::color; }
+/// # mod iced { pub mod widget { pub fn text<T>(t: T) -> icy_ui_core::widget::Text<'static, icy_ui_core::Theme, ()> { unimplemented!() } }
+/// #            pub use icy_ui_core::color; }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_core::Element<'a, Message, iced_core::Theme, ()>;
-/// use iced::widget::text;
-/// use iced::color;
+/// # pub type Element<'a, Message> = icy_ui_core::Element<'a, Message, icy_ui_core::Theme, ()>;
+/// use icy_ui::widget::text;
+/// use icy_ui::color;
 ///
 /// enum Message {
 ///     // ...

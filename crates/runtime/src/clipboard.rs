@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use iced::clipboard::{self, STANDARD, PRIMARY, Format};
+//! use icy_ui::clipboard::{self, STANDARD, PRIMARY, Format};
 //!
 //! // Read text from the standard clipboard
 //! let task = STANDARD.read_text();
@@ -301,7 +301,7 @@ impl Target {
     /// The builder allows composing multiple formats in a fluent API:
     ///
     /// ```no_run
-    /// use iced::clipboard::STANDARD;
+    /// use icy_ui::clipboard::STANDARD;
     ///
     /// let task = STANDARD.write()
     ///     .html("<b>Hello</b>".to_string())

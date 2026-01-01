@@ -16,8 +16,8 @@ The menu system consists of several components:
 ## Basic Usage
 
 ```rust
-use iced::widget::button;
-use iced::widget::menu::{MenuTree, MenuBar};
+use icy_ui::widget::button;
+use icy_ui::widget::menu::{MenuTree, MenuBar};
 
 // Create a submenu
 let sub_menu = MenuTree::with_children(
@@ -87,7 +87,7 @@ MenuTree::new(button("Item"))
 Menu items can also be separators for visual grouping:
 
 ```rust
-use iced::widget::menu::Item;
+use icy_ui::widget::menu::Item;
 
 let items = vec![
     Item::Item(button("Cut"), vec![]),
@@ -143,7 +143,7 @@ Controls how the selected path is highlighted:
 Right-click context menus for elements:
 
 ```rust
-use iced::widget::menu::{ContextMenu, context_menu};
+use icy_ui::widget::menu::{ContextMenu, context_menu};
 
 let content = button("Right-click me");
 
@@ -163,8 +163,8 @@ let widget = context_menu(content, menu_tree);
 For applications that want structured menu actions with keyboard bindings:
 
 ```rust
-use iced::widget::menu::{Action, KeyBind, Modifier};
-use iced::keyboard::Key;
+use icy_ui::widget::menu::{Action, KeyBind, Modifier};
+use icy_ui::keyboard::Key;
 
 #[derive(Clone, Debug)]
 enum MenuAction {
@@ -193,8 +193,8 @@ impl Action for MenuAction {
 Define keyboard shortcuts for menu items:
 
 ```rust
-use iced::widget::menu::{KeyBind, Modifier};
-use iced::keyboard::Key;
+use icy_ui::widget::menu::{KeyBind, Modifier};
+use icy_ui::keyboard::Key;
 
 let save_shortcut = KeyBind {
     modifiers: vec![Modifier::Ctrl],
@@ -222,7 +222,7 @@ println!("{}", save_shortcut);
 Mnemonics provide keyboard navigation using `Alt+letter`. Mark a mnemonic character with `&` in the label:
 
 ```rust
-use iced::widget::menu::{parse_mnemonic, mnemonic_text, MnemonicDisplay};
+use icy_ui::widget::menu::{parse_mnemonic, mnemonic_text, MnemonicDisplay};
 
 // Parse a label with mnemonic marker
 let label = "&File";  // 'F' is the mnemonic
@@ -253,7 +253,7 @@ Mnemonics are enabled on Windows and Linux but disabled on macOS (which uses Cmd
 The menu system uses the `StyleSheet` trait for theming:
 
 ```rust
-use iced::widget::menu::{StyleSheet, Appearance, Style};
+use icy_ui::widget::menu::{StyleSheet, Appearance, Style};
 
 // Default styles are provided
 let menu_bar = MenuBar::new(menus).style(Style::Default);
@@ -282,7 +282,7 @@ pub struct Appearance {
 Helper functions for styling menu buttons:
 
 ```rust
-use iced::widget::menu::{menu_item, menu_folder, menu_root_style};
+use icy_ui::widget::menu::{menu_item, menu_folder, menu_root_style};
 
 // For regular menu items
 let item_button = button("Item").style(|theme, status| menu_item(theme, status));
@@ -299,7 +299,7 @@ let root_button = button("File").style(|theme, status| menu_root_style(theme, st
 The module provides convenience functions for common patterns:
 
 ```rust
-use iced::widget::menu::{bar, root, items};
+use icy_ui::widget::menu::{bar, root, items};
 
 // Create a menu bar
 let menu_bar = bar(vec![file_menu, edit_menu]);
@@ -318,8 +318,8 @@ let children = items(vec![
 ## Complete Example
 
 ```rust
-use iced::widget::{button, row, text};
-use iced::widget::menu::{MenuTree, MenuBar, menu_item};
+use icy_ui::widget::{button, row, text};
+use icy_ui::widget::menu::{MenuTree, MenuBar, menu_item};
 
 fn view(&self) -> Element<Message> {
     let file_menu = MenuTree::with_children(

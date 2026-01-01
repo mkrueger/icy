@@ -5,13 +5,13 @@
 //!
 //! On macOS, turn VoiceOver on (Cmd+F5) to test announcements.
 
-use iced::accessibility::{self, Priority, WidgetInfo};
-use iced::advanced::Renderer as _;
-use iced::widget::{Column, button, checkbox, column, container, row, text, text_input, toggler};
-use iced::{Color, Element, Event, Fill, Length, Rectangle, Renderer, Size, Task, Theme};
+use icy_ui::accessibility::{self, Priority, WidgetInfo};
+use icy_ui::advanced::Renderer as _;
+use icy_ui::widget::{Column, button, checkbox, column, container, row, text, text_input, toggler};
+use icy_ui::{Color, Element, Event, Fill, Length, Rectangle, Renderer, Size, Task, Theme};
 
-pub fn main() -> iced::Result {
-    iced::application(App::default, App::update, App::view)
+pub fn main() -> icy_ui::Result {
+    icy_ui::application(App::default, App::update, App::view)
         .subscription(App::subscription)
         .run()
 }
@@ -24,7 +24,7 @@ enum Message {
     AnnouncePolite,
     AnnounceAssertive,
     CustomPressed,
-    AxEvent(iced::accessibility::Event),
+    AxEvent(icy_ui::accessibility::Event),
 }
 
 struct App {
@@ -46,8 +46,8 @@ impl Default for App {
 }
 
 impl App {
-    fn subscription(&self) -> iced::Subscription<Message> {
-        iced::event::listen_with(|event, _status, _id| match event {
+    fn subscription(&self) -> icy_ui::Subscription<Message> {
+        icy_ui::event::listen_with(|event, _status, _id| match event {
             Event::Accessibility(ax) => Some(Message::AxEvent(ax)),
             _ => None,
         })
@@ -117,7 +117,7 @@ impl App {
             .spacing(16),
             custom,
             text(self.last_ax.as_deref().unwrap_or("Last AX event: (none)")).style(
-                |_theme: &Theme| iced::widget::text::Style {
+                |_theme: &Theme| icy_ui::widget::text::Style {
                     color: Some(Color::from_rgb8(80, 80, 80)),
                 }
             ),
@@ -140,7 +140,7 @@ impl App {
 /// - reports its own accessibility node
 /// - handles `Event::Accessibility` click/focus/blur
 struct CustomAccessibleButton<Message> {
-    id: iced::widget::Id,
+    id: icy_ui::widget::Id,
     label: String,
     on_press: Message,
     width: Length,
@@ -149,7 +149,7 @@ struct CustomAccessibleButton<Message> {
 impl<Message: Clone> CustomAccessibleButton<Message> {
     fn new(label: impl Into<String>, on_press: Message) -> Self {
         Self {
-            id: iced::widget::Id::new("custom_accessible_button"),
+            id: icy_ui::widget::Id::new("custom_accessible_button"),
             label: label.into(),
             on_press,
             width: Length::Shrink,
@@ -162,7 +162,7 @@ impl<Message: Clone> CustomAccessibleButton<Message> {
     }
 }
 
-impl<Message, Theme_> iced::advanced::Widget<Message, Theme_, Renderer>
+impl<Message, Theme_> icy_ui::advanced::Widget<Message, Theme_, Renderer>
     for CustomAccessibleButton<Message>
 where
     Message: Clone + 'static,
@@ -177,35 +177,35 @@ where
 
     fn layout(
         &mut self,
-        _tree: &mut iced::advanced::widget::Tree,
+        _tree: &mut icy_ui::advanced::widget::Tree,
         _renderer: &Renderer,
-        limits: &iced::advanced::layout::Limits,
-    ) -> iced::advanced::layout::Node {
+        limits: &icy_ui::advanced::layout::Limits,
+    ) -> icy_ui::advanced::layout::Node {
         let size = limits.resolve(self.width, Length::Fixed(44.0), Size::ZERO);
-        iced::advanced::layout::Node::new(size)
+        icy_ui::advanced::layout::Node::new(size)
     }
 
     fn draw(
         &self,
-        _tree: &iced::advanced::widget::Tree,
+        _tree: &icy_ui::advanced::widget::Tree,
         renderer: &mut Renderer,
         _theme: &Theme_,
-        _style: &iced::advanced::renderer::Style,
-        layout: iced::advanced::Layout<'_>,
-        _cursor: iced::advanced::mouse::Cursor,
+        _style: &icy_ui::advanced::renderer::Style,
+        layout: icy_ui::advanced::Layout<'_>,
+        _cursor: icy_ui::advanced::mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
 
         renderer.fill_quad(
-            iced::advanced::renderer::Quad {
+            icy_ui::advanced::renderer::Quad {
                 bounds,
-                border: iced::Border {
+                border: icy_ui::Border {
                     radius: 8.0.into(),
                     width: 1.0,
                     color: Color::from_rgb8(120, 120, 120),
                 },
-                ..iced::advanced::renderer::Quad::default()
+                ..icy_ui::advanced::renderer::Quad::default()
             },
             Color::from_rgb8(245, 245, 245),
         );
@@ -215,10 +215,10 @@ where
 
     fn operate(
         &mut self,
-        _tree: &mut iced::advanced::widget::Tree,
-        layout: iced::advanced::Layout<'_>,
+        _tree: &mut icy_ui::advanced::widget::Tree,
+        layout: icy_ui::advanced::Layout<'_>,
         _renderer: &Renderer,
-        operation: &mut dyn iced::advanced::widget::Operation,
+        operation: &mut dyn icy_ui::advanced::widget::Operation,
     ) {
         operation.container(None, layout.bounds());
 
@@ -233,17 +233,17 @@ where
 
     fn update(
         &mut self,
-        _tree: &mut iced::advanced::widget::Tree,
+        _tree: &mut icy_ui::advanced::widget::Tree,
         event: &Event,
-        _layout: iced::advanced::Layout<'_>,
-        _cursor: iced::advanced::mouse::Cursor,
+        _layout: icy_ui::advanced::Layout<'_>,
+        _cursor: icy_ui::advanced::mouse::Cursor,
         _renderer: &Renderer,
-        _clipboard: &mut dyn iced::advanced::Clipboard,
-        shell: &mut iced::advanced::Shell<'_, Message>,
+        _clipboard: &mut dyn icy_ui::advanced::Clipboard,
+        shell: &mut icy_ui::advanced::Shell<'_, Message>,
         _viewport: &Rectangle,
     ) {
         if let Event::Accessibility(ax) = event {
-            if ax.target != iced::accessibility::node_id_from_widget_id(&self.id) {
+            if ax.target != icy_ui::accessibility::node_id_from_widget_id(&self.id) {
                 return;
             }
 
@@ -260,6 +260,6 @@ where
     Message: Clone + 'static,
 {
     fn from(widget: CustomAccessibleButton<Message>) -> Self {
-        iced::Element::new(widget)
+        icy_ui::Element::new(widget)
     }
 }

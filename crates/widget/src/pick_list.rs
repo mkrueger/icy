@@ -2,10 +2,10 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 //! #
-//! use iced::widget::pick_list;
+//! use icy_ui::widget::pick_list;
 //!
 //! struct State {
 //!    favorite: Option<Fruit>,
@@ -89,10 +89,10 @@ use std::f32;
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::Renderer; pub use iced_widget::core::*; }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::Renderer; pub use icy_ui_widget::core::*; }
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
 /// #
-/// use iced::widget::pick_list;
+/// use icy_ui::widget::pick_list;
 ///
 /// struct State {
 ///    favorite: Option<Fruit>,
@@ -1033,13 +1033,13 @@ impl Catalog for Theme {
 pub fn default(theme: &Theme, status: Status) -> Style {
     let active = Style {
         text_color: theme.background.on,
-        background: theme.background.small_widget.into(),
-        placeholder_color: theme.secondary.on,
+        background: theme.background.base.into(),
+        placeholder_color: theme.background.on.scale_alpha(0.5),
         handle_color: theme.background.on,
         border: Border {
             radius: 2.0.into(),
             width: 1.0,
-            color: theme.background.divider,
+            color: theme.primary.divider,
         },
     };
 
@@ -1047,7 +1047,7 @@ pub fn default(theme: &Theme, status: Status) -> Style {
         Status::Active => active,
         Status::Hovered | Status::Opened { .. } => Style {
             border: Border {
-                color: theme.accent.hover,
+                color: theme.accent.base,
                 ..active.border
             },
             ..active

@@ -17,7 +17,7 @@ pub struct Border {
 /// Creates a new [`Border`] with the given [`Radius`].
 ///
 /// ```
-/// # use iced_core::border::{self, Border};
+/// # use icy_ui_core::border::{self, Border};
 /// #
 /// assert_eq!(border::rounded(10), Border::default().rounded(10));
 /// ```
@@ -28,8 +28,8 @@ pub fn rounded(radius: impl Into<Radius>) -> Border {
 /// Creates a new [`Border`] with the given [`Color`].
 ///
 /// ```
-/// # use iced_core::border::{self, Border};
-/// # use iced_core::Color;
+/// # use icy_ui_core::border::{self, Border};
+/// # use icy_ui_core::Color;
 /// #
 /// assert_eq!(border::color(Color::BLACK), Border::default().color(Color::BLACK));
 /// ```
@@ -40,8 +40,8 @@ pub fn color(color: impl Into<Color>) -> Border {
 /// Creates a new [`Border`] with the given `width`.
 ///
 /// ```
-/// # use iced_core::border::{self, Border};
-/// # use iced_core::Color;
+/// # use icy_ui_core::border::{self, Border};
+/// # use icy_ui_core::Color;
 /// #
 /// assert_eq!(border::width(10), Border::default().width(10));
 /// ```
@@ -261,6 +261,17 @@ impl From<Radius> for [f32; 4] {
             radi.bottom_right,
             radi.bottom_left,
         ]
+    }
+}
+
+impl From<[f32; 4]> for Radius {
+    fn from(radii: [f32; 4]) -> Self {
+        Self {
+            top_left: radii[0],
+            top_right: radii[1],
+            bottom_right: radii[2],
+            bottom_left: radii[3],
+        }
     }
 }
 

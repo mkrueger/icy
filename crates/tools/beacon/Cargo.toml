@@ -1,6 +1,6 @@
 [package]
-name = "iced_beacon"
-description = "A client/server protocol to monitor and supervise iced applications"
+name = "icy_ui_beacon"
+description = "A client/server protocol to monitor and supervise icy_ui applications"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,8 +11,8 @@ categories.workspace = true
 keywords.workspace = true
 
 [dependencies]
-iced_core.workspace = true
-iced_core.features = ["serde"]
+icy_ui_core.workspace = true
+icy_ui_core.features = ["serde"]
 
 bincode.workspace = true
 futures.workspace = true

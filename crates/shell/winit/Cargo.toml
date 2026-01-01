@@ -1,6 +1,6 @@
 [package]
-name = "iced_winit"
-description = "A runtime for iced on top of winit"
+name = "icy_ui_winit"
+description = "A runtime for icy_ui on top of winit"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -15,18 +15,18 @@ workspace = true
 
 [features]
 default = ["x11", "wayland"]
-debug = ["iced_debug/enable"]
+debug = ["icy_ui_debug/enable"]
 sysinfo = ["dep:sysinfo"]
 hinting = []
 unconditional-rendering = []
 linux-theme-detection = ["dep:mundy", "mundy/async-io", "mundy/color-scheme"]
 x11 = ["winit/x11", "dep:clipboard-rs"]
 wayland = ["winit/wayland", "winit/wayland-dlopen", "winit/wayland-csd-adwaita", "dep:smithay-clipboard", "dep:wayland-client"]
-accessibility = ["dep:accesskit_winit", "dep:accesskit", "iced_program/accessibility"]
+accessibility = ["dep:accesskit_winit", "dep:accesskit", "icy_ui_program/accessibility"]
 
 [dependencies]
-iced_debug.workspace = true
-iced_program.workspace = true
+icy_ui_debug.workspace = true
+icy_ui_program.workspace = true
 
 log.workspace = true
 rustc-hash.workspace = true

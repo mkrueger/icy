@@ -3,7 +3,7 @@ use crate::core::Font;
 use crate::program;
 use crate::widget::{Text, text};
 
-pub const FONT: &[u8] = include_bytes!("../fonts/iced_tester-icons.ttf");
+pub const FONT: &[u8] = include_bytes!("../fonts/icy_ui_tester-icons.ttf");
 
 pub fn cancel<'a, Theme, Renderer>() -> Text<'a, Theme, Renderer>
 where
@@ -114,5 +114,5 @@ where
     Theme: text::Catalog + 'a,
     Renderer: program::Renderer,
 {
-    text(codepoint).font(Font::with_name("iced_devtools-icons"))
+    text(codepoint).font(Font::with_name("icy_ui_devtools-icons"))
 }

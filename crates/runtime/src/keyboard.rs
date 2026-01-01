@@ -1,2 +1,2 @@
 //! Track keyboard events.
-pub use iced_core::keyboard::*;
+pub use icy_ui_core::keyboard::*;

@@ -1,5 +1,5 @@
 //! Select data from the widget tree.
-use iced_core as core;
+use icy_ui_core as core;
 
 mod find;
 mod target;

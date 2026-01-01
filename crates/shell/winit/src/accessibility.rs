@@ -185,25 +185,3 @@ impl ProcessedEvent {
         }
     }
 }
-
-/// Handles an AccessKit event and returns what action to take.
-#[derive(Debug, Clone)]
-#[deprecated(note = "Use ProcessedEvent instead")]
-pub enum AccessibilityAction {
-    /// Initial tree was requested - send the full tree.
-    InitialTreeRequested,
-    /// An action was requested on a node.
-    ActionRequested(accesskit::ActionRequest),
-    /// Accessibility was deactivated.
-    Deactivated,
-}
-
-#[allow(deprecated)]
-impl AccessibilityAction {
-    /// Converts an AccessKit winit event to an action.
-    ///
-    /// Deprecated: the winit-proxy style adapter is no longer used.
-    pub fn from_event(_event: &accesskit_winit::WindowEvent) -> Self {
-        Self::Deactivated
-    }
-}

@@ -14,7 +14,7 @@ All clipboard operations return a `Task` that must be executed by the runtime. T
 ## Basic Usage
 
 ```rust
-use iced::clipboard::{STANDARD, PRIMARY, Format};
+use icy_ui::clipboard::{STANDARD, PRIMARY, Format};
 
 // Read text from the standard clipboard
 let task = STANDARD.read_text();
@@ -43,7 +43,7 @@ let task = STANDARD.write()
 The `Format` enum provides **platform-appropriate** format strings for common content types:
 
 ```rust
-use iced::clipboard::Format;
+use icy_ui::clipboard::Format;
 
 Format::Text   // Plain text (UTF-8)
 Format::Html   // HTML content
@@ -85,7 +85,7 @@ the underlying format identifiers.
 For writing multiple formats at once, use the builder pattern:
 
 ```rust
-use iced::clipboard::STANDARD;
+use icy_ui::clipboard::STANDARD;
 
 // Write HTML with plain text fallback
 let task = STANDARD.write()
@@ -118,7 +118,7 @@ let task = STANDARD.write()
 The `Error` enum is available for detailed error information in future Result-based APIs:
 
 ```rust
-use iced::clipboard::Error;
+use icy_ui::clipboard::Error;
 
 pub enum Error {
     Empty,                                    // Clipboard is empty
@@ -224,9 +224,9 @@ fn has_format(formats: Vec<String>) -> Task<bool>
 ## Example: Copy/Paste in an Application
 
 ```rust
-use iced::{Element, Task};
-use iced::clipboard::STANDARD;
-use iced::widget::{button, column, text, text_input};
+use icy_ui::{Element, Task};
+use icy_ui::clipboard::STANDARD;
+use icy_ui::widget::{button, column, text, text_input};
 
 #[derive(Default)]
 struct App {

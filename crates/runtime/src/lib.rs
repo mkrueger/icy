@@ -2,9 +2,9 @@
 //!
 //! ![The native path of the Iced ecosystem](https://github.com/iced-rs/iced/blob/master/docs/graphs/native.png?raw=true)
 //!
-//! `iced_runtime` takes [`iced_core`] and builds a native runtime on top of it.
+//! `icy_ui_runtime` takes [`icy_ui_core`] and builds a native runtime on top of it.
 //!
-//! [`iced_core`]: https://github.com/iced-rs/iced/tree/master/core
+//! [`icy_ui_core`]: https://github.com/iced-rs/iced/tree/master/core
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/iced-rs/iced/9ab6923e943f784985e9ef9ca28b10278297225d/docs/logo.svg"
 )]
@@ -24,8 +24,8 @@ pub mod user_interface;
 pub mod widget;
 pub mod window;
 
-pub use iced_core as core;
-pub use iced_futures as futures;
+pub use icy_ui_core as core;
+pub use icy_ui_futures as futures;
 
 pub use task::Task;
 pub use user_interface::UserInterface;

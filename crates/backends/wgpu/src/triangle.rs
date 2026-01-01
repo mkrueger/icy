@@ -295,7 +295,7 @@ fn render<'a>(
             pipeline.render_pass(encoder)
         } else {
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("iced_wgpu.triangle.render_pass"),
+                label: Some("icy_ui_wgpu.triangle.render_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     depth_slice: None,
@@ -340,7 +340,7 @@ impl Layer {
         Self {
             index_buffer: Buffer::new(
                 device,
-                "iced_wgpu.triangle.index_buffer",
+                "icy_ui_wgpu.triangle.index_buffer",
                 INITIAL_INDEX_COUNT,
                 wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             ),
@@ -638,14 +638,14 @@ mod solid {
         pub fn new(device: &wgpu::Device, constants_layout: &wgpu::BindGroupLayout) -> Self {
             let vertices = Buffer::new(
                 device,
-                "iced_wgpu.triangle.solid.vertex_buffer",
+                "icy_ui_wgpu.triangle.solid.vertex_buffer",
                 triangle::INITIAL_VERTEX_COUNT,
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             );
 
             let uniforms = Buffer::new(
                 device,
-                "iced_wgpu.triangle.solid.uniforms",
+                "icy_ui_wgpu.triangle.solid.uniforms",
                 1,
                 wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             );
@@ -665,7 +665,7 @@ mod solid {
             layout: &wgpu::BindGroupLayout,
         ) -> wgpu::BindGroup {
             device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("iced_wgpu.triangle.solid.bind_group"),
+                label: Some("icy_ui_wgpu.triangle.solid.bind_group"),
                 layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
@@ -687,18 +687,18 @@ mod solid {
         ) -> Self {
             let constants_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("iced_wgpu.triangle.solid.bind_group_layout"),
+                    label: Some("icy_ui_wgpu.triangle.solid.bind_group_layout"),
                     entries: &[triangle::Uniforms::entry()],
                 });
 
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("iced_wgpu.triangle.solid.pipeline_layout"),
+                label: Some("icy_ui_wgpu.triangle.solid.pipeline_layout"),
                 bind_group_layouts: &[&constants_layout],
                 push_constant_ranges: &[],
             });
 
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("iced_wgpu.triangle.solid.shader"),
+                label: Some("icy_ui_wgpu.triangle.solid.shader"),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(concat!(
                     include_str!("shader/triangle.wgsl"),
                     "\n",
@@ -709,7 +709,7 @@ mod solid {
             });
 
             let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("iced_wgpu::triangle::solid pipeline"),
+                label: Some("icy_ui_wgpu::triangle::solid pipeline"),
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
@@ -770,14 +770,14 @@ mod gradient {
         pub fn new(device: &wgpu::Device, constants_layout: &wgpu::BindGroupLayout) -> Self {
             let vertices = Buffer::new(
                 device,
-                "iced_wgpu.triangle.gradient.vertex_buffer",
+                "icy_ui_wgpu.triangle.gradient.vertex_buffer",
                 triangle::INITIAL_VERTEX_COUNT,
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             );
 
             let uniforms = Buffer::new(
                 device,
-                "iced_wgpu.triangle.gradient.uniforms",
+                "icy_ui_wgpu.triangle.gradient.uniforms",
                 1,
                 wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             );
@@ -797,7 +797,7 @@ mod gradient {
             layout: &wgpu::BindGroupLayout,
         ) -> wgpu::BindGroup {
             device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("iced_wgpu.triangle.gradient.bind_group"),
+                label: Some("icy_ui_wgpu.triangle.gradient.bind_group"),
                 layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
@@ -819,18 +819,18 @@ mod gradient {
         ) -> Self {
             let constants_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("iced_wgpu.triangle.gradient.bind_group_layout"),
+                    label: Some("icy_ui_wgpu.triangle.gradient.bind_group_layout"),
                     entries: &[triangle::Uniforms::entry()],
                 });
 
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("iced_wgpu.triangle.gradient.pipeline_layout"),
+                label: Some("icy_ui_wgpu.triangle.gradient.pipeline_layout"),
                 bind_group_layouts: &[&constants_layout],
                 push_constant_ranges: &[],
             });
 
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("iced_wgpu.triangle.gradient.shader"),
+                label: Some("icy_ui_wgpu.triangle.gradient.shader"),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(concat!(
                     include_str!("shader/triangle.wgsl"),
                     "\n",
@@ -843,7 +843,7 @@ mod gradient {
             });
 
             let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("iced_wgpu.triangle.gradient.pipeline"),
+                label: Some("icy_ui_wgpu.triangle.gradient.pipeline"),
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,

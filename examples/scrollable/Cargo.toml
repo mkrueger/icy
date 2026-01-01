@@ -6,5 +6,5 @@ edition = "2024"
 publish = false
 
 [dependencies]
-iced.workspace = true
-iced.features = ["debug"]
+icy_ui.workspace = true
+icy_ui.features = ["debug"]

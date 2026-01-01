@@ -2,10 +2,10 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } }
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
 //! # pub type State = ();
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::button;
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::button;
 //!
 //! #[derive(Clone)]
 //! enum Message {
@@ -38,10 +38,10 @@ use crate::focus::FocusRing;
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } }
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::button;
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::button;
 ///
 /// #[derive(Clone)]
 /// enum Message {
@@ -57,10 +57,10 @@ use crate::focus::FocusRing;
 /// be disabled:
 ///
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } }
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::button;
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::button;
 ///
 /// #[derive(Clone)]
 /// enum Message {
@@ -79,10 +79,12 @@ where
     id: Option<WidgetId>,
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Option<OnPress<'a, Message>>,
+    on_press_down: Option<OnPress<'a, Message>>,
     width: Length,
     height: Length,
     padding: Padding,
     clip: bool,
+    selected: bool,
     class: Theme::Class<'a>,
     status: Option<Status>,
 }
@@ -115,10 +117,12 @@ where
             id: None,
             content,
             on_press: None,
+            on_press_down: None,
             width: size.width.fluid(),
             height: size.height.fluid(),
             padding: DEFAULT_PADDING,
             clip: false,
+            selected: false,
             class: Theme::default(),
             status: None,
         }
@@ -175,6 +179,37 @@ where
     /// If `None`, the [`Button`] will be disabled.
     pub fn on_press_maybe(mut self, on_press: Option<Message>) -> Self {
         self.on_press = on_press.map(OnPress::Direct);
+        self
+    }
+
+    /// Sets the message that will be produced when the [`Button`] is pressed down
+    /// (before release).
+    ///
+    /// This is useful for drag operations or hold actions.
+    pub fn on_press_down(mut self, on_press_down: Message) -> Self {
+        self.on_press_down = Some(OnPress::Direct(on_press_down));
+        self
+    }
+
+    /// Sets the message that will be produced when the [`Button`] is pressed down,
+    /// using a closure.
+    pub fn on_press_down_with(mut self, on_press_down: impl Fn() -> Message + 'a) -> Self {
+        self.on_press_down = Some(OnPress::Closure(Box::new(on_press_down)));
+        self
+    }
+
+    /// Sets the message that will be produced when the [`Button`] is pressed down,
+    /// if `Some`.
+    pub fn on_press_down_maybe(mut self, on_press_down: Option<Message>) -> Self {
+        self.on_press_down = on_press_down.map(OnPress::Direct);
+        self
+    }
+
+    /// Sets whether the [`Button`] is in a selected/toggled state.
+    ///
+    /// This is useful for toggle buttons or tab-like usage.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
         self
     }
 
@@ -358,13 +393,19 @@ where
                 ..
             })
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                if self.on_press.is_some() {
+                let is_enabled = self.on_press.is_some() || self.on_press_down.is_some();
+                if is_enabled {
                     let bounds = layout.bounds();
 
                     if cursor.is_over(bounds) {
                         let state = tree.state.downcast_mut::<State>();
 
                         state.is_pressed = true;
+
+                        // Fire on_press_down immediately
+                        if let Some(on_press_down) = &self.on_press_down {
+                            shell.publish(on_press_down.get());
+                        }
 
                         shell.capture_event();
                     } else {
@@ -450,8 +491,11 @@ where
             _ => {}
         }
 
-        let current_status = if self.on_press.is_none() {
+        let is_enabled = self.on_press.is_some() || self.on_press_down.is_some();
+        let current_status = if !is_enabled {
             Status::Disabled
+        } else if self.selected {
+            Status::Selected
         } else if cursor.is_over(layout.bounds()) {
             let state = tree.state.downcast_ref::<State>();
 
@@ -492,8 +536,11 @@ where
 
         // Compute status dynamically during draw.
         // This avoids stale hover/pressed visuals when the widget instance is reused.
-        let status = if self.on_press.is_none() {
+        let is_enabled = self.on_press.is_some() || self.on_press_down.is_some();
+        let status = if !is_enabled {
             Status::Disabled
+        } else if self.selected {
+            Status::Selected
         } else if cursor.is_over(bounds) {
             let state = tree.state.downcast_ref::<State>();
             if state.is_pressed {
@@ -521,9 +568,32 @@ where
             );
         }
 
-        // Draw focus ring when focused
+        // Draw outline (for focus indication, outside the border)
+        if style.outline_width > 0.0 {
+            let outline_bounds = Rectangle {
+                x: bounds.x - style.outline_width,
+                y: bounds.y - style.outline_width,
+                width: bounds.width + 2.0 * style.outline_width,
+                height: bounds.height + 2.0 * style.outline_width,
+            };
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: outline_bounds,
+                    border: Border {
+                        color: style.outline_color,
+                        width: style.outline_width,
+                        radius: style.border.radius,
+                    },
+                    shadow: Shadow::default(),
+                    snap: style.snap,
+                },
+                Background::Color(Color::TRANSPARENT),
+            );
+        }
+
+        // Draw focus ring when focused (fallback if no outline specified)
         let state = tree.state.downcast_ref::<State>();
-        if state.is_focused && self.on_press.is_some() {
+        if state.is_focused && is_enabled && style.outline_width == 0.0 {
             FocusRing::default().draw(renderer, bounds);
         }
 
@@ -560,8 +630,9 @@ where
         _renderer: &Renderer,
     ) -> mouse::Interaction {
         let is_mouse_over = cursor.is_over(layout.bounds());
+        let is_enabled = self.on_press.is_some() || self.on_press_down.is_some();
 
-        if is_mouse_over && self.on_press.is_some() {
+        if is_mouse_over && is_enabled {
             mouse::Interaction::Pointer
         } else {
             mouse::Interaction::default()
@@ -645,6 +716,8 @@ pub enum Status {
     Hovered,
     /// The [`Button`] is being pressed.
     Pressed,
+    /// The [`Button`] is in a selected/toggled state.
+    Selected,
     /// The [`Button`] cannot be pressed.
     Disabled,
 }
@@ -663,6 +736,12 @@ pub struct Style {
     pub border: Border,
     /// The [`Shadow`] of the button.
     pub shadow: Shadow,
+    /// The width of the outline around the button (for focus indication).
+    pub outline_width: f32,
+    /// The color of the outline.
+    pub outline_color: Color,
+    /// The icon [`Color`] of the button (optional, for icon buttons).
+    pub icon_color: Option<Color>,
     /// Whether the button should be snapped to the pixel grid.
     pub snap: bool,
 }
@@ -675,6 +754,15 @@ impl Style {
             ..self
         }
     }
+
+    /// Updates the [`Style`] with the given outline.
+    pub fn with_outline(self, width: f32, color: Color) -> Self {
+        Self {
+            outline_width: width,
+            outline_color: color,
+            ..self
+        }
+    }
 }
 
 impl Default for Style {
@@ -684,6 +772,9 @@ impl Default for Style {
             text_color: Color::BLACK,
             border: Border::default(),
             shadow: Shadow::default(),
+            outline_width: 0.0,
+            outline_color: Color::TRANSPARENT,
+            icon_color: None,
             snap: renderer::CRISP,
         }
     }
@@ -696,8 +787,8 @@ impl Default for Style {
 ///
 /// # Example
 /// ```no_run
-/// # use iced_widget::core::{Color, Background};
-/// # use iced_widget::button::{Catalog, Status, Style};
+/// # use icy_ui_widget::core::{Color, Background};
+/// # use icy_ui_widget::button::{Catalog, Status, Style};
 /// # struct MyTheme;
 /// #[derive(Debug, Default)]
 /// pub enum ButtonClass {
@@ -767,15 +858,21 @@ impl Catalog for Theme {
 /// A primary button; denoting a main action.
 pub fn primary(theme: &Theme, status: Status) -> Style {
     let component = &theme.accent_button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
-        Status::Active | Status::Pressed => Style {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -785,15 +882,21 @@ pub fn primary(theme: &Theme, status: Status) -> Style {
 /// A secondary button; denoting a complementary action.
 pub fn secondary(theme: &Theme, status: Status) -> Style {
     let component = &theme.button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
-        Status::Active | Status::Pressed => Style {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -803,15 +906,21 @@ pub fn secondary(theme: &Theme, status: Status) -> Style {
 /// A success button; denoting a good outcome.
 pub fn success(theme: &Theme, status: Status) -> Style {
     let component = &theme.success_button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
-        Status::Active | Status::Pressed => Style {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -821,15 +930,21 @@ pub fn success(theme: &Theme, status: Status) -> Style {
 /// A warning button; denoting a risky action.
 pub fn warning(theme: &Theme, status: Status) -> Style {
     let component = &theme.warning_button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
-        Status::Active | Status::Pressed => Style {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -839,15 +954,21 @@ pub fn warning(theme: &Theme, status: Status) -> Style {
 /// A danger button; denoting a destructive action.
 pub fn danger(theme: &Theme, status: Status) -> Style {
     let component = &theme.destructive_button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
-        Status::Active | Status::Pressed => Style {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -855,7 +976,7 @@ pub fn danger(theme: &Theme, status: Status) -> Style {
 }
 
 /// A text button; useful for links.
-pub fn text(theme: &Theme, status: Status) -> Style {
+pub fn text_style(theme: &Theme, status: Status) -> Style {
     let component = &theme.text_button;
 
     let base = Style {
@@ -864,9 +985,75 @@ pub fn text(theme: &Theme, status: Status) -> Style {
     };
 
     match status {
-        Status::Active | Status::Pressed => base,
+        Status::Active => base,
         Status::Hovered => Style {
             text_color: component.on.scale_alpha(0.8),
+            ..base
+        },
+        Status::Pressed => Style {
+            text_color: component.on.scale_alpha(0.6),
+            ..base
+        },
+        Status::Selected => Style {
+            text_color: theme.accent.base,
+            ..base
+        },
+        Status::Disabled => disabled(base),
+    }
+}
+
+/// A link button; styled like a hyperlink.
+pub fn link(theme: &Theme, status: Status) -> Style {
+    let accent = &theme.accent;
+
+    let base = Style {
+        text_color: accent.base,
+        ..Style::default()
+    };
+
+    match status {
+        Status::Active => base,
+        Status::Hovered => Style {
+            text_color: accent.hover,
+            ..base
+        },
+        Status::Pressed => Style {
+            text_color: accent.pressed,
+            ..base
+        },
+        Status::Selected => Style {
+            text_color: accent.selected,
+            ..base
+        },
+        Status::Disabled => disabled(base),
+    }
+}
+
+/// An icon button; minimal styling.
+pub fn icon(theme: &Theme, status: Status) -> Style {
+    let component = &theme.icon_button;
+    let base = Style {
+        background: None,
+        text_color: component.on,
+        icon_color: Some(component.on),
+        border: border::rounded(theme.corner_radii.radius_s),
+        ..Style::default()
+    };
+
+    match status {
+        Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
+        Status::Pressed => Style {
+            background: Some(Background::Color(component.pressed)),
+            ..base
+        },
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
+            icon_color: Some(component.selected_text),
             ..base
         },
         Status::Disabled => disabled(base),
@@ -876,16 +1063,21 @@ pub fn text(theme: &Theme, status: Status) -> Style {
 /// A button using background shades.
 pub fn background(theme: &Theme, status: Status) -> Style {
     let component = &theme.button;
-    let base = styled_component(component);
+    let base = styled_component(component, theme);
 
     match status {
         Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
         Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
@@ -895,27 +1087,37 @@ pub fn background(theme: &Theme, status: Status) -> Style {
 /// A subtle button using weak background shades.
 pub fn subtle(theme: &Theme, status: Status) -> Style {
     let component = &theme.icon_button;
-    let base = styled_component(component);
+    let base = Style {
+        background: None,
+        text_color: component.on,
+        border: border::rounded(theme.corner_radii.radius_s),
+        ..Style::default()
+    };
 
     match status {
         Status::Active => base,
+        Status::Hovered => Style {
+            background: Some(Background::Color(component.hover)),
+            ..base
+        },
         Status::Pressed => Style {
             background: Some(Background::Color(component.pressed)),
             ..base
         },
-        Status::Hovered => Style {
-            background: Some(Background::Color(component.hover)),
+        Status::Selected => Style {
+            background: Some(Background::Color(component.selected)),
+            text_color: component.selected_text,
             ..base
         },
         Status::Disabled => disabled(base),
     }
 }
 
-fn styled_component(component: &theme::Component) -> Style {
+fn styled_component(component: &theme::Component, theme: &Theme) -> Style {
     Style {
         background: Some(Background::Color(component.base)),
         text_color: component.on,
-        border: border::rounded(2),
+        border: border::rounded(theme.corner_radii.radius_s),
         ..Style::default()
     }
 }
@@ -926,6 +1128,7 @@ fn disabled(style: Style) -> Style {
             .background
             .map(|background| background.scale_alpha(0.5)),
         text_color: style.text_color.scale_alpha(0.5),
+        icon_color: style.icon_color.map(|c| c.scale_alpha(0.5)),
         ..style
     }
 }

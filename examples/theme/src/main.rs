@@ -7,12 +7,12 @@
 //! - Full palette colors
 //! - Loading themes from RON files
 
-use iced::theme::{load_theme_from_file, CornerRadii, Spacing, Theme};
-use iced::widget::{button, column, container, pick_list, row, rule, scrollable, text};
-use iced::{Color, Element, Length, Task};
+use icy_ui::theme::{load_theme_from_file, CornerRadii, Spacing, Theme};
+use icy_ui::widget::{button, column, container, pick_list, row, rule, scrollable, text};
+use icy_ui::{Color, Element, Length, Task};
 
-pub fn main() -> iced::Result {
-    iced::application(State::default, State::update, State::view)
+pub fn main() -> icy_ui::Result {
+    icy_ui::application(State::default, State::update, State::view)
         .title("Theme Explorer")
         .run()
 }
@@ -198,7 +198,7 @@ impl State {
         let on_bg = theme.on_background();
 
         // Header with theme toggle, load button, and page tabs
-        let mut header: iced::widget::Column<'_, Message> = column![
+        let mut header: icy_ui::widget::Column<'_, Message> = column![
             text("Theme Explorer").size(28),
             text(format!(
                 "Current theme: {} ({})",
@@ -382,7 +382,7 @@ fn info_row(label: &str, value: String) -> Element<'static, Message> {
         text(value).size(14),
     ]
     .spacing(16)
-    .align_y(iced::Alignment::Center)
+    .align_y(icy_ui::Alignment::Center)
     .into()
 }
 
@@ -393,7 +393,7 @@ fn color_row(label: &str, color: Color) -> Element<'static, Message> {
         text(format_color(color)).size(12),
     ]
     .spacing(16)
-    .align_y(iced::Alignment::Center)
+    .align_y(icy_ui::Alignment::Center)
     .into()
 }
 
@@ -426,7 +426,7 @@ fn build_container_page(
     column![
         row![text("Select Container:").size(14), picker]
             .spacing(16)
-            .align_y(iced::Alignment::Center),
+            .align_y(icy_ui::Alignment::Center),
         rule::horizontal(1),
         text("Container Colors").size(18),
         labeled_swatch("Base", base),
@@ -487,7 +487,7 @@ fn build_component_page(
     column![
         row![text("Select Component:").size(14), picker]
             .spacing(16)
-            .align_y(iced::Alignment::Center),
+            .align_y(icy_ui::Alignment::Center),
         rule::horizontal(1),
         text("State Colors").size(18),
         labeled_swatch("Base", base),
@@ -515,25 +515,22 @@ fn build_component_page(
 // Palette Page
 // ============================================================================
 
-fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static, Message> {
-    let on_light = p.neutral_10;
-    let on_dark = p.neutral_0;
-
+fn build_palette_page(p: icy_ui::theme::Palette, _is_dark: bool) -> Element<'static, Message> {
     // Neutral colors (0-10)
     let neutrals = column![
         text("Neutrals (0-10)").size(18),
         row![
-            color_swatch("0", p.neutral_0, on_light),
-            color_swatch("1", p.neutral_1, on_light),
-            color_swatch("2", p.neutral_2, on_light),
-            color_swatch("3", p.neutral_3, on_light),
-            color_swatch("4", p.neutral_4, on_light),
-            color_swatch("5", p.neutral_5, on_light),
-            color_swatch("6", p.neutral_6, on_dark),
-            color_swatch("7", p.neutral_7, on_dark),
-            color_swatch("8", p.neutral_8, on_dark),
-            color_swatch("9", p.neutral_9, on_dark),
-            color_swatch("10", p.neutral_10, on_dark),
+            color_swatch("0", p.neutral_0),
+            color_swatch("1", p.neutral_1),
+            color_swatch("2", p.neutral_2),
+            color_swatch("3", p.neutral_3),
+            color_swatch("4", p.neutral_4),
+            color_swatch("5", p.neutral_5),
+            color_swatch("6", p.neutral_6),
+            color_swatch("7", p.neutral_7),
+            color_swatch("8", p.neutral_8),
+            color_swatch("9", p.neutral_9),
+            color_swatch("10", p.neutral_10),
         ]
         .spacing(4),
     ]
@@ -543,15 +540,15 @@ fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static
     let accents = column![
         text("Accent Colors").size(18),
         row![
-            color_swatch("Blue", p.accent_blue, on_dark),
-            color_swatch("Indigo", p.accent_indigo, on_dark),
-            color_swatch("Purple", p.accent_purple, on_dark),
-            color_swatch("Pink", p.accent_pink, on_dark),
-            color_swatch("Red", p.accent_red, on_dark),
-            color_swatch("Orange", p.accent_orange, on_dark),
-            color_swatch("Yellow", p.accent_yellow, on_dark),
-            color_swatch("Green", p.accent_green, on_dark),
-            color_swatch("Warm Gray", p.accent_warm_grey, on_dark),
+            color_swatch("Blue", p.accent_blue),
+            color_swatch("Indigo", p.accent_indigo),
+            color_swatch("Purple", p.accent_purple),
+            color_swatch("Pink", p.accent_pink),
+            color_swatch("Red", p.accent_red),
+            color_swatch("Orange", p.accent_orange),
+            color_swatch("Yellow", p.accent_yellow),
+            color_swatch("Green", p.accent_green),
+            color_swatch("Warm Gray", p.accent_warm_grey),
         ]
         .spacing(4),
     ]
@@ -561,9 +558,9 @@ fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static
     let semantic = column![
         text("Semantic Colors").size(18),
         row![
-            color_swatch("Bright Red", p.bright_red, on_dark),
-            color_swatch("Bright Green", p.bright_green, on_dark),
-            color_swatch("Bright Orange", p.bright_orange, on_dark),
+            color_swatch("Bright Red", p.bright_red),
+            color_swatch("Bright Green", p.bright_green),
+            color_swatch("Bright Orange", p.bright_orange),
         ]
         .spacing(4),
     ]
@@ -573,8 +570,8 @@ fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static
     let grays = column![
         text("Surface Grays").size(18),
         row![
-            color_swatch("Gray 1", p.gray_1, if is_dark { on_light } else { on_dark }),
-            color_swatch("Gray 2", p.gray_2, if is_dark { on_light } else { on_dark }),
+            color_swatch("Gray 1", p.gray_1),
+            color_swatch("Gray 2", p.gray_2),
         ]
         .spacing(4),
     ]
@@ -584,13 +581,13 @@ fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static
     let extended = column![
         text("Extended Palette").size(18),
         row![
-            color_swatch("Ext Blue", p.ext_blue, on_dark),
-            color_swatch("Ext Indigo", p.ext_indigo, on_dark),
-            color_swatch("Ext Purple", p.ext_purple, on_dark),
-            color_swatch("Ext Pink", p.ext_pink, on_dark),
-            color_swatch("Ext Orange", p.ext_orange, on_dark),
-            color_swatch("Ext Yellow", p.ext_yellow, on_dark),
-            color_swatch("Ext Warm Gray", p.ext_warm_grey, on_dark),
+            color_swatch("Ext Blue", p.ext_blue),
+            color_swatch("Ext Indigo", p.ext_indigo),
+            color_swatch("Ext Purple", p.ext_purple),
+            color_swatch("Ext Pink", p.ext_pink),
+            color_swatch("Ext Orange", p.ext_orange),
+            color_swatch("Ext Yellow", p.ext_yellow),
+            color_swatch("Ext Warm Gray", p.ext_warm_grey),
         ]
         .spacing(4),
     ]
@@ -615,7 +612,9 @@ fn build_palette_page(p: iced::theme::Palette, is_dark: bool) -> Element<'static
 // Helper functions
 // ============================================================================
 
-fn color_swatch(label: &str, bg: Color, text_color: Color) -> Element<'static, Message> {
+fn color_swatch(label: &str, bg: Color) -> Element<'static, Message> {
+    let text_color = best_contrast_text_color(bg);
+
     container(
         column![
             text(label.to_string()).size(11),
@@ -627,13 +626,13 @@ fn color_swatch(label: &str, bg: Color, text_color: Color) -> Element<'static, M
             ))
             .size(9),
         ]
-        .align_x(iced::Alignment::Center),
+        .align_x(icy_ui::Alignment::Center),
     )
     .padding(8)
     .width(80)
     .height(50)
-    .align_x(iced::alignment::Horizontal::Center)
-    .align_y(iced::alignment::Vertical::Center)
+    .align_x(icy_ui::alignment::Horizontal::Center)
+    .align_y(icy_ui::alignment::Vertical::Center)
     .style(move |_| container::Style {
         background: Some(bg.into()),
         text_color: Some(text_color),
@@ -642,13 +641,42 @@ fn color_swatch(label: &str, bg: Color, text_color: Color) -> Element<'static, M
     .into()
 }
 
+fn best_contrast_text_color(bg: Color) -> Color {
+    // Relative luminance (WCAG) assumes sRGB inputs.
+    let l_bg = relative_luminance(bg);
+    let contrast_black = (l_bg + 0.05) / 0.05;
+    let contrast_white = 1.05 / (l_bg + 0.05);
+
+    if contrast_black >= contrast_white {
+        Color::BLACK
+    } else {
+        Color::WHITE
+    }
+}
+
+fn relative_luminance(c: Color) -> f32 {
+    fn srgb_to_linear(x: f32) -> f32 {
+        if x <= 0.04045 {
+            x / 12.92
+        } else {
+            ((x + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    let r = srgb_to_linear(c.r);
+    let g = srgb_to_linear(c.g);
+    let b = srgb_to_linear(c.b);
+
+    0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
 fn color_swatch_small(bg: Color) -> Element<'static, Message> {
     container(text(""))
         .width(24)
         .height(24)
         .style(move |_| container::Style {
             background: Some(bg.into()),
-            border: iced::Border {
+            border: icy_ui::Border {
                 color: Color::from_rgb(0.5, 0.5, 0.5),
                 width: 1.0,
                 radius: 4.0.into(),
@@ -666,7 +694,7 @@ fn labeled_swatch(label: &str, bg: Color) -> Element<'static, Message> {
             .height(30)
             .style(move |_| container::Style {
                 background: Some(bg.into()),
-                border: iced::Border {
+                border: icy_ui::Border {
                     color: Color::from_rgb(0.5, 0.5, 0.5),
                     width: 1.0,
                     radius: 4.0.into(),
@@ -677,7 +705,7 @@ fn labeled_swatch(label: &str, bg: Color) -> Element<'static, Message> {
         text(format!("alpha: {:.2}", bg.a)).size(11),
     ]
     .spacing(12)
-    .align_y(iced::Alignment::Center)
+    .align_y(icy_ui::Alignment::Center)
     .into()
 }
 

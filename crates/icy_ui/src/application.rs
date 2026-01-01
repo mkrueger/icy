@@ -2,8 +2,8 @@
 //!
 //! # Example
 //! ```no_run,standalone_crate
-//! use iced::widget::{button, column, text, Column};
-//! use iced::Theme;
+//! use icy_ui::widget::{button, column, text, Column};
+//! use icy_ui::Theme;
 //!
 //! pub fn main() -> iced::Result {
 //!     iced::application(u64::default, update, view)
@@ -39,7 +39,7 @@ use crate::{
     Element, Executor, Font, Never, Preset, Result, Settings, Size, Subscription, Task, Theme,
 };
 
-use iced_debug as debug;
+use icy_ui_debug as debug;
 
 use std::borrow::Cow;
 
@@ -51,7 +51,7 @@ pub use timed::timed;
 ///
 /// # Example
 /// ```no_run,standalone_crate
-/// use iced::widget::{button, column, text, Column};
+/// use icy_ui::widget::{button, column, text, Column};
 ///
 /// pub fn main() -> iced::Result {
 ///     iced::application(u64::default, update, view).run()
@@ -112,7 +112,7 @@ where
         type Message = Message;
         type Theme = Theme;
         type Renderer = Renderer;
-        type Executor = iced_futures::backend::default::Executor;
+        type Executor = icy_ui_futures::backend::default::Executor;
 
         fn name() -> &'static str {
             let name = std::any::type_name::<State>();
@@ -140,7 +140,7 @@ where
             Settings::default()
         }
 
-        fn window(&self) -> Option<iced_core::window::Settings> {
+        fn window(&self) -> Option<icy_ui_core::window::Settings> {
             Some(window::Settings::default())
         }
     }
@@ -189,13 +189,13 @@ impl<P: Program> Application<P> {
         P::Message: message::MaybeDebug + message::MaybeClone,
         P: Program<Theme = Theme>,
     {
-        iced_debug::init(iced_debug::Metadata {
+        icy_ui_debug::init(icy_ui_debug::Metadata {
             name: P::name(),
             theme: None,
             can_time_travel: cfg!(feature = "time-travel"),
         });
 
-        let program = iced_devtools::attach(self);
+        let program = icy_ui_devtools::attach(self);
 
         Ok(shell::run(program)?)
     }
@@ -212,14 +212,14 @@ impl<P: Program> Application<P> {
         P::Message: message::MaybeDebug + message::MaybeClone,
     {
         #[cfg(feature = "debug")]
-        iced_debug::init(iced_debug::Metadata {
+        icy_ui_debug::init(icy_ui_debug::Metadata {
             name: P::name(),
             theme: None,
             can_time_travel: cfg!(feature = "time-travel"),
         });
 
         #[cfg(feature = "tester")]
-        let program = iced_tester::attach(self);
+        let program = icy_ui_tester::attach(self);
 
         #[cfg(not(feature = "tester"))]
         let program = self;
@@ -491,7 +491,7 @@ impl<P: Program> Program for Application<P> {
         debug::hot(|| self.raw.subscription(state))
     }
 
-    fn theme(&self, state: &Self::State, window: iced_core::window::Id) -> Option<Self::Theme> {
+    fn theme(&self, state: &Self::State, window: icy_ui_core::window::Id) -> Option<Self::Theme> {
         debug::hot(|| self.raw.theme(state, window))
     }
 
@@ -626,13 +626,13 @@ where
 /// Any implementors of this trait can be provided as an argument to
 /// [`Application::theme`].
 ///
-/// `iced` provides two implementors:
+/// `icy_ui` provides two implementors:
 /// - the built-in [`Theme`] itself
 /// - and any `Fn(&State) -> impl Into<Option<Theme>>`.
 pub trait ThemeFn<State, Theme> {
     /// Returns the theme of the [`Application`] for the current state.
     ///
-    /// If `None` is returned, `iced` will try to use a theme that
+    /// If `None` is returned, `icy_ui` will try to use a theme that
     /// matches the system color scheme.
     fn theme(&self, state: &State) -> Option<Theme>;
 }

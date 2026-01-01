@@ -1,6 +1,6 @@
 [package]
-name = "iced_graphics"
-description = "A bunch of backend-agnostic types that can be leveraged to build a renderer for iced"
+name = "icy_ui_graphics"
+description = "A bunch of backend-agnostic types that can be leveraged to build a renderer for icy_ui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -23,11 +23,11 @@ image = ["dep:image", "kamadak-exif"]
 svg = []
 web-colors = []
 fira-sans = []
-accessibility = ["iced_core/accessibility"]
+accessibility = ["icy_ui_core/accessibility"]
 
 [dependencies]
-iced_core.workspace = true
-iced_futures.workspace = true
+icy_ui_core.workspace = true
+icy_ui_futures.workspace = true
 
 bitflags.workspace = true
 bytemuck.workspace = true

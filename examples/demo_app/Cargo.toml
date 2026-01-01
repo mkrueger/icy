@@ -1,0 +1,11 @@
+[package]
+name = "demo_app"
+version = "0.1.0"
+authors = ["Icy contributors"]
+edition = "2021"
+publish = false
+
+[dependencies]
+icy_ui.workspace = true
+icy_ui.features = ["smol", "image", "svg", "tokio"]
+chrono = "0.4"

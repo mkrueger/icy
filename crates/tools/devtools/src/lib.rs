@@ -1,10 +1,10 @@
 #![allow(missing_docs)]
-use iced_debug as debug;
-use iced_program as program;
-use iced_program::runtime;
-use iced_program::runtime::futures;
-use iced_widget as widget;
-use iced_widget::core;
+use icy_ui_debug as debug;
+use icy_ui_program as program;
+use icy_ui_program::runtime;
+use icy_ui_program::runtime::futures;
+use icy_ui_widget as widget;
+use icy_ui_widget::core;
 
 mod comet;
 mod time_machine;

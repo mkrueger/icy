@@ -6,8 +6,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use iced::widget::button;
-//! use iced_widget::menu::{MenuTree, MenuBar};
+//! use icy_ui::widget::button;
+//! use icy_ui_widget::menu::{MenuTree, MenuBar};
 //!
 //! let sub_2 = MenuTree::with_children(
 //!     button("Sub Menu 2"),

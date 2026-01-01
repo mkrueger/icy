@@ -1,6 +1,6 @@
 [package]
-name = "iced_wgpu"
-description = "A renderer for iced on top of wgpu"
+name = "icy_ui_wgpu"
+description = "A renderer for icy_ui on top of wgpu"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -19,16 +19,16 @@ all-features = true
 
 [features]
 default = ["wgpu/default"]
-geometry = ["iced_graphics/geometry", "lyon"]
-image = ["iced_graphics/image"]
-svg = ["iced_graphics/svg", "resvg/text"]
-web-colors = ["iced_graphics/web-colors"]
+geometry = ["icy_ui_graphics/geometry", "lyon"]
+image = ["icy_ui_graphics/image"]
+svg = ["icy_ui_graphics/svg", "resvg/text"]
+web-colors = ["icy_ui_graphics/web-colors"]
 webgl = ["wgpu/webgl"]
 strict-assertions = []
 
 [dependencies]
-iced_debug.workspace = true
-iced_graphics.workspace = true
+icy_ui_debug.workspace = true
+icy_ui_graphics.workspace = true
 
 bitflags.workspace = true
 bytemuck.workspace = true

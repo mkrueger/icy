@@ -1,6 +1,6 @@
 [package]
-name = "iced_core"
-description = "The essential ideas of iced"
+name = "icy_ui_core"
+description = "The essential ideas of icy_ui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

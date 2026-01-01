@@ -135,7 +135,7 @@ pub trait Function<A, B, O> {
     /// That's quite a mouthful. [`with`](Self::with) lets you write:
     ///
     /// ```rust
-    /// # use iced_core::Function;
+    /// # use icy_ui_core::Function;
     /// # let element: Option<()> = Some(());
     /// # enum Message { ButtonPressed(u32, ()) }
     /// let id = 123;

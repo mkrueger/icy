@@ -43,8 +43,8 @@ so a style function can compute final colors/alpha values consistently.
 You customize scrollbars by providing a style function:
 
 ```rust
-use iced::widget::scrollable;
-use iced::{Color, Theme};
+use icy_ui::widget::scrollable;
+use icy_ui::{Color, Theme};
 
 fn style(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
     let base = scrollable::default(theme, status);
@@ -81,8 +81,8 @@ This behavior is automatic and requires no configuration.
 For programmatic scrolling, use `scroll_to_animated` instead of `scroll_to` for smooth animated transitions:
 
 ```rust
-use iced::widget::scrollable;
-use iced::widget::scrollable::AbsoluteOffset;
+use icy_ui::widget::scrollable;
+use icy_ui::widget::scrollable::AbsoluteOffset;
 
 // Immediate scroll (jumps instantly)
 scrollable::scroll_to(id.clone(), AbsoluteOffset { x: 0.0, y: 500.0 })
@@ -136,8 +136,8 @@ There are two primary entry points:
 For row-based lists with a constant row height:
 
 ```rust
-use iced::widget::{column, container, text, virtual_scrollable};
-use iced::{Element, Length};
+use icy_ui::widget::{column, container, text, virtual_scrollable};
+use icy_ui::{Element, Length};
 
 const TOTAL_ROWS: usize = 100_000;
 
@@ -163,8 +163,8 @@ Your callback receives `Range<usize>` of visible rows.
 For arbitrary content (2D canvases, sparse grids, variable-sized items):
 
 ```rust
-use iced::widget::{column, text, virtual_scrollable};
-use iced::{Element, Rectangle, Size};
+use icy_ui::widget::{column, text, virtual_scrollable};
+use icy_ui::{Element, Rectangle, Size};
 
 fn view<'a, Message>() -> Element<'a, Message> {
     let content_size = Size::new(100_000.0, 100_000.0);

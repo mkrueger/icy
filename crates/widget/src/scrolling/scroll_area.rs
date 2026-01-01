@@ -8,9 +8,9 @@
 //!
 //! # Example: Regular Scrolling
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::{column, scroll_area, space};
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::{column, scroll_area, space};
 //!
 //! enum Message {}
 //!
@@ -27,9 +27,9 @@
 //!
 //! # Example: Virtual List with `show_rows`
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::{column, scroll_area, text};
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::{column, scroll_area, text};
 //!
 //! enum Message {}
 //!
@@ -48,10 +48,10 @@
 //!
 //! # Example: Custom Virtualization with `show_viewport`
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Size; }
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::{column, scroll_area, text};
-//! use iced::Size;
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::core::Size; }
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::{column, scroll_area, text};
+//! use icy_ui::Size;
 //!
 //! enum Message {}
 //!
@@ -282,10 +282,10 @@ where
     ///
     /// # Example
     /// ```no_run
-    /// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Size; }
-    /// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-    /// use iced::widget::scroll_area;
-    /// use iced::Size;
+    /// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::core::Size; }
+    /// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+    /// use icy_ui::widget::scroll_area;
+    /// use icy_ui::Size;
     ///
     /// enum Message {}
     ///
@@ -343,9 +343,9 @@ where
     ///
     /// # Example
     /// ```no_run
-    /// # mod iced { pub mod widget { pub use iced_widget::*; } }
-    /// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-    /// use iced::widget::{column, scroll_area, text};
+    /// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+    /// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+    /// use icy_ui::widget::{column, scroll_area, text};
     ///
     /// enum Message {}
     ///
@@ -418,9 +418,9 @@ where
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } }
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::{column, scroll_area, text};
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::{column, scroll_area, text};
 ///
 /// enum Message {}
 ///

@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use iced::accessibility::{self, Priority};
+//! use icy_ui::accessibility::{self, Priority};
 //!
 //! // Announce a message to the screen reader
 //! let task = accessibility::announce("File saved successfully", Priority::Polite);
@@ -51,7 +51,7 @@ pub enum Priority {
 /// # Example
 ///
 /// ```no_run
-/// use iced::accessibility::{self, Priority};
+/// use icy_ui::accessibility::{self, Priority};
 ///
 /// fn update(&mut self, message: Message) -> Task<Message> {
 ///     match message {
@@ -80,7 +80,7 @@ pub fn announce(message: impl Into<String>, priority: Priority) -> Task<()> {
 /// Request focus on a specific accessible element.
 ///
 /// This tells the screen reader to move focus to the element with the given ID.
-pub fn focus(target: iced_core::accessibility::NodeId) -> Task<()> {
+pub fn focus(target: icy_ui_core::accessibility::NodeId) -> Task<()> {
     task::effect(crate::Action::Accessibility(Action::Focus { target }))
 }
 
@@ -101,6 +101,6 @@ pub enum Action {
     /// Request focus on an accessible element.
     Focus {
         /// The target node ID to focus.
-        target: iced_core::accessibility::NodeId,
+        target: icy_ui_core::accessibility::NodeId,
     },
 }

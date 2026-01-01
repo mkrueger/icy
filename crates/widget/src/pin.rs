@@ -2,11 +2,11 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Length::Fill; }
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::core::Length::Fill; }
 //! # pub type State = ();
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::pin;
-//! use iced::Fill;
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::pin;
+//! use icy_ui::Fill;
 //!
 //! enum Message {
 //!     // ...
@@ -35,11 +35,11 @@ use crate::core::{
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } pub use iced_widget::core::Length::Fill; }
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } pub use icy_ui_widget::core::Length::Fill; }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::pin;
-/// use iced::Fill;
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::pin;
+/// use icy_ui::Fill;
 ///
 /// enum Message {
 ///     // ...

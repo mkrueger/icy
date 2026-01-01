@@ -1,7 +1,7 @@
-//! Convert [`winit`] types into [`iced_runtime`] types, and viceversa.
+//! Convert [`winit`] types into [`icy_ui_runtime`] types, and viceversa.
 //!
 //! [`winit`]: https://github.com/rust-windowing/winit
-//! [`iced_runtime`]: https://github.com/iced-rs/iced/tree/master/runtime
+//! [`icy_ui_runtime`]: https://github.com/iced-rs/iced/tree/master/runtime
 use crate::core::input_method;
 use crate::core::keyboard;
 use crate::core::mouse;
@@ -485,10 +485,10 @@ pub fn mouse_interaction(interaction: mouse::Interaction) -> Option<winit::windo
     Some(icon)
 }
 
-/// Converts a `MouseButton` from [`winit`] to an [`iced`] mouse button.
+/// Converts a `MouseButton` from [`winit`] to an [`icy_ui`] mouse button.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn mouse_button(mouse_button: winit::event::MouseButton) -> mouse::Button {
     match mouse_button {
         winit::event::MouseButton::Left => mouse::Button::Left,
@@ -500,11 +500,11 @@ pub fn mouse_button(mouse_button: winit::event::MouseButton) -> mouse::Button {
     }
 }
 
-/// Converts some `ModifiersState` from [`winit`] to an [`iced`] modifiers
+/// Converts some `ModifiersState` from [`winit`] to an [`icy_ui`] modifiers
 /// state.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn modifiers(modifiers: winit::keyboard::ModifiersState) -> keyboard::Modifiers {
     let mut result = keyboard::Modifiers::empty();
 
@@ -523,10 +523,10 @@ pub fn cursor_position(position: winit::dpi::PhysicalPosition<f64>, scale_factor
     Point::new(logical_position.x, logical_position.y)
 }
 
-/// Converts a `Touch` from [`winit`] to an [`iced`] touch event.
+/// Converts a `Touch` from [`winit`] to an [`icy_ui`] touch event.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn touch_event(touch: winit::event::Touch, scale_factor: f32) -> touch::Event {
     let id = touch::Finger(touch.id);
     let position = {
@@ -543,10 +543,10 @@ pub fn touch_event(touch: winit::event::Touch, scale_factor: f32) -> touch::Even
     }
 }
 
-/// Converts a `Key` from [`winit`] to an [`iced`] key.
+/// Converts a `Key` from [`winit`] to an [`icy_ui`] key.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn key(key: winit::keyboard::Key) -> keyboard::Key {
     use keyboard::key::Named;
     use winit::keyboard::NamedKey;
@@ -866,10 +866,10 @@ pub fn key(key: winit::keyboard::Key) -> keyboard::Key {
     }
 }
 
-/// Converts a `PhysicalKey` from [`winit`] to an [`iced`] physical key.
+/// Converts a `PhysicalKey` from [`winit`] to an [`icy_ui`] physical key.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn physical_key(physical_key: winit::keyboard::PhysicalKey) -> keyboard::key::Physical {
     match physical_key {
         winit::keyboard::PhysicalKey::Code(code) => {
@@ -883,10 +883,10 @@ pub fn physical_key(physical_key: winit::keyboard::PhysicalKey) -> keyboard::key
     }
 }
 
-/// Converts a `KeyCode` from [`winit`] to an [`iced`] key code.
+/// Converts a `KeyCode` from [`winit`] to an [`icy_ui`] key code.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn key_code(key_code: winit::keyboard::KeyCode) -> Option<keyboard::key::Code> {
     use winit::keyboard::KeyCode;
 
@@ -1089,10 +1089,10 @@ pub fn key_code(key_code: winit::keyboard::KeyCode) -> Option<keyboard::key::Cod
     })
 }
 
-/// Converts a `NativeKeyCode` from [`winit`] to an [`iced`] native key code.
+/// Converts a `NativeKeyCode` from [`winit`] to an [`icy_ui`] native key code.
 ///
 /// [`winit`]: https://github.com/rust-windowing/winit
-/// [`iced`]: https://github.com/iced-rs/iced/tree/0.12
+/// [`icy_ui`]: https://github.com/iced-rs/iced/tree/0.12
 pub fn native_key_code(
     native_key_code: winit::keyboard::NativeKeyCode,
 ) -> keyboard::key::NativeCode {

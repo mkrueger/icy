@@ -332,21 +332,16 @@ where
     }
 
     impl<T> Operation<T> for CountPreviousFiltered {
-        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+        fn focusable(
+            &mut self,
+            _id: Option<&Id>,
+            _bounds: Rectangle,
+            state: &mut dyn Focusable,
+        ) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
 
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] prev/count: id={:?} tier={:?} focused={} bounds={:?}",
-                    id,
-                    state.focus_tier(),
-                    state.is_focused(),
-                    bounds
-                );
-            }
 
             if state.is_focused() {
                 self.count.focused = Some(self.count.total);
@@ -360,13 +355,6 @@ where
         }
 
         fn finish(&self) -> Outcome<T> {
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] prev/count done: level={:?} total={} focused_index={:?}",
-                    self.level, self.count.total, self.count.focused
-                );
-            }
 
             Outcome::Chain(Box::new(ApplyPreviousFiltered {
                 level: self.level,
@@ -377,60 +365,37 @@ where
     }
 
     impl<T> Operation<T> for ApplyPreviousFiltered {
-        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+        fn focusable(
+            &mut self,
+            _id: Option<&Id>,
+            _bounds: Rectangle,
+            state: &mut dyn Focusable,
+        ) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
 
             if self.count.total == 0 {
-                #[cfg(debug_assertions)]
-                eprintln!(
-                    "[focus.op] prev/apply: no focusables (level={:?})",
-                    self.level
-                );
                 return;
             }
 
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] prev/apply: current={} focused_index={:?} total={} -> id={:?} tier={:?} was_focused={} bounds={:?}",
-                    self.current,
-                    self.count.focused,
-                    self.count.total,
-                    id,
-                    state.focus_tier(),
-                    state.is_focused(),
-                    bounds
-                );
-            }
 
             match self.count.focused {
                 None if self.current == self.count.total - 1 => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] prev/apply: -> focus last");
                     state.focus()
                 }
                 Some(0) if self.current == 0 => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] prev/apply: -> unfocus first");
                     state.unfocus()
                 }
                 // Wrap: first element focused, now focus last
                 Some(0) if self.current == self.count.total - 1 => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] prev/apply: -> wrap to last");
                     state.focus()
                 }
                 Some(0) => {}
                 Some(focused) if focused == self.current => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] prev/apply: -> unfocus current");
                     state.unfocus()
                 }
                 Some(focused) if focused - 1 == self.current => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] prev/apply: -> focus previous");
                     state.focus()
                 }
                 _ => {}
@@ -468,21 +433,16 @@ where
     }
 
     impl<T> Operation<T> for CountNextFiltered {
-        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+        fn focusable(
+            &mut self,
+            _id: Option<&Id>,
+            _bounds: Rectangle,
+            state: &mut dyn Focusable,
+        ) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
 
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] next/count: id={:?} tier={:?} focused={} bounds={:?}",
-                    id,
-                    state.focus_tier(),
-                    state.is_focused(),
-                    bounds
-                );
-            }
 
             if state.is_focused() {
                 self.count.focused = Some(self.count.total);
@@ -496,13 +456,6 @@ where
         }
 
         fn finish(&self) -> Outcome<T> {
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] next/count done: level={:?} total={} focused_index={:?}",
-                    self.level, self.count.total, self.count.focused
-                );
-            }
 
             Outcome::Chain(Box::new(ApplyNextFiltered {
                 level: self.level,
@@ -513,54 +466,33 @@ where
     }
 
     impl<T> Operation<T> for ApplyNextFiltered {
-        fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
+        fn focusable(
+            &mut self,
+            _id: Option<&Id>,
+            _bounds: Rectangle,
+            state: &mut dyn Focusable,
+        ) {
             if !self.level.allows(state.focus_tier()) {
                 return;
             }
 
             if self.count.total == 0 {
-                #[cfg(debug_assertions)]
-                eprintln!(
-                    "[focus.op] next/apply: no focusables (level={:?})",
-                    self.level
-                );
                 return;
             }
 
-            #[cfg(debug_assertions)]
-            {
-                eprintln!(
-                    "[focus.op] next/apply: current={} focused_index={:?} total={} -> id={:?} tier={:?} was_focused={} bounds={:?}",
-                    self.current,
-                    self.count.focused,
-                    self.count.total,
-                    id,
-                    state.focus_tier(),
-                    state.is_focused(),
-                    bounds
-                );
-            }
 
             match self.count.focused {
                 None if self.current == 0 => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] next/apply: -> focus first");
                     state.focus()
                 }
                 // Wrap: last element focused, now focus first
                 Some(focused) if focused == self.count.total - 1 && self.current == 0 => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] next/apply: -> wrap to first");
                     state.focus()
                 }
                 Some(focused) if focused == self.current => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] next/apply: -> unfocus current");
                     state.unfocus()
                 }
                 Some(focused) if focused + 1 == self.current => {
-                    #[cfg(debug_assertions)]
-                    eprintln!("[focus.op] next/apply: -> focus next");
                     state.focus()
                 }
                 _ => {}

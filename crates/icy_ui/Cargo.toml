@@ -1,0 +1,128 @@
+[package]
+name = "icy_ui"
+description = "A cross-platform GUI library inspired by Elm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+all-features = true
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[features]
+default = [
+    "wgpu",
+    "tiny-skia",
+    "crisp",
+    "hinting",
+    "web-colors",
+    "thread-pool",
+    "linux-theme-detection",
+    "x11",
+    "wayland",
+]
+# Enables the `wgpu` GPU-accelerated renderer with all its default features (Vulkan, Metal, DX12, OpenGL, and WebGPU)
+wgpu = ["wgpu-bare", "icy_ui_renderer/wgpu"]
+# Enables the `wgpu` GPU-accelerated renderer with the minimum required features (no backends!)
+wgpu-bare = ["icy_ui_renderer/wgpu-bare", "icy_ui_widget/wgpu"]
+# Enables the `tiny-skia` software renderer
+tiny-skia = ["icy_ui_renderer/tiny-skia"]
+# Enables the `image` widget
+image = ["image-without-codecs", "image/default"]
+# Enables the `image` widget, without any built-in codecs of the `image` crate
+image-without-codecs = ["icy_ui_widget/image", "dep:image"]
+# Enables the `svg` widget
+svg = ["icy_ui_widget/svg"]
+# Enables the `canvas` widget
+canvas = ["icy_ui_widget/canvas"]
+# Enables the `qr_code` widget
+qr_code = ["icy_ui_widget/qr_code"]
+# Enables the `markdown` widget
+markdown = ["icy_ui_widget/markdown"]
+# Enables lazy widgets
+lazy = ["icy_ui_widget/lazy"]
+# Enables debug metrics in native platforms (press F12)
+debug = ["icy_ui_winit/debug", "dep:icy_ui_devtools"]
+# Enables time-travel debugging (very experimental!)
+time-travel = ["debug", "icy_ui_devtools/time-travel"]
+# Enables hot reloading (very experimental!)
+hot = ["debug", "icy_ui_debug/hot"]
+# Enables the tester developer tool for recording and playing tests (press F12)
+tester = ["dep:icy_ui_tester"]
+# Enables the `thread-pool` futures executor as the `executor::Default` on native platforms
+thread-pool = ["icy_ui_futures/thread-pool"]
+# Enables `tokio` as the `executor::Default` on native platforms
+tokio = ["icy_ui_futures/tokio", "icy_ui_widget/tokio"]
+# Enables `smol` as the `executor::Default` on native platforms
+smol = ["icy_ui_futures/smol"]
+# Enables querying system information
+sysinfo = ["icy_ui_winit/sysinfo"]
+# Enables broken "sRGB linear" blending to reproduce color management of the Web
+web-colors = ["icy_ui_renderer/web-colors"]
+# Enables pixel snapping for crisp edges by default (can cause jitter!)
+crisp = ["icy_ui_core/crisp"]
+# Enables the WebGL backend
+webgl = ["icy_ui_renderer/webgl"]
+# Enables syntax highlighting
+highlighter = ["icy_ui_highlighter", "icy_ui_widget/highlighter"]
+# Enables the `widget::selector` module
+selector = ["icy_ui_runtime/selector"]
+# Enables the advanced module
+advanced = ["icy_ui_core/advanced", "icy_ui_widget/advanced"]
+# Embeds Fira Sans into the final application; useful for testing and Wasm builds
+fira-sans = ["icy_ui_renderer/fira-sans"]
+# Enables basic text shaping by default
+basic-shaping = ["icy_ui_core/basic-shaping"]
+# Enables advanced text shaping by default
+advanced-shaping = ["icy_ui_core/advanced-shaping"]
+# Enables rendering hints (e.g. metrics hinting)
+hinting = ["icy_ui_winit/hinting"]
+# Enables strict assertions for debugging purposes at the expense of performance
+strict-assertions = ["icy_ui_renderer/strict-assertions"]
+# Redraws on every runtime event, and not only when a widget requests it
+unconditional-rendering = ["icy_ui_winit/unconditional-rendering"]
+# Enables support for the `sipper` library
+sipper = ["icy_ui_runtime/sipper"]
+# Enables Linux system theme detection
+linux-theme-detection = ["icy_ui_winit/linux-theme-detection"]
+# Enables the Unix X11 backend
+x11 = ["icy_ui_renderer/x11", "icy_ui_winit/x11"]
+# Enables the Unix Wayland backend
+wayland = ["icy_ui_renderer/wayland", "icy_ui_winit/wayland"]
+# Enables accessibility support via AccessKit (screen readers)
+accessibility = ["icy_ui_core/accessibility", "icy_ui_widget/accessibility", "icy_ui_winit/accessibility"]
+
+[dependencies]
+icy_ui_debug.workspace = true
+icy_ui_core.workspace = true
+icy_ui_futures.workspace = true
+icy_ui_renderer.workspace = true
+icy_ui_runtime.workspace = true
+icy_ui_widget.workspace = true
+icy_ui_winit.workspace = true
+
+icy_ui_devtools.workspace = true
+icy_ui_devtools.optional = true
+
+icy_ui_tester.workspace = true
+icy_ui_tester.optional = true
+
+icy_ui_highlighter.workspace = true
+icy_ui_highlighter.optional = true
+
+thiserror.workspace = true
+
+image.workspace = true
+image.optional = true

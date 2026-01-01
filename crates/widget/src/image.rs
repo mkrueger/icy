@@ -2,10 +2,10 @@
 //!
 //! # Example
 //! ```no_run
-//! # mod iced { pub mod widget { pub use iced_widget::*; } }
+//! # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
 //! # pub type State = ();
-//! # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-//! use iced::widget::image;
+//! # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+//! use icy_ui::widget::image;
 //!
 //! enum Message {
 //!     // ...
@@ -40,10 +40,10 @@ pub fn viewer<Handle>(handle: Handle) -> Viewer<Handle> {
 ///
 /// # Example
 /// ```no_run
-/// # mod iced { pub mod widget { pub use iced_widget::*; } }
+/// # mod iced { pub mod widget { pub use icy_ui_widget::*; } }
 /// # pub type State = ();
-/// # pub type Element<'a, Message> = iced_widget::core::Element<'a, Message, iced_widget::Theme, iced_widget::Renderer>;
-/// use iced::widget::image;
+/// # pub type Element<'a, Message> = icy_ui_widget::core::Element<'a, Message, icy_ui_widget::Theme, icy_ui_widget::Renderer>;
+/// use icy_ui::widget::image;
 ///
 /// enum Message {
 ///     // ...

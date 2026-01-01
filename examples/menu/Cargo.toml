@@ -6,4 +6,4 @@ edition = "2024"
 publish = false
 
 [dependencies]
-iced.workspace = true
+icy_ui.workspace = true

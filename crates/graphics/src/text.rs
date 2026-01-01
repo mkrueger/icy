@@ -365,7 +365,7 @@ pub fn hint_factor(size: Pixels, scale_factor: Option<f32>) -> Option<f32> {
     }
 }
 
-/// A text renderer coupled to `iced_graphics`.
+/// A text renderer coupled to `icy_ui_graphics`.
 pub trait Renderer {
     /// Draws the given [`Raw`] text.
     fn fill_raw(&mut self, raw: Raw);

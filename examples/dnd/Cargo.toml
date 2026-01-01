@@ -10,4 +10,4 @@ name = "dnd"
 path = "src/main.rs"
 
 [dependencies]
-iced.workspace = true
+icy_ui.workspace = true

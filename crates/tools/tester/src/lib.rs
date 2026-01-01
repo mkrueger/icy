@@ -1,10 +1,10 @@
 //! Record, edit, and run end-to-end tests for your iced applications.
-pub use iced_test as test;
-pub use iced_test::core;
-pub use iced_test::program;
-pub use iced_test::runtime;
-pub use iced_test::runtime::futures;
-pub use iced_widget as widget;
+pub use icy_ui_test as test;
+pub use icy_ui_test::core;
+pub use icy_ui_test::program;
+pub use icy_ui_test::runtime;
+pub use icy_ui_test::runtime::futures;
+pub use icy_ui_widget as widget;
 
 mod icon;
 mod recorder;
@@ -752,13 +752,13 @@ impl<P: Program<Theme = Theme> + 'static> Tester<P> {
             button(icon::pencil().size(14))
                 .padding(0)
                 .on_press(Event::Edit)
-                .style(button::text)
+                .style(button::text_style)
                 .into()
         } else {
             button(icon::check().size(14))
                 .padding(0)
                 .on_press(Event::Confirm)
-                .style(button::text)
+                .style(button::text_style)
                 .into()
         };
 

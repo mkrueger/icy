@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use iced::dnd::{self, DragData, DragIcon};
+//! use icy_ui::dnd::{self, DragData, DragIcon};
 //!
 //! // Start a drag with text data
 //! let task = dnd::start_drag(

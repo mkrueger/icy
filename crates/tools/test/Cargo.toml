@@ -1,6 +1,6 @@
 [package]
-name = "iced_test"
-description = "A library for testing iced applications in headless mode"
+name = "icy_ui_test"
+description = "A library for testing icy_ui applications in headless mode"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -15,15 +15,15 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-iced_runtime.workspace = true
-iced_program.workspace = true
-iced_selector.workspace = true
+icy_ui_runtime.workspace = true
+icy_ui_program.workspace = true
+icy_ui_selector.workspace = true
 
-iced_futures.workspace = true
-iced_futures.features = ["thread-pool"]
+icy_ui_futures.workspace = true
+icy_ui_futures.features = ["thread-pool"]
 
-iced_renderer.workspace = true
-iced_renderer.features = ["fira-sans"]
+icy_ui_renderer.workspace = true
+icy_ui_renderer.features = ["fira-sans"]
 
 nom.workspace = true
 png.workspace = true

@@ -37,8 +37,9 @@
     // Note: In light theme, neutral_0 is the background (light), neutral_10 is text (dark)
     neutral_0: (r: 0.992, g: 0.965, b: 0.890, a: 1.0),   // base3 #fdf6e3 (background)
     neutral_1: (r: 0.933, g: 0.910, b: 0.835, a: 1.0),   // base2 #eee8d5
-    neutral_2: (r: 0.850, g: 0.830, b: 0.770, a: 1.0),   // interpolated
-    neutral_3: (r: 0.750, g: 0.735, b: 0.700, a: 1.0),   // interpolated
+    // Keep early neutrals close to base2/base3 so widget surfaces stay light.
+    neutral_2: (r: 0.910, g: 0.885, b: 0.810, a: 1.0),   // interpolated (light surface)
+    neutral_3: (r: 0.885, g: 0.860, b: 0.790, a: 1.0),   // interpolated (small widget background)
     neutral_4: (r: 0.576, g: 0.631, b: 0.631, a: 1.0),   // base1 #93a1a1
     neutral_5: (r: 0.514, g: 0.580, b: 0.588, a: 1.0),   // base0 #839496
     neutral_6: (r: 0.396, g: 0.482, b: 0.514, a: 1.0),   // base00 #657b83

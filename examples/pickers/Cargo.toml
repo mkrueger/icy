@@ -1,0 +1,9 @@
+[package]
+name = "pickers"
+version = "0.1.0"
+authors = ["Icy contributors"]
+edition = "2021"
+publish = false
+
+[dependencies]
+icy_ui.workspace = true

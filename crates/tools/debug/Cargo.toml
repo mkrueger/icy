@@ -1,6 +1,6 @@
 [package]
-name = "iced_debug"
-description = "A pluggable API for debugging iced applications"
+name = "icy_ui_debug"
+description = "A pluggable API for debugging icy_ui applications"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,17 +11,17 @@ categories.workspace = true
 keywords.workspace = true
 
 [features]
-enable = ["dep:iced_beacon"]
+enable = ["dep:icy_ui_beacon"]
 hot = ["enable", "dep:cargo-hot"]
 
 [dependencies]
-iced_core.workspace = true
-iced_futures.workspace = true
+icy_ui_core.workspace = true
+icy_ui_futures.workspace = true
 log.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-iced_beacon.workspace = true
-iced_beacon.optional = true
+icy_ui_beacon.workspace = true
+icy_ui_beacon.optional = true
 
 cargo-hot.workspace = true
 cargo-hot.optional = true
