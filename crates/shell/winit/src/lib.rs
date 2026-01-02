@@ -75,8 +75,9 @@ use std::sync::mpsc as std_mpsc;
 /// Runs a [`Program`] with the provided settings.
 pub fn run<P>(program: P) -> Result<(), Error>
 where
-    P: Program + 'static,
+    P: Program<Theme = icy_ui_widget::Theme, Renderer = icy_ui_widget::Renderer> + 'static,
     P::Theme: theme::Base,
+    P::Message: Clone,
 {
     use winit::event_loop::EventLoop;
 
@@ -549,8 +550,9 @@ async fn run_instance<P>(
     mut _system_theme: oneshot::Receiver<theme::Mode>,
     #[cfg(target_os = "macos")] url_receiver: std_mpsc::Receiver<String>,
 ) where
-    P: Program + 'static,
+    P: Program<Theme = icy_ui_widget::Theme, Renderer = icy_ui_widget::Renderer> + 'static,
     P::Theme: theme::Base,
+    P::Message: Clone,
 {
     use winit::event;
     use winit::event_loop::ControlFlow;
@@ -1058,6 +1060,7 @@ async fn run_instance<P>(
                             redraw_request,
                             input_method,
                             mouse_interaction,
+                            #[cfg(target_os = "macos")]
                             context_menu_request,
                             ..
                         } = state
@@ -1423,6 +1426,7 @@ async fn run_instance<P>(
                                 user_interface::State::Updated {
                                     redraw_request: _redraw_request,
                                     mouse_interaction,
+                                    #[cfg(target_os = "macos")]
                                     context_menu_request,
                                     ..
                                 } => {
@@ -1752,6 +1756,7 @@ fn update_accessibility_tree<'a, P, C>(
 }
 
 /// Builds a window's [`UserInterface`] for the [`Program`].
+#[cfg(target_os = "macos")]
 fn build_user_interface<'a, P: Program>(
     program: &'a program::Instance<P>,
     cache: user_interface::Cache,
@@ -1765,30 +1770,53 @@ where
 {
     let view_span = debug::view(id);
 
-    #[cfg(target_os = "macos")]
-    let view = {
-        let _ = menu_context;
-        program.view(id)
-    };
+    let _ = menu_context;
+    let view = program.view(id);
+    view_span.finish();
 
-    #[cfg(not(target_os = "macos"))]
-    let view = {
-        let mut view = program.view(id);
+    let layout_span = debug::layout(id);
+    let user_interface = UserInterface::build(view, size, cache, renderer);
+    layout_span.finish();
 
-        if let Some(menu) = program.application_menu(menu_context) {
-            use icy_ui_widget::menu::menu_bar_from_app_menu;
-            use icy_ui_widget::{column, core::Length};
+    user_interface
+}
 
-            let menu_bar = menu_bar_from_app_menu(&menu);
+/// Builds a window's [`UserInterface`] for the [`Program`].
+///
+/// On non-macOS platforms, this function also renders the application menu bar
+/// as part of the UI.
+#[cfg(not(target_os = "macos"))]
+fn build_user_interface<'a, P: Program>(
+    program: &'a program::Instance<P>,
+    cache: user_interface::Cache,
+    renderer: &mut P::Renderer,
+    size: Size,
+    menu_context: &core::menu::MenuContext,
+    id: window::Id,
+) -> UserInterface<'a, P::Message, P::Theme, P::Renderer>
+where
+    P: Program<Theme = icy_ui_widget::Theme, Renderer = icy_ui_widget::Renderer>,
+    P::Theme: theme::Base,
+    P::Message: Clone,
+{
+    let view_span = debug::view(id);
 
-            view = column![menu_bar, view]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into();
-        }
+    let mut view = program.view(id);
 
-        view
-    };
+    if let Some(menu) = program.application_menu(menu_context) {
+        use icy_ui_widget::menu::menu_bar_from;
+        use icy_ui_widget::{Column, core::Length};
+
+        let menu_bar = menu_bar_from(&menu);
+
+        view = Column::new()
+            .push(menu_bar)
+            .push(view)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
+    }
+
     view_span.finish();
 
     let layout_span = debug::layout(id);
@@ -2023,9 +2051,10 @@ fn run_action<'a, P, C>(
     #[cfg(feature = "accessibility")] accessibility: &mut FxHashMap<window::Id, AccessibilityState>,
     system_theme: &mut theme::Mode,
 ) where
-    P: Program,
+    P: Program<Theme = icy_ui_widget::Theme, Renderer = icy_ui_widget::Renderer>,
     C: Compositor<Renderer = P::Renderer> + 'static,
     P::Theme: theme::Base,
+    P::Message: Clone,
 {
     use crate::core::Renderer as _;
     use crate::runtime::clipboard;
@@ -2570,8 +2599,10 @@ pub fn build_user_interfaces<'a, P: Program, C>(
     mut cached_user_interfaces: FxHashMap<window::Id, user_interface::Cache>,
 ) -> FxHashMap<window::Id, UserInterface<'a, P::Message, P::Theme, P::Renderer>>
 where
+    P: Program<Theme = icy_ui_widget::Theme, Renderer = icy_ui_widget::Renderer>,
     C: Compositor<Renderer = P::Renderer>,
     P::Theme: theme::Base,
+    P::Message: Clone,
 {
     let mut menu_windows = Vec::new();
 

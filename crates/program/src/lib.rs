@@ -125,7 +125,8 @@ pub trait Program: Sized {
 pub fn with_title<P: Program>(
     program: P,
     title: impl Fn(&P::State, window::Id) -> String,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithTitle<P, Title> {
         program: P,
         title: Title,
@@ -198,7 +199,8 @@ pub fn with_title<P: Program>(
 pub fn with_subscription<P: Program>(
     program: P,
     f: impl Fn(&P::State) -> Subscription<P::Message>,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithSubscription<P, F> {
         program: P,
         subscription: F,
@@ -273,7 +275,8 @@ pub fn with_subscription<P: Program>(
 pub fn with_application_menu<P: Program>(
     program: P,
     f: impl Fn(&P::State, &menu::MenuContext) -> Option<menu::AppMenu<P::Message>>,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithApplicationMenu<P, F> {
         program: P,
         menu: F,
@@ -358,7 +361,8 @@ pub fn with_application_menu<P: Program>(
 pub fn with_theme<P: Program>(
     program: P,
     f: impl Fn(&P::State, window::Id) -> Option<P::Theme>,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithTheme<P, F> {
         program: P,
         theme: F,
@@ -430,7 +434,8 @@ pub fn with_theme<P: Program>(
 pub fn with_style<P: Program>(
     program: P,
     f: impl Fn(&P::State, &P::Theme) -> theme::Style,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithStyle<P, F> {
         program: P,
         style: F,
@@ -502,7 +507,8 @@ pub fn with_style<P: Program>(
 pub fn with_scale_factor<P: Program>(
     program: P,
     f: impl Fn(&P::State, window::Id) -> f32,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     struct WithScaleFactor<P, F> {
         program: P,
         scale_factor: F,
@@ -576,7 +582,8 @@ pub fn with_scale_factor<P: Program>(
 /// Decorates a [`Program`] with the given executor function.
 pub fn with_executor<P: Program, E: Executor>(
     program: P,
-) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
+) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>
+{
     use std::marker::PhantomData;
 
     struct WithExecutor<P, E> {

@@ -404,6 +404,21 @@ where
     }
 }
 
+impl<P> Clone for Event<P>
+where
+    P: Program,
+    P::Message: Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Message(message) => Self::Message(message.clone()),
+            Self::Program(message) => Self::Program(message.clone()),
+            Self::Command(command) => Self::Command(*command),
+            Self::Discard => Self::Discard,
+        }
+    }
+}
+
 fn setup<Renderer>(goal: &Goal) -> Element<'_, Message, Theme, Renderer>
 where
     Renderer: program::Renderer + 'static,

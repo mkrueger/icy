@@ -74,8 +74,9 @@ where
         }),
         close_on_escape: true,
         on_right_click: None,
+        #[cfg(target_os = "macos")]
         native_items: None, // context_menu_from doesn't have native items
-        menu_nodes: None,   // context_menu_from doesn't have menu nodes
+        menu_nodes: None, // context_menu_from doesn't have menu nodes
     };
 
     if let Some(ref mut context_menu) = this.context_menu {
@@ -116,11 +117,13 @@ pub fn context_menu<'a, Message>(
 where
     Message: Clone + 'static,
 {
+    #[cfg(target_os = "macos")]
     use crate::core::menu::ContextMenuItem;
 
-    let items = convert_children(nodes);
+    #[cfg(target_os = "macos")]
     let native_items = ContextMenuItem::from_menu_nodes(nodes);
     let menu_nodes = nodes.to_vec();
+    let items = convert_children(&menu_nodes);
 
     let mut this = ContextMenu {
         content: content.into(),
@@ -134,6 +137,7 @@ where
         },
         close_on_escape: true,
         on_right_click: None,
+        #[cfg(target_os = "macos")]
         native_items: if native_items.is_empty() {
             None
         } else {
@@ -170,6 +174,7 @@ where
     on_right_click: Option<Box<dyn Fn(Point) -> Message + 'a>>,
     /// Native menu items for platforms that support native context menus.
     /// This is used on macOS to show a native NSMenu.
+    #[cfg(target_os = "macos")]
     native_items: Option<Vec<crate::core::menu::ContextMenuItem>>,
     /// The original menu nodes, used to look up messages when a native menu item is selected.
     menu_nodes: Option<Vec<MenuNode<Message>>>,

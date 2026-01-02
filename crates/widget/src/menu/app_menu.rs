@@ -233,8 +233,8 @@ where
                     Row::new()
                         .push(mnemonic_text(&l))
                         .align_y(Alignment::Center)
-                        .height(Length::Fill)
-                        .width(Length::Fill),
+                        .height(Length::Shrink)
+                        .width(Length::Shrink),
                 )
                 .padding([4, 12])
                 .style(menu_root_style);

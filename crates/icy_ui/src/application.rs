@@ -36,7 +36,8 @@ use crate::shell;
 use crate::theme;
 use crate::window;
 use crate::{
-    Element, Executor, Font, Never, Preset, Result, Settings, Size, Subscription, Task, Theme,
+    Element, Executor, Font, Never, Preset, Renderer, Result, Settings, Size, Subscription, Task,
+    Theme,
 };
 
 use icy_ui_debug as debug;
@@ -79,7 +80,7 @@ pub fn application<State, Message, Theme, Renderer>(
     boot: impl BootFn<State, Message>,
     update: impl UpdateFn<State, Message>,
     view: impl for<'a> ViewFn<'a, State, Message, Theme, Renderer>,
-) -> Application<impl Program<State = State, Message = Message, Theme = Theme>>
+) -> Application<impl Program<State = State, Message = Message, Theme = Theme, Renderer = Renderer>>
 where
     State: 'static,
     Message: Send + 'static,
@@ -186,8 +187,8 @@ impl<P: Program> Application<P> {
     pub fn run(self) -> Result
     where
         Self: 'static,
-        P::Message: message::MaybeDebug + message::MaybeClone,
-        P: Program<Theme = Theme>,
+        P::Message: message::MaybeDebug + message::MaybeClone + Clone,
+        P: Program<Theme = Theme, Renderer = Renderer>,
     {
         icy_ui_debug::init(icy_ui_debug::Metadata {
             name: P::name(),
@@ -209,7 +210,8 @@ impl<P: Program> Application<P> {
     pub fn run(self) -> Result
     where
         Self: 'static,
-        P::Message: message::MaybeDebug + message::MaybeClone,
+        P::Message: message::MaybeDebug + message::MaybeClone + Clone,
+        P: Program<Theme = Theme, Renderer = Renderer>,
     {
         #[cfg(feature = "debug")]
         icy_ui_debug::init(icy_ui_debug::Metadata {
@@ -359,7 +361,9 @@ impl<P: Program> Application<P> {
     pub fn title(
         self,
         title: impl TitleFn<P::State>,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_title(self.raw, move |state, _window| title.title(state)),
             settings: self.settings,
@@ -372,7 +376,9 @@ impl<P: Program> Application<P> {
     pub fn subscription(
         self,
         f: impl Fn(&P::State) -> Subscription<P::Message>,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_subscription(self.raw, f),
             settings: self.settings,
@@ -385,7 +391,9 @@ impl<P: Program> Application<P> {
     pub fn theme(
         self,
         f: impl ThemeFn<P::State, P::Theme>,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_theme(self.raw, move |state, _window| f.theme(state)),
             settings: self.settings,
@@ -398,7 +406,9 @@ impl<P: Program> Application<P> {
     pub fn style(
         self,
         f: impl Fn(&P::State, &P::Theme) -> theme::Style,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_style(self.raw, f),
             settings: self.settings,
@@ -411,7 +421,9 @@ impl<P: Program> Application<P> {
     pub fn scale_factor(
         self,
         f: impl Fn(&P::State) -> f32,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_scale_factor(self.raw, move |state, _window| f(state)),
             settings: self.settings,
@@ -423,7 +435,9 @@ impl<P: Program> Application<P> {
     /// Sets the executor of the [`Application`].
     pub fn executor<E>(
         self,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>>
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    >
     where
         E: Executor,
     {
@@ -450,10 +464,13 @@ impl<P: Program> Application<P> {
     /// Sets the application menu logic of the [`Application`].
     pub fn application_menu(
         self,
-        f: impl Fn(&P::State, &program::core::menu::MenuContext) -> Option<
-            program::core::menu::AppMenu<P::Message>,
-        >,
-    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+        f: impl Fn(
+            &P::State,
+            &program::core::menu::MenuContext,
+        ) -> Option<program::core::menu::AppMenu<P::Message>>,
+    ) -> Application<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Application {
             raw: program::with_application_menu(self.raw, f),
             settings: self.settings,

@@ -3,6 +3,8 @@
 //! These provide the same API as the macOS implementations but return errors
 //! or no-ops, allowing the crate to compile on all platforms.
 
+#![allow(unsafe_code)]
+
 use std::ptr::NonNull;
 use std::sync::mpsc::Receiver;
 

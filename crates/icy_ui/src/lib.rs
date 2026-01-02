@@ -878,14 +878,13 @@ pub type Result = std::result::Result<(), Error>;
     not(feature = "tester"),
     not(target_arch = "wasm32")
 ))]
-pub fn run<State, Message, Renderer>(
+pub fn run<State, Message>(
     update: impl application::UpdateFn<State, Message> + 'static,
     view: impl for<'a> application::ViewFn<'a, State, Message, Theme, Renderer> + 'static,
 ) -> Result
 where
     State: Default + 'static,
-    Message: Send + message::MaybeDebug + message::MaybeClone + 'static,
-    Renderer: program::Renderer + 'static,
+    Message: Send + message::MaybeDebug + message::MaybeClone + Clone + 'static,
 {
     application(State::default, update, view).run()
 }
@@ -896,15 +895,13 @@ where
     not(feature = "tester"),
     not(target_arch = "wasm32")
 )))]
-pub fn run<State, Message, Theme, Renderer>(
+pub fn run<State, Message>(
     update: impl application::UpdateFn<State, Message> + 'static,
     view: impl for<'a> application::ViewFn<'a, State, Message, Theme, Renderer> + 'static,
 ) -> Result
 where
     State: Default + 'static,
-    Message: Send + message::MaybeDebug + message::MaybeClone + 'static,
-    Theme: theme::Base + 'static,
-    Renderer: program::Renderer + 'static,
+    Message: Send + message::MaybeDebug + message::MaybeClone + Clone + 'static,
 {
     application(State::default, update, view).run()
 }
