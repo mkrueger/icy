@@ -1,6 +1,17 @@
 use crate::InputMethod;
+use crate::Point;
 use crate::event;
+use crate::menu::ContextMenuItem;
 use crate::window;
+
+/// A request to show a context menu.
+#[derive(Debug, Clone)]
+pub struct ContextMenuRequest {
+    /// The position to show the menu at (in window coordinates).
+    pub position: Point,
+    /// The menu items to display.
+    pub items: Vec<ContextMenuItem>,
+}
 
 /// A connection to the state of a shell.
 ///
@@ -16,6 +27,7 @@ pub struct Shell<'a, Message> {
     input_method: InputMethod,
     is_layout_invalid: bool,
     are_widgets_invalid: bool,
+    context_menu_request: Option<ContextMenuRequest>,
 }
 
 impl<'a, Message> Shell<'a, Message> {
@@ -28,6 +40,7 @@ impl<'a, Message> Shell<'a, Message> {
             is_layout_invalid: false,
             are_widgets_invalid: false,
             input_method: InputMethod::Disabled,
+            context_menu_request: None,
         }
     }
 
@@ -166,5 +179,35 @@ impl<'a, Message> Shell<'a, Message> {
         self.redraw_request = self.redraw_request.min(other.redraw_request);
         self.event_status = self.event_status.merge(other.event_status);
         self.input_method.merge(&other.input_method);
+
+        // Merge context menu request (last one wins)
+        if other.context_menu_request.is_some() {
+            self.context_menu_request = other.context_menu_request;
+        }
+    }
+
+    /// Requests a native context menu to be shown at the given position.
+    ///
+    /// On platforms that support native context menus (macOS), this will
+    /// display a native menu. On other platforms, widgets should fall back
+    /// to overlay menus.
+    ///
+    /// This is typically called by the `context_menu` widget when a right-click
+    /// is detected.
+    pub fn request_context_menu(&mut self, position: Point, items: Vec<ContextMenuItem>) {
+        self.context_menu_request = Some(ContextMenuRequest { position, items });
+    }
+
+    /// Takes the pending context menu request, if any.
+    ///
+    /// This is called by the runtime to process context menu requests from widgets.
+    pub fn take_context_menu_request(&mut self) -> Option<ContextMenuRequest> {
+        self.context_menu_request.take()
+    }
+
+    /// Returns whether there is a pending context menu request.
+    #[must_use]
+    pub fn has_context_menu_request(&self) -> bool {
+        self.context_menu_request.is_some()
     }
 }

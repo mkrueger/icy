@@ -37,13 +37,13 @@ accessibility = [
 [dependencies]
 icy_ui_debug.workspace = true
 icy_ui_program.workspace = true
+icy_ui_widget.workspace = true
 
 log.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 winit.workspace = true
-
 sysinfo.workspace = true
 sysinfo.optional = true
 

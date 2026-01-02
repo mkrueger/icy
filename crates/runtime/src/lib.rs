@@ -14,6 +14,7 @@
 pub mod accessibility;
 
 pub mod clipboard;
+pub mod context_menu;
 pub mod dnd;
 pub mod font;
 pub mod image;

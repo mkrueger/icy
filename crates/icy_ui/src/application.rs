@@ -446,6 +446,21 @@ impl<P: Program> Application<P> {
             ..self
         }
     }
+
+    /// Sets the application menu logic of the [`Application`].
+    pub fn application_menu(
+        self,
+        f: impl Fn(&P::State, &program::core::menu::MenuContext) -> Option<
+            program::core::menu::AppMenu<P::Message>,
+        >,
+    ) -> Application<impl Program<State = P::State, Message = P::Message, Theme = P::Theme>> {
+        Application {
+            raw: program::with_application_menu(self.raw, f),
+            settings: self.settings,
+            window: self.window,
+            presets: self.presets,
+        }
+    }
 }
 
 impl<P: Program> Program for Application<P> {
@@ -481,6 +496,14 @@ impl<P: Program> Program for Application<P> {
         window: window::Id,
     ) -> Element<'a, Self::Message, Self::Theme, Self::Renderer> {
         debug::hot(|| self.raw.view(state, window))
+    }
+
+    fn application_menu(
+        &self,
+        state: &Self::State,
+        context: &program::core::menu::MenuContext,
+    ) -> Option<program::core::menu::AppMenu<Self::Message>> {
+        debug::hot(|| self.raw.application_menu(state, context))
     }
 
     fn title(&self, state: &Self::State, window: window::Id) -> String {

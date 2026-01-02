@@ -1,6 +1,7 @@
 //! Handle events of a user interface.
 use crate::input_method;
 use crate::keyboard;
+use crate::menu;
 use crate::mouse;
 use crate::touch;
 use crate::window;
@@ -30,6 +31,13 @@ pub enum Event {
 
     /// An input method event
     InputMethod(input_method::Event),
+
+    /// A context menu item was selected.
+    ///
+    /// This event is dispatched when a user selects an item from a native
+    /// context menu. The widget that opened the menu should handle this
+    /// event and map the [`MenuId`](menu::MenuId) back to the appropriate message.
+    ContextMenuItemSelected(menu::MenuId),
 
     /// An accessibility event from a screen reader or assistive technology.
     ///

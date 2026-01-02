@@ -25,6 +25,8 @@ pub mod image;
 pub mod input_method;
 pub mod keyboard;
 pub mod layout;
+/// Application menu model types.
+pub mod menu;
 pub mod mouse;
 pub mod overlay;
 pub mod padding;
@@ -82,7 +84,7 @@ pub use renderer::Renderer;
 pub use rotation::Rotation;
 pub use settings::Settings;
 pub use shadow::Shadow;
-pub use shell::Shell;
+pub use shell::{ContextMenuRequest, Shell};
 pub use size::Size;
 pub use svg::Svg;
 pub use text::Text;

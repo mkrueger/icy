@@ -69,10 +69,13 @@ pub use menu_tree::{
     MenuItem as Item, MenuTree as Tree, menu_button, menu_items as items, menu_root as root,
 };
 
+mod app_menu;
+pub use app_menu::{menu_bar, menu_bar_from};
+
 pub use menu_inner::{CloseCondition, ItemHeight, ItemWidth, PathHighlight};
 
 mod context_menu;
-pub use context_menu::{ContextMenu, context_menu};
+pub use context_menu::{ContextMenu, context_menu, context_menu_from};
 
 mod mnemonic;
 pub use mnemonic::{

@@ -20,6 +20,7 @@ dnd = []
 
 [dependencies]
 log.workspace = true
+icy_ui_core.workspace = true
 
 # Objective-C runtime bindings (only on macOS)
 [target.'cfg(target_os = "macos")'.dependencies]

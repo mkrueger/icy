@@ -6,7 +6,9 @@ use crate::core::overlay;
 use crate::core::renderer;
 use crate::core::widget;
 use crate::core::window;
-use crate::core::{Clipboard, Element, InputMethod, Layout, Rectangle, Shell, Size, Vector};
+use crate::core::{
+    Clipboard, ContextMenuRequest, Element, InputMethod, Layout, Rectangle, Shell, Size, Vector,
+};
 
 /// A set of interactive graphical elements with a specific [`Layout`].
 ///
@@ -191,6 +193,7 @@ where
         let mut redraw_request = window::RedrawRequest::Wait;
         let mut input_method = InputMethod::Disabled;
         let mut has_layout_changed = false;
+        let mut context_menu_request = None;
         let viewport = Rectangle::with_size(self.bounds);
 
         let mut maybe_overlay = self
@@ -227,6 +230,11 @@ where
                 event_statuses.push(shell.event_status());
                 redraw_request = redraw_request.min(shell.redraw_request());
                 input_method.merge(shell.input_method());
+
+                // Collect context menu request (last one wins)
+                if let Some(req) = shell.take_context_menu_request() {
+                    context_menu_request = Some(req);
+                }
 
                 if shell.is_layout_invalid() {
                     drop(maybe_overlay);
@@ -331,6 +339,11 @@ where
                 redraw_request = redraw_request.min(shell.redraw_request());
                 input_method.merge(shell.input_method());
 
+                // Collect context menu request (last one wins)
+                if let Some(req) = shell.take_context_menu_request() {
+                    context_menu_request = Some(req);
+                }
+
                 shell.revalidate_layout(|| {
                     has_layout_changed = true;
 
@@ -392,6 +405,7 @@ where
                     redraw_request,
                     input_method,
                     has_layout_changed,
+                    context_menu_request,
                 }
             },
             event_statuses,
@@ -619,6 +633,8 @@ pub enum State {
         input_method: InputMethod,
         /// Whether the layout of the [`UserInterface`] has changed.
         has_layout_changed: bool,
+        /// A pending context menu request from a widget.
+        context_menu_request: Option<ContextMenuRequest>,
     },
 }
 

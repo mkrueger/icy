@@ -15,6 +15,7 @@ where
     P::Theme: theme::Base,
 {
     title: String,
+    focused: bool,
     scale_factor: f32,
     viewport: Viewport,
     surface_version: u64,
@@ -70,6 +71,7 @@ where
 
         Self {
             title,
+            focused: false,
             scale_factor,
             viewport,
             surface_version: 0,
@@ -80,6 +82,16 @@ where
             default_theme,
             style,
         }
+    }
+
+    /// Returns the last synchronized window title.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// Returns whether the window is currently focused.
+    pub fn focused(&self) -> bool {
+        self.focused
     }
 
     pub fn viewport(&self) -> &Viewport {
@@ -133,6 +145,9 @@ where
 
     pub fn update(&mut self, program: &program::Instance<P>, window: &Window, event: &WindowEvent) {
         match event {
+            WindowEvent::Focused(focused) => {
+                self.focused = *focused;
+            }
             WindowEvent::Resized(new_size) => {
                 let size = Size::new(new_size.width, new_size.height);
 

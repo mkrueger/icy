@@ -7,7 +7,17 @@ publish = false
 
 [dependencies]
 icy_ui.workspace = true
-icy_ui.features = ["smol", "image", "svg", "tokio", "qr_code", "wgpu", "markdown", "highlighter"]
+icy_ui.features = [
+    "smol",
+    "image",
+    "svg",
+    "tokio",
+    "qr_code",
+    "wgpu",
+    "markdown",
+    "highlighter",
+]
+icy_ui_core.workspace = true
 chrono = "0.4"
 bytemuck = { version = "1.0", features = ["derive"] }
 open = "5"

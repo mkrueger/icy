@@ -4,11 +4,13 @@
 //! A context menu is a menu in a graphical user interface that appears upon
 //! user interaction, such as a right-click mouse operation.
 
+use super::app_menu::convert_children;
 use super::menu_bar::{MenuBarState, menu_roots_diff};
 use super::menu_inner::{CloseCondition, ItemHeight, ItemWidth, Menu, PathHighlight};
 use super::menu_tree::MenuTree;
 use super::style::StyleSheet;
 
+use crate::core::menu::{MenuId, MenuKind, MenuNode};
 use crate::core::renderer;
 use crate::core::{
     Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
@@ -18,9 +20,42 @@ use crate::core::{
 
 use std::collections::HashSet;
 
+/// Finds the message for an activated menu item by its [`MenuId`].
+///
+/// This function searches through the provided menu nodes to find
+/// the item with the matching ID and returns a clone of its `on_activate`
+/// message.
+fn find_activated_message<Message>(id: &MenuId, nodes: &[MenuNode<Message>]) -> Option<Message>
+where
+    Message: Clone,
+{
+    for node in nodes {
+        if &node.id == id {
+            match &node.kind {
+                MenuKind::Item { on_activate, .. } => {
+                    return Some(on_activate.clone());
+                }
+                MenuKind::CheckItem { on_activate, .. } => {
+                    return Some(on_activate.clone());
+                }
+                _ => {}
+            }
+        }
+
+        // Recursively search submenus
+        if let MenuKind::Submenu { children, .. } = &node.kind {
+            if let Some(msg) = find_activated_message(id, children) {
+                return Some(msg);
+            }
+        }
+    }
+
+    None
+}
+
 /// A context menu is a menu in a graphical user interface that appears upon
 /// user interaction, such as a right-click mouse operation.
-pub fn context_menu<'a, Message, Theme, Renderer>(
+pub fn context_menu_from<'a, Message, Theme, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
     menu: Option<Vec<MenuTree<'a, Message, Theme, Renderer>>>,
 ) -> ContextMenu<'a, Message, Theme, Renderer>
@@ -38,6 +73,77 @@ where
             )]
         }),
         close_on_escape: true,
+        on_right_click: None,
+        native_items: None, // context_menu_from doesn't have native items
+        menu_nodes: None,   // context_menu_from doesn't have menu nodes
+    };
+
+    if let Some(ref mut context_menu) = this.context_menu {
+        context_menu.iter_mut().for_each(MenuTree::set_index);
+    }
+
+    this
+}
+
+/// Creates a context menu from [`MenuNode`] items.
+///
+/// This is a convenience function that converts the simpler `MenuNode` API
+/// into a context menu widget, making it easier to create consistent menus
+/// between the application menu and context menus.
+///
+/// On macOS, this will automatically show a native context menu.
+/// On other platforms, an overlay menu will be displayed.
+///
+/// # Example
+///
+/// ```ignore
+/// use icy_ui_core::menu;
+/// use icy_ui::widget::menu::context_menu;
+///
+/// let nodes = vec![
+///     menu::item!("Cut", Message::Cut),
+///     menu::item!("Copy", Message::Copy),
+///     menu::separator!(),
+///     menu::item!("Paste", Message::Paste),
+/// ];
+///
+/// context_menu(my_content, &nodes)
+/// ```
+pub fn context_menu<'a, Message>(
+    content: impl Into<Element<'a, Message, crate::Theme, crate::Renderer>>,
+    nodes: &[MenuNode<Message>],
+) -> ContextMenu<'a, Message, crate::Theme, crate::Renderer>
+where
+    Message: Clone + 'static,
+{
+    use crate::core::menu::ContextMenuItem;
+
+    let items = convert_children(nodes);
+    let native_items = ContextMenuItem::from_menu_nodes(nodes);
+    let menu_nodes = nodes.to_vec();
+
+    let mut this = ContextMenu {
+        content: content.into(),
+        context_menu: if items.is_empty() {
+            None
+        } else {
+            Some(vec![MenuTree::with_children(
+                Element::from(crate::Row::<'static, Message, crate::Theme, crate::Renderer>::new()),
+                items,
+            )])
+        },
+        close_on_escape: true,
+        on_right_click: None,
+        native_items: if native_items.is_empty() {
+            None
+        } else {
+            Some(native_items)
+        },
+        menu_nodes: if menu_nodes.is_empty() {
+            None
+        } else {
+            Some(menu_nodes)
+        },
     };
 
     if let Some(ref mut context_menu) = this.context_menu {
@@ -58,6 +164,15 @@ where
     context_menu: Option<Vec<MenuTree<'a, Message, Theme, Renderer>>>,
     /// Whether to close on escape key press
     pub close_on_escape: bool,
+    /// Optional callback for right-click events.
+    /// When set, this callback is invoked instead of showing the overlay menu.
+    /// This is useful for triggering native context menus on macOS.
+    on_right_click: Option<Box<dyn Fn(Point) -> Message + 'a>>,
+    /// Native menu items for platforms that support native context menus.
+    /// This is used on macOS to show a native NSMenu.
+    native_items: Option<Vec<crate::core::menu::ContextMenuItem>>,
+    /// The original menu nodes, used to look up messages when a native menu item is selected.
+    menu_nodes: Option<Vec<MenuNode<Message>>>,
 }
 
 impl<'a, Message, Theme, Renderer> ContextMenu<'a, Message, Theme, Renderer>
@@ -69,6 +184,23 @@ where
     /// Set whether to close on escape key press
     pub fn close_on_escape(mut self, close_on_escape: bool) -> Self {
         self.close_on_escape = close_on_escape;
+        self
+    }
+
+    /// Set a callback to be invoked on right-click instead of showing the overlay menu.
+    ///
+    /// When this is set, the widget will not show its overlay menu on right-click.
+    /// Instead, it will publish a message returned by the callback function.
+    /// This is useful for triggering native context menus on macOS.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// context_menu(content, &nodes)
+    ///     .on_right_click(|pos| Message::ShowNativeContextMenu(pos))
+    /// ```
+    pub fn on_right_click(mut self, callback: impl Fn(Point) -> Message + 'a) -> Self {
+        self.on_right_click = Some(Box::new(callback));
         self
     }
 }
@@ -191,6 +323,18 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        // Handle native context menu item selection
+        // When a native menu item is selected, look up the message and publish it
+        if let Event::ContextMenuItemSelected(menu_id) = event {
+            if let Some(ref nodes) = self.menu_nodes {
+                if let Some(msg) = find_activated_message(menu_id, nodes) {
+                    shell.publish(msg);
+                    shell.capture_event();
+                    return;
+                }
+            }
+        }
+
         let state = tree.state.downcast_mut::<LocalState>();
         let bounds = layout.bounds();
 
@@ -248,9 +392,30 @@ where
                 && (right_button_released(event) || (touch_lifted(event) && fingers_pressed == 2))
             {
                 state.context_cursor = cursor.position().unwrap_or_default();
+
+                // If on_right_click callback is set, publish message instead of showing overlay
+                if let Some(ref on_right_click) = self.on_right_click {
+                    let message = on_right_click(state.context_cursor);
+                    shell.publish(message);
+                    shell.capture_event();
+                    return;
+                }
+
+                // On macOS, use native context menu if we have native items
+                #[cfg(target_os = "macos")]
+                if let Some(ref items) = self.native_items {
+                    shell.request_context_menu(state.context_cursor, items.clone());
+                    shell.capture_event();
+                    return;
+                }
+
+                // Fallback to overlay menu
                 state.menu_bar_state.inner.with_data_mut(|state| {
                     state.open = true;
                     state.view_cursor = cursor;
+                    // Set active_root to trigger immediate menu initialization
+                    state.active_root.clear();
+                    state.active_root.push(0);
                 });
 
                 shell.capture_event();
@@ -285,7 +450,7 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        _layout: Layout<'_>,
         _renderer: &Renderer,
         _viewport: &Rectangle,
         translation: Vector,
@@ -303,9 +468,13 @@ where
             menu_roots_diff(context_menu, &mut inner.tree);
         });
 
-        let mut bounds = layout.bounds();
-        bounds.x = state.context_cursor.x;
-        bounds.y = state.context_cursor.y;
+        // Create a point-sized bounds at the context cursor position.
+        // The menu will open from this point.
+        let context_point = Point::new(
+            state.context_cursor.x - translation.x,
+            state.context_cursor.y - translation.y,
+        );
+        let bounds = Rectangle::new(context_point, Size::ZERO);
 
         Some(
             Menu {
@@ -321,7 +490,7 @@ where
                 item_width: ItemWidth::Uniform(240),
                 item_height: ItemHeight::Dynamic(40),
                 bar_bounds: bounds,
-                main_offset: -(bounds.height as i32),
+                main_offset: 0,
                 cross_offset: 0,
                 root_bounds_list: vec![bounds],
                 path_highlight: Some(PathHighlight::MenuActive),

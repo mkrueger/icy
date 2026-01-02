@@ -16,6 +16,7 @@ pub struct MouseArea<'a, Message, Theme = crate::Theme, Renderer = crate::Render
     on_release: Option<Message>,
     on_double_click: Option<Message>,
     on_right_press: Option<Message>,
+    on_right_press_at: Option<Box<dyn Fn(Point) -> Message + 'a>>,
     on_right_release: Option<Message>,
     on_middle_press: Option<Message>,
     on_middle_release: Option<Message>,
@@ -61,6 +62,15 @@ impl<'a, Message, Theme, Renderer> MouseArea<'a, Message, Theme, Renderer> {
     #[must_use]
     pub fn on_right_press(mut self, message: Message) -> Self {
         self.on_right_press = Some(message);
+        self
+    }
+
+    /// The message to emit on a right button press, with the cursor position.
+    ///
+    /// This is useful for showing context menus at the cursor location.
+    #[must_use]
+    pub fn on_right_press_at(mut self, f: impl Fn(Point) -> Message + 'a) -> Self {
+        self.on_right_press_at = Some(Box::new(f));
         self
     }
 
@@ -139,6 +149,7 @@ impl<'a, Message, Theme, Renderer> MouseArea<'a, Message, Theme, Renderer> {
             on_release: None,
             on_double_click: None,
             on_right_press: None,
+            on_right_press_at: None,
             on_right_release: None,
             on_middle_press: None,
             on_middle_release: None,
@@ -393,7 +404,12 @@ fn update<Message: Clone, Theme, Renderer>(
             button: mouse::Button::Right,
             ..
         }) => {
-            if let Some(message) = widget.on_right_press.as_ref() {
+            if let Some(on_right_press_at) = widget.on_right_press_at.as_ref() {
+                if let Some(position) = state.cursor_position {
+                    shell.publish(on_right_press_at(position));
+                    shell.capture_event();
+                }
+            } else if let Some(message) = widget.on_right_press.as_ref() {
                 shell.publish(message.clone());
                 shell.capture_event();
             }

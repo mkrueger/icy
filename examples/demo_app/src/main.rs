@@ -5,17 +5,18 @@
 
 mod pages;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use icy_ui::dnd::DropResult;
 use icy_ui::keyboard::Key;
-use icy_ui::widget::menu::{bar, items, root, Item, KeyBind, Modifier, Tree};
 use icy_ui::widget::{
     button, column, container, date_picker, pane_grid, row, rule, scrollable, space, text,
     text_editor, toaster,
 };
+use icy_ui::window;
 use icy_ui::{Element, Fill, Point, Subscription, Task, Theme};
+
+use icy_ui::menu;
 
 use pages::{
     AnchorPosition, ButtonsState, CanvasPageState, ComponentChoice, ContainerChoice,
@@ -29,6 +30,7 @@ pub fn main() -> icy_ui::Result {
     icy_ui::application(DemoApp::default, DemoApp::update, DemoApp::view)
         .subscription(DemoApp::subscription)
         .theme(DemoApp::theme)
+        .application_menu(DemoApp::application_menu)
         .run()
 }
 
@@ -169,14 +171,6 @@ pub enum MenuAction {
     GoToPage(Page),
 }
 
-impl icy_ui::widget::menu::Action for MenuAction {
-    type Message = Message;
-
-    fn message(&self) -> Self::Message {
-        Message::MenuAction(*self)
-    }
-}
-
 // =============================================================================
 // Shared Types
 // =============================================================================
@@ -248,6 +242,7 @@ struct DemoApp {
     current_page: Page,
     dark_mode: bool,
     status_message: String,
+    recent_files: Vec<String>,
 
     // Page states
     buttons: ButtonsState,
@@ -275,6 +270,11 @@ impl Default for DemoApp {
             current_page: Page::default(),
             dark_mode: true,
             status_message: "Welcome to Demo App!".into(),
+            recent_files: vec![
+                "README.md".to_string(),
+                "doc/THEME.md".to_string(),
+                "examples/demo_app/src/main.rs".to_string(),
+            ],
             buttons: ButtonsState::default(),
             text_inputs: TextInputsState::default(),
             sliders: SlidersState::default(),
@@ -415,6 +415,10 @@ pub enum Message {
 
     // Global
     OpenUrl(String),
+
+    // Application menu
+    MenuOpenRecent(String),
+    MenuActivateWindow(window::Id),
 }
 
 // =============================================================================
@@ -427,6 +431,14 @@ impl DemoApp {
         match &message {
             Message::OpenUrl(url) => {
                 let _ = open::that(url);
+                return Task::none();
+            }
+            Message::MenuOpenRecent(path) => {
+                self.status_message = format!("Open recent: {path}");
+                return Task::none();
+            }
+            Message::MenuActivateWindow(id) => {
+                self.status_message = format!("Activate window {id}");
                 return Task::none();
             }
             Message::GoToPage(page) => {
@@ -535,6 +547,138 @@ impl DemoApp {
         Task::none()
     }
 
+    fn application_menu(
+        state: &DemoApp,
+        context: &menu::MenuContext,
+    ) -> Option<menu::AppMenu<Message>> {
+        // Use role-based quit item - on macOS this moves to the app menu with ⌘Q.
+        let file_exit = menu::quit!(Message::MenuAction(MenuAction::Exit));
+
+        // Base IDs for dynamic menu items (hashed from descriptive strings)
+        const NO_RECENT_ID: menu::MenuId = menu::MenuId::from_str("demo.no_recent");
+        const RECENT_BASE_ID: menu::MenuId = menu::MenuId::from_str("demo.recent");
+        const RECENT_SUBMENU_ID: menu::MenuId = menu::MenuId::from_str("demo.recent_submenu");
+
+        let recent_children: Vec<menu::MenuNode<Message>> = if state.recent_files.is_empty() {
+            vec![menu::MenuNode::new_with_id(
+                NO_RECENT_ID,
+                menu::MenuKind::Item {
+                    label: "(No Recent Files)".to_string(),
+                    enabled: false,
+                    shortcut: None,
+                    on_activate: Message::NoOp,
+                },
+            )]
+        } else {
+            state
+                .recent_files
+                .iter()
+                .enumerate()
+                .map(|(idx, path)| {
+                    // Dynamic items: base ID + index
+                    menu::MenuNode::item_with_id(
+                        menu::MenuId::from_u64(RECENT_BASE_ID.as_u64().wrapping_add(idx as u64)),
+                        path.clone(),
+                        Message::MenuOpenRecent(path.clone()),
+                    )
+                })
+                .collect()
+        };
+
+        let file_menu = menu::submenu!(
+            "File",
+            [
+                menu::MenuNode::submenu_with_id(RECENT_SUBMENU_ID, "Recent Files", recent_children),
+                menu::separator!(),
+                file_exit,
+            ]
+        );
+
+        let view_menu = menu::submenu!(
+            "View",
+            [menu::check_item!(
+                "Dark Mode",
+                state.dark_mode,
+                Message::MenuAction(MenuAction::ToggleDarkMode)
+            ),]
+        );
+
+        // Dynamic page items: base ID + index
+        const PAGE_BASE_ID: menu::MenuId = menu::MenuId::from_str("demo.page");
+        const PAGES_SUBMENU_ID: menu::MenuId = menu::MenuId::from_str("demo.pages");
+
+        let pages_children: Vec<menu::MenuNode<Message>> = Page::ALL
+            .iter()
+            .enumerate()
+            .map(|(idx, page)| {
+                menu::MenuNode::item_with_id(
+                    menu::MenuId::from_u64(PAGE_BASE_ID.as_u64().wrapping_add(idx as u64)),
+                    page.name(),
+                    Message::GoToPage(*page),
+                )
+            })
+            .collect();
+
+        let pages_menu = menu::MenuNode::submenu_with_id(PAGES_SUBMENU_ID, "Pages", pages_children);
+
+        // Use role-based about item - on macOS this moves to the app menu.
+        let help_menu = menu::submenu!(
+            "Help",
+            [menu::about!(
+                "About Demo App",
+                Message::MenuAction(MenuAction::About)
+            ),]
+        );
+
+        // Dynamic window items: base ID + index
+        const WINDOW_BASE_ID: menu::MenuId = menu::MenuId::from_str("demo.window");
+        const NO_WINDOWS_ID: menu::MenuId = menu::MenuId::from_str("demo.no_windows");
+        const WINDOW_SUBMENU_ID: menu::MenuId = menu::MenuId::from_str("demo.window_menu");
+
+        let mut window_children: Vec<menu::MenuNode<Message>> = context
+            .windows
+            .iter()
+            .enumerate()
+            .map(|(idx, info)| {
+                let label = if info.title.is_empty() {
+                    format!("Window {}", info.id)
+                } else {
+                    info.title.clone()
+                };
+
+                menu::MenuNode::check_item_with_id(
+                    menu::MenuId::from_u64(WINDOW_BASE_ID.as_u64().wrapping_add(idx as u64)),
+                    label,
+                    info.focused,
+                    Message::MenuActivateWindow(info.id),
+                )
+            })
+            .collect();
+
+        if window_children.is_empty() {
+            window_children.push(menu::MenuNode::new_with_id(
+                NO_WINDOWS_ID,
+                menu::MenuKind::Item {
+                    label: "(No Windows)".to_string(),
+                    enabled: false,
+                    shortcut: None,
+                    on_activate: Message::NoOp,
+                },
+            ));
+        }
+
+        let window_menu =
+            menu::MenuNode::submenu_with_id(WINDOW_SUBMENU_ID, "Window", window_children);
+
+        Some(menu::AppMenu::new(vec![
+            file_menu,
+            view_menu,
+            pages_menu,
+            window_menu,
+            help_menu,
+        ]))
+    }
+
     fn subscription(&self) -> Subscription<Message> {
         use icy_ui::keyboard;
         use icy_ui::time;
@@ -542,10 +686,10 @@ impl DemoApp {
 
         let keyboard_sub = keyboard::listen().filter_map(|event| {
             if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
-                let ctrl = modifiers.control();
+                let cmd = modifiers.command();
                 match key.as_ref() {
-                    Key::Character("q") if ctrl => Some(Message::MenuAction(MenuAction::Exit)),
-                    Key::Character("d") if ctrl => {
+                    Key::Character("q") if cmd => Some(Message::MenuAction(MenuAction::Exit)),
+                    Key::Character("d") if cmd => {
                         Some(Message::MenuAction(MenuAction::ToggleDarkMode))
                     }
                     _ => None,
@@ -581,91 +725,13 @@ impl DemoApp {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let menu_bar = self.view_menu_bar();
         let sidebar = self.view_sidebar();
         let content = self.view_content();
         let status_bar = self.view_status_bar();
 
         let main_area = row![content, rule::vertical(1), sidebar,].height(Fill);
 
-        column![
-            menu_bar,
-            rule::horizontal(1),
-            main_area,
-            rule::horizontal(1),
-            status_bar,
-        ]
-        .into()
-    }
-
-    fn view_menu_bar(&self) -> Element<'_, Message> {
-        let key_binds: HashMap<KeyBind, MenuAction> = [
-            (
-                KeyBind {
-                    modifiers: vec![Modifier::Ctrl],
-                    key: Key::Character("q".into()),
-                },
-                MenuAction::Exit,
-            ),
-            (
-                KeyBind {
-                    modifiers: vec![Modifier::Ctrl],
-                    key: Key::Character("d".into()),
-                },
-                MenuAction::ToggleDarkMode,
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        let (file_btn, file_mnemonic) = root("&File", Message::NoOp);
-        let mut file_menu = Tree::with_children(
-            file_btn,
-            items(&key_binds, vec![Item::Button("E&xit", MenuAction::Exit)]),
-        );
-        if let Some(m) = file_mnemonic {
-            file_menu = file_menu.mnemonic(m);
-        }
-
-        let (view_btn, view_mnemonic) = root("&View", Message::NoOp);
-        let mut view_menu = Tree::with_children(
-            view_btn,
-            items(
-                &key_binds,
-                vec![Item::CheckBox(
-                    "&Dark Mode",
-                    self.dark_mode,
-                    MenuAction::ToggleDarkMode,
-                )],
-            ),
-        );
-        if let Some(m) = view_mnemonic {
-            view_menu = view_menu.mnemonic(m);
-        }
-
-        let (pages_btn, pages_mnemonic) = root("&Pages", Message::NoOp);
-        let page_items: Vec<Item<MenuAction, &str>> = Page::ALL
-            .iter()
-            .map(|page| Item::Button(page.name(), MenuAction::GoToPage(*page)))
-            .collect();
-        let mut pages_menu = Tree::with_children(pages_btn, items(&key_binds, page_items));
-        if let Some(m) = pages_mnemonic {
-            pages_menu = pages_menu.mnemonic(m);
-        }
-
-        let (help_btn, help_mnemonic) = root("&Help", Message::NoOp);
-        let mut help_menu = Tree::with_children(
-            help_btn,
-            items(&key_binds, vec![Item::Button("&About", MenuAction::About)]),
-        );
-        if let Some(m) = help_mnemonic {
-            help_menu = help_menu.mnemonic(m);
-        }
-
-        container(bar(vec![file_menu, view_menu, pages_menu, help_menu]))
-            .style(container::secondary)
-            .width(Fill)
-            .into()
+        column![main_area, rule::horizontal(1), status_bar].into()
     }
 
     fn view_sidebar(&self) -> Element<'_, Message> {

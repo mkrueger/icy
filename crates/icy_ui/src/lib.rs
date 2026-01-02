@@ -693,6 +693,91 @@ pub mod system {
     pub use crate::runtime::system::{Information, information};
 }
 
+pub mod menu {
+    //! Application menu and context menu model types.
+    //!
+    //! This module provides a unified API for menus in icy_ui:
+    //! - Application menu bars (native on macOS, widget-based on other platforms)
+    //! - Context menus (native on macOS, widget-based overlay on other platforms)
+    //!
+    //! # Macros for Stable IDs
+    //!
+    //! Use the provided macros to create menu items with automatically stable IDs:
+    //!
+    //! ```ignore
+    //! use icy_ui::menu;
+    //!
+    //! let file_menu = menu::submenu!("File", [
+    //!     menu::item!("New", Message::New),
+    //!     menu::item!("Open", Message::Open),
+    //!     menu::separator!(),
+    //!     menu::item!("Save", Message::Save),
+    //! ]);
+    //! ```
+    //!
+    //! # Keyboard Shortcuts
+    //!
+    //! Add keyboard shortcuts to menu items:
+    //!
+    //! ```ignore
+    //! use icy_ui::menu::{self, MenuShortcut};
+    //! use icy_ui::keyboard::Key;
+    //!
+    //! // Using the macro with shortcut
+    //! menu::item!("Save", Message::Save, MenuShortcut::cmd(Key::Character("s".into())))
+    //!
+    //! // Or using the builder pattern
+    //! menu::item!("Save", Message::Save)
+    //!     .shortcut(MenuShortcut::cmd(Key::Character("s".into())))
+    //! ```
+    //!
+    //! # Context Menus
+    //!
+    //! Use the `context_menu` widget which automatically uses native menus on macOS:
+    //!
+    //! ```ignore
+    //! use icy_ui::widget::menu::context_menu;
+    //! use icy_ui::menu;
+    //!
+    //! let nodes = vec![
+    //!     menu::item!("Cut", Message::Cut),
+    //!     menu::item!("Copy", Message::Copy),
+    //! ];
+    //!
+    //! context_menu(my_content, &nodes)
+    //! ```
+
+    // Re-export all core menu types
+    pub use icy_ui_core::menu::{
+        // Types
+        AppMenu,
+        ContextMenuItem,
+        ContextMenuItemKind,
+        MenuContext,
+        MenuId,
+        MenuKind,
+        MenuNode,
+        MenuRole,
+        MenuShortcut,
+        WindowInfo,
+        // Helper functions
+        fnv1a_hash_location,
+        fnv1a_hash_str,
+    };
+
+    pub use icy_ui_core::menu::{ContextMenuItem as MenuItem, ContextMenuItemKind as MenuItemKind};
+
+    // Re-export runtime utilities
+    pub use crate::runtime::context_menu::menu_nodes_to_items;
+
+    // Re-export macros from core
+    pub use icy_ui_core::{
+        menu_about as about, menu_check_item as check_item, menu_item as item,
+        menu_preferences as preferences, menu_quit as quit, menu_separator as separator,
+        menu_submenu as submenu,
+    };
+}
+
 pub mod overlay {
     //! Display interactive elements on top of other widgets.
 

@@ -6,6 +6,8 @@
 use std::ptr::NonNull;
 use std::sync::mpsc::Receiver;
 
+use icy_ui_core::menu::{AppMenu, ContextMenuItem, MenuId, MenuNode};
+
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DragError {
@@ -146,5 +148,89 @@ impl UrlHandler {
     /// Consume the handler and return the receiver.
     pub fn into_receiver(self) -> Receiver<String> {
         self.receiver
+    }
+}
+
+/// Errors that can occur while installing or updating menus (stub for non-macOS).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MenuError {
+    /// Menu operations are not supported on this platform.
+    NotSupported,
+}
+
+impl std::fmt::Display for MenuError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MenuError::NotSupported => write!(f, "Menu operations not supported on this platform"),
+        }
+    }
+}
+
+impl std::error::Error for MenuError {}
+
+/// Stub macOS main menu for non-macOS platforms.
+pub struct MacMenu {
+    _private: (),
+}
+
+impl MacMenu {
+    /// Create a new menu (stub - always returns NotSupported).
+    pub fn new() -> Result<Self, MenuError> {
+        Err(MenuError::NotSupported)
+    }
+
+    /// Sync the menu (stub - always returns NotSupported).
+    pub fn sync<Message>(&mut self, _menu: &AppMenu<Message>) -> Result<(), MenuError> {
+        Err(MenuError::NotSupported)
+    }
+
+    /// Try to receive an activated menu id (stub - always returns None).
+    pub fn try_recv(&self) -> Option<MenuId> {
+        None
+    }
+}
+
+/// Stub macOS context menu for non-macOS platforms.
+pub struct MacContextMenu {
+    _private: (),
+}
+
+impl MacContextMenu {
+    /// Create a new context menu (stub - always returns NotSupported).
+    pub fn new() -> Result<Self, MenuError> {
+        Err(MenuError::NotSupported)
+    }
+
+    /// Show a context menu (stub - always returns NotSupported).
+    ///
+    /// # Safety
+    /// Matches the macOS API; does nothing on non-macOS.
+    pub unsafe fn show<Message>(
+        &self,
+        _nodes: &[MenuNode<Message>],
+        _view_ptr: *mut std::ffi::c_void,
+        _x: f64,
+        _y: f64,
+    ) -> Result<(), MenuError> {
+        Err(MenuError::NotSupported)
+    }
+
+    /// Try to receive an activated menu id (stub - always returns None).
+    pub fn try_recv(&self) -> Option<MenuId> {
+        None
+    }
+
+    /// Show a context menu from items (stub - always returns NotSupported).
+    ///
+    /// # Safety
+    /// Matches the macOS API; does nothing on non-macOS.
+    pub unsafe fn show_items(
+        &self,
+        _items: &[ContextMenuItem],
+        _view_ptr: *mut std::ffi::c_void,
+        _x: f64,
+        _y: f64,
+    ) -> Result<(), MenuError> {
+        Err(MenuError::NotSupported)
     }
 }

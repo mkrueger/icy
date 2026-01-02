@@ -36,6 +36,9 @@ pub mod url_handler;
 #[cfg(all(target_os = "macos", feature = "dnd"))]
 pub mod dnd;
 
+#[cfg(target_os = "macos")]
+pub mod menu;
+
 #[cfg(all(target_os = "macos", feature = "url-handler"))]
 pub use url_handler::UrlHandler;
 
@@ -58,6 +61,15 @@ pub use stubs::UrlHandler;
 
 #[cfg(all(not(target_os = "macos"), feature = "dnd"))]
 pub use stubs::{DragError, DragOperation, DragResult, DragSource};
+
+// Re-export stubs as the menu module for non-macOS
+#[cfg(not(target_os = "macos"))]
+pub mod menu {
+    //! Stub menu module for non-macOS platforms.
+    pub use super::stubs::{MacContextMenu, MacMenu, MenuError};
+}
+
+pub use menu::{MacContextMenu, MacMenu, MenuError};
 
 /// macOS platform-specific events.
 #[derive(Debug, Clone, PartialEq, Eq)]

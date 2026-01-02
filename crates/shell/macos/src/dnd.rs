@@ -185,7 +185,7 @@ impl DragSource {
         format: &str,
         allowed_operations: DragOperation,
     ) -> Result<&Receiver<DragResult>, DragError> {
-        self.start_drag_impl(data, format, allowed_operations)?
+        self.start_drag_impl(data, format, allowed_operations)?;
         Ok(&self.result_receiver)
     }
 

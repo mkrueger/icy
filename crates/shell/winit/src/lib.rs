@@ -167,6 +167,9 @@ where
         error: Option<Error>,
         system_theme: Option<oneshot::Sender<theme::Mode>>,
 
+        #[cfg(target_os = "macos")]
+        mac_menu: Option<icy_ui_macos::MacMenu>,
+
         #[cfg(target_arch = "wasm32")]
         canvas: Option<web_sys::HtmlCanvasElement>,
     }
@@ -179,6 +182,9 @@ where
         receiver: control_receiver,
         error: None,
         system_theme: Some(system_theme_sender),
+
+        #[cfg(target_os = "macos")]
+        mac_menu: icy_ui_macos::MacMenu::new().ok(),
 
         #[cfg(target_arch = "wasm32")]
         canvas: None,
@@ -256,6 +262,18 @@ where
         }
 
         fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(menu) = self.mac_menu.as_mut() {
+                    while let Some(id) = menu.try_recv() {
+                        if self.sender.start_send(Event::MenuActivated(id)).is_err() {
+                            event_loop.exit();
+                            return;
+                        }
+                    }
+                }
+            }
+
             self.process_event(
                 event_loop,
                 Event::EventLoopAwakened(winit::event::Event::AboutToWait),
@@ -428,6 +446,18 @@ where
                                     event_loop.set_allows_automatic_window_tabbing(_enabled);
                                 }
                             }
+
+                            #[cfg(target_os = "macos")]
+                            Control::SetApplicationMenu(menu) => {
+                                if let (Some(mac_menu), Some(menu)) = (self.mac_menu.as_mut(), menu)
+                                {
+                                    if let Err(error) = mac_menu.sync(&menu) {
+                                        log::warn!(
+                                            "Failed to sync macOS application menu: {error}"
+                                        );
+                                    }
+                                }
+                            }
                         },
                         _ => {
                             break;
@@ -471,6 +501,10 @@ enum Event<Message: 'static> {
         on_open: oneshot::Sender<window::Id>,
     },
     EventLoopAwakened(winit::event::Event<Message>),
+
+    #[cfg(target_os = "macos")]
+    MenuActivated(core::menu::MenuId),
+
     Exit,
 }
 
@@ -488,6 +522,9 @@ enum Control {
         scale_factor: f32,
     },
     SetAutomaticWindowTabbing(bool),
+
+    #[cfg(target_os = "macos")]
+    SetApplicationMenu(Option<core::menu::AppMenu<core::menu::MenuId>>),
 }
 
 #[cfg(feature = "accessibility")]
@@ -532,6 +569,15 @@ async fn run_instance<P>(
     let mut user_interfaces = ManuallyDrop::new(FxHashMap::default());
     let mut clipboard = Clipboard::unconnected();
     let mut dnd_manager = DndManager::unconnected();
+
+    #[cfg(target_os = "macos")]
+    let mut mac_menu_actions: FxHashMap<core::menu::MenuId, P::Message> = FxHashMap::default();
+
+    #[cfg(target_os = "macos")]
+    let mut mac_menu_signature: u64 = 0;
+
+    #[cfg(target_os = "macos")]
+    let mac_context_menu = icy_ui_macos::MacContextMenu::new().ok();
 
     #[cfg(feature = "accessibility")]
     let mut accessibility: FxHashMap<window::Id, AccessibilityState> = FxHashMap::default();
@@ -690,7 +736,19 @@ async fn run_instance<P>(
                 let logical_size = window.state.logical_size();
 
                 #[cfg(feature = "hinting")]
-                window.renderer.hint(window.state.scale_factor());
+                {
+                    use crate::core::Renderer as _;
+                    window.renderer.hint(window.state.scale_factor());
+                }
+
+                let menu_context = core::menu::MenuContext {
+                    windows: vec![core::menu::WindowInfo {
+                        id,
+                        title: window.state.title().to_owned(),
+                        focused: window.state.focused(),
+                        minimized: window.raw.is_minimized().unwrap_or(false),
+                    }],
+                };
 
                 let _ = user_interfaces.insert(
                     id,
@@ -699,6 +757,7 @@ async fn run_instance<P>(
                         user_interface::Cache::default(),
                         &mut window.renderer,
                         logical_size,
+                        &menu_context,
                         id,
                     ),
                 );
@@ -746,6 +805,14 @@ async fn run_instance<P>(
                 let _ = on_open.send(id);
                 is_window_opening = false;
             }
+
+            #[cfg(target_os = "macos")]
+            Event::MenuActivated(id) => {
+                if let Some(message) = mac_menu_actions.remove(&id) {
+                    messages.push(message);
+                }
+            }
+
             Event::EventLoopAwakened(event) => {
                 match event {
                     event::Event::NewEvents(start_cause) => {
@@ -831,7 +898,10 @@ async fn run_instance<P>(
                         // Window was resized between redraws
                         if window.surface_version != window.state.surface_version() {
                             #[cfg(feature = "hinting")]
-                            window.renderer.hint(window.state.scale_factor());
+                            {
+                                use crate::core::Renderer as _;
+                                window.renderer.hint(window.state.scale_factor());
+                            }
 
                             let ui = user_interfaces.remove(&id).expect("Remove user interface");
 
@@ -990,12 +1060,50 @@ async fn run_instance<P>(
                             redraw_request,
                             input_method,
                             mouse_interaction,
+                            context_menu_request,
                             ..
                         } = state
                         {
                             window.request_redraw(redraw_request);
                             window.request_input_method(input_method);
                             window.update_mouse(mouse_interaction);
+
+                            // Handle native context menu request from widget
+                            #[cfg(target_os = "macos")]
+                            if let Some(ctx_req) = context_menu_request {
+                                if let Some(ctx_menu) = &mac_context_menu {
+                                    use winit::raw_window_handle::{
+                                        HasWindowHandle, RawWindowHandle,
+                                    };
+                                    if let Ok(handle) = window.raw.window_handle() {
+                                        if let RawWindowHandle::AppKit(appkit_handle) =
+                                            handle.as_raw()
+                                        {
+                                            let ns_view_ptr = appkit_handle.ns_view.as_ptr()
+                                                as *mut std::ffi::c_void;
+
+                                            // Position is passed in iced coordinates (top-left origin)
+                                            // The macOS menu function handles the conversion internally
+                                            #[allow(unsafe_code)]
+                                            if let Some(selected_id) = unsafe {
+                                                ctx_menu.show_items_and_wait(
+                                                    &ctx_req.items,
+                                                    ns_view_ptr,
+                                                    f64::from(ctx_req.position.x),
+                                                    f64::from(ctx_req.position.y),
+                                                )
+                                            } {
+                                                events.push((
+                                                    id,
+                                                    core::Event::ContextMenuItemSelected(
+                                                        selected_id,
+                                                    ),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         runtime.broadcast(subscription::Event::Interaction {
@@ -1147,6 +1255,44 @@ async fn run_instance<P>(
                             ));
                         }
 
+                        #[cfg(target_os = "macos")]
+                        {
+                            let mut windows = Vec::new();
+
+                            for (id, window) in window_manager.iter_mut() {
+                                windows.push(core::menu::WindowInfo {
+                                    id,
+                                    title: window.state.title().to_owned(),
+                                    focused: window.state.focused(),
+                                    minimized: window.raw.is_minimized().unwrap_or(false),
+                                });
+                            }
+
+                            let menu_context = core::menu::MenuContext { windows };
+
+                            if let Some(menu) = program.application_menu(&menu_context) {
+                                let (menu_for_platform, actions, signature) =
+                                    macos_menu::menu_for_platform(menu);
+
+                                mac_menu_actions = actions;
+
+                                if signature != mac_menu_signature {
+                                    mac_menu_signature = signature;
+                                    let _ = control_sender.start_send(Control::SetApplicationMenu(
+                                        Some(menu_for_platform),
+                                    ));
+                                }
+                            } else {
+                                mac_menu_actions.clear();
+
+                                if mac_menu_signature != 0 {
+                                    mac_menu_signature = 0;
+                                    let _ = control_sender
+                                        .start_send(Control::SetApplicationMenu(None));
+                                }
+                            }
+                        }
+
                         #[cfg(feature = "accessibility")]
                         {
                             use crate::accessibility::ProcessedEvent;
@@ -1279,12 +1425,52 @@ async fn run_instance<P>(
                                 user_interface::State::Updated {
                                     redraw_request: _redraw_request,
                                     mouse_interaction,
+                                    context_menu_request,
                                     ..
                                 } => {
                                     window.update_mouse(mouse_interaction);
 
                                     #[cfg(not(feature = "unconditional-rendering"))]
                                     window.request_redraw(_redraw_request);
+
+                                    // Handle native context menu request from widget
+                                    #[cfg(target_os = "macos")]
+                                    if let Some(ctx_req) = context_menu_request {
+                                        if let Some(ctx_menu) = &mac_context_menu {
+                                            use winit::raw_window_handle::{
+                                                HasWindowHandle, RawWindowHandle,
+                                            };
+                                            if let Ok(handle) = window.raw.window_handle() {
+                                                if let RawWindowHandle::AppKit(appkit_handle) =
+                                                    handle.as_raw()
+                                                {
+                                                    let ns_view_ptr = appkit_handle.ns_view.as_ptr()
+                                                        as *mut std::ffi::c_void;
+                                                    let window_height =
+                                                        window.state.logical_size().height;
+                                                    let flipped_y =
+                                                        window_height - ctx_req.position.y;
+
+                                                    #[allow(unsafe_code)]
+                                                    if let Some(selected_id) = unsafe {
+                                                        ctx_menu.show_items_and_wait(
+                                                            &ctx_req.items,
+                                                            ns_view_ptr,
+                                                            f64::from(ctx_req.position.x),
+                                                            f64::from(flipped_y),
+                                                        )
+                                                    } {
+                                                        events.push((
+                                                            id,
+                                                            core::Event::ContextMenuItemSelected(
+                                                                selected_id,
+                                                            ),
+                                                        ));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 user_interface::State::Outdated => {
                                     uis_stale = true;
@@ -1573,13 +1759,38 @@ fn build_user_interface<'a, P: Program>(
     cache: user_interface::Cache,
     renderer: &mut P::Renderer,
     size: Size,
+    menu_context: &core::menu::MenuContext,
     id: window::Id,
 ) -> UserInterface<'a, P::Message, P::Theme, P::Renderer>
 where
     P::Theme: theme::Base,
 {
     let view_span = debug::view(id);
-    let view = program.view(id);
+
+    #[cfg(target_os = "macos")]
+    let view = {
+        let _ = menu_context;
+        program.view(id)
+    };
+
+    #[cfg(not(target_os = "macos"))]
+    let view = {
+        let mut view = program.view(id);
+
+        if let Some(menu) = program.application_menu(menu_context) {
+            use icy_ui_widget::menu::menu_bar_from_app_menu;
+            use icy_ui_widget::{column, core::Length};
+
+            let menu_bar = menu_bar_from_app_menu(&menu);
+
+            view = column![menu_bar, view]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        }
+
+        view
+    };
     view_span.finish();
 
     let layout_span = debug::layout(id);
@@ -1587,6 +1798,169 @@ where
     layout_span.finish();
 
     user_interface
+}
+
+#[cfg(target_os = "macos")]
+mod macos_menu {
+    use super::*;
+    use crate::core::menu;
+
+    pub fn menu_for_platform<Message>(
+        menu_model: menu::AppMenu<Message>,
+    ) -> (
+        menu::AppMenu<menu::MenuId>,
+        FxHashMap<menu::MenuId, Message>,
+        u64,
+    ) {
+        let mut actions: FxHashMap<menu::MenuId, Message> = FxHashMap::default();
+
+        let roots = menu_model
+            .roots
+            .into_iter()
+            .map(|node| convert_node(node, &mut actions))
+            .collect();
+
+        let menu_for_platform = menu::AppMenu::new(roots);
+        let signature = signature(&menu_for_platform);
+
+        (menu_for_platform, actions, signature)
+    }
+
+    fn convert_node<Message>(
+        node: menu::MenuNode<Message>,
+        actions: &mut FxHashMap<menu::MenuId, Message>,
+    ) -> menu::MenuNode<menu::MenuId> {
+        let id = node.id;
+        let role = node.role;
+
+        match node.kind {
+            menu::MenuKind::Separator => menu::MenuNode {
+                id,
+                role,
+                kind: menu::MenuKind::Separator,
+            },
+
+            menu::MenuKind::Submenu {
+                label,
+                enabled,
+                children,
+            } => menu::MenuNode {
+                id,
+                role,
+                kind: menu::MenuKind::Submenu {
+                    label,
+                    enabled,
+                    children: children
+                        .into_iter()
+                        .map(|child| convert_node(child, actions))
+                        .collect(),
+                },
+            },
+
+            menu::MenuKind::Item {
+                label,
+                enabled,
+                shortcut,
+                on_activate,
+            } => {
+                let _ = actions.insert(id.clone(), on_activate);
+
+                menu::MenuNode {
+                    id: id.clone(),
+                    role,
+                    kind: menu::MenuKind::Item {
+                        label,
+                        enabled,
+                        shortcut,
+                        on_activate: id,
+                    },
+                }
+            }
+
+            menu::MenuKind::CheckItem {
+                label,
+                enabled,
+                checked,
+                shortcut,
+                on_activate,
+            } => {
+                let _ = actions.insert(id.clone(), on_activate);
+
+                menu::MenuNode {
+                    id: id.clone(),
+                    role,
+                    kind: menu::MenuKind::CheckItem {
+                        label,
+                        enabled,
+                        checked,
+                        shortcut,
+                        on_activate: id,
+                    },
+                }
+            }
+        }
+    }
+
+    fn signature(menu: &menu::AppMenu<menu::MenuId>) -> u64 {
+        use std::hash::Hasher;
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+
+        for root in &menu.roots {
+            hash_node(root, &mut hasher);
+        }
+
+        hasher.finish()
+    }
+
+    fn hash_node(node: &menu::MenuNode<menu::MenuId>, hasher: &mut impl std::hash::Hasher) {
+        use std::hash::Hash;
+
+        node.id.hash(hasher);
+
+        match &node.kind {
+            menu::MenuKind::Separator => {
+                0u8.hash(hasher);
+            }
+            menu::MenuKind::Item {
+                label,
+                enabled,
+                shortcut,
+                on_activate: _,
+            } => {
+                1u8.hash(hasher);
+                label.hash(hasher);
+                enabled.hash(hasher);
+                shortcut.hash(hasher);
+            }
+            menu::MenuKind::CheckItem {
+                label,
+                enabled,
+                checked,
+                shortcut,
+                on_activate: _,
+            } => {
+                2u8.hash(hasher);
+                label.hash(hasher);
+                enabled.hash(hasher);
+                checked.hash(hasher);
+                shortcut.hash(hasher);
+            }
+            menu::MenuKind::Submenu {
+                label,
+                enabled,
+                children,
+            } => {
+                3u8.hash(hasher);
+                label.hash(hasher);
+                enabled.hash(hasher);
+
+                for child in children {
+                    hash_node(child, hasher);
+                }
+            }
+        }
+    }
 }
 
 fn update<P: Program, E: Executor>(
@@ -2113,6 +2487,21 @@ fn run_action<'a, P, C>(
             }
         }
         Action::Reload => {
+            let menu_context = {
+                let mut windows = Vec::new();
+
+                for (id, window) in window_manager.iter_mut() {
+                    windows.push(core::menu::WindowInfo {
+                        id,
+                        title: window.state.title().to_owned(),
+                        focused: window.state.focused(),
+                        minimized: window.raw.is_minimized().unwrap_or(false),
+                    });
+                }
+
+                core::menu::MenuContext { windows }
+            };
+
             for (id, window) in window_manager.iter_mut() {
                 let Some(ui) = interfaces.remove(&id) else {
                     continue;
@@ -2123,7 +2512,14 @@ fn run_action<'a, P, C>(
 
                 let _ = interfaces.insert(
                     id,
-                    build_user_interface(program, cache, &mut window.renderer, size, id),
+                    build_user_interface(
+                        program,
+                        cache,
+                        &mut window.renderer,
+                        size,
+                        &menu_context,
+                        id,
+                    ),
                 );
 
                 window.raw.request_redraw();
@@ -2179,12 +2575,28 @@ where
     C: Compositor<Renderer = P::Renderer>,
     P::Theme: theme::Base,
 {
+    let mut menu_windows = Vec::new();
+
     for (id, window) in window_manager.iter_mut() {
         window.state.synchronize(program, id, &window.raw);
 
         #[cfg(feature = "hinting")]
-        window.renderer.hint(window.state.scale_factor());
+        {
+            use crate::core::Renderer as _;
+            window.renderer.hint(window.state.scale_factor());
+        }
+
+        menu_windows.push(core::menu::WindowInfo {
+            id,
+            title: window.state.title().to_owned(),
+            focused: window.state.focused(),
+            minimized: window.raw.is_minimized().unwrap_or(false),
+        });
     }
+
+    let menu_context = core::menu::MenuContext {
+        windows: menu_windows,
+    };
 
     debug::theme_changed(|| {
         window_manager
@@ -2204,6 +2616,7 @@ where
                     cache,
                     &mut window.renderer,
                     window.state.logical_size(),
+                    &menu_context,
                     id,
                 ),
             ))

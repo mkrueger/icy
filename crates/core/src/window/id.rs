@@ -10,6 +10,13 @@ pub struct Id(u64);
 static COUNT: AtomicU64 = AtomicU64::new(1);
 
 impl Id {
+    /// The main window id.
+    ///
+    /// This is the id of the first window that is created by the application.
+    /// It's typically used when you only have a single window and need to
+    /// reference it without storing the id explicitly.
+    pub const MAIN: Self = Self(0);
+
     /// Creates a new unique window [`Id`].
     pub fn unique() -> Id {
         Id(COUNT.fetch_add(1, atomic::Ordering::Relaxed))

@@ -136,7 +136,16 @@ pub fn menu_root_style(theme: &Theme, status: Status) -> button::Style {
 }
 
 /// A button style for menu folders (submenus).
+/// Submenus never appear disabled since they always have an action (opening the submenu).
 pub fn menu_folder(theme: &Theme, status: Status) -> button::Style {
-    // Menu folders use the same style as regular menu items
-    menu_item(theme, status)
+    let base = button::Style {
+        background: None,
+        text_color: theme.background.on,
+        ..button::Style::default()
+    };
+
+    match status {
+        Status::Active | Status::Hovered | Status::Pressed | Status::Selected => base,
+        Status::Disabled => base, // Submenus should not appear disabled - they open a submenu
+    }
 }

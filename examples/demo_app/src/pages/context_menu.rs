@@ -1,7 +1,9 @@
 //! Context menu page
 
-use icy_ui::widget::{button, center, column, container, menu, space, text};
-use icy_ui::{Center as CenterAlign, Element, Fill, Theme};
+use icy_ui::menu;
+use icy_ui::widget::menu::context_menu;
+use icy_ui::widget::{center, column, container, space, text};
+use icy_ui::{Center as CenterAlign, Element, Theme};
 
 use crate::Message;
 
@@ -20,9 +22,26 @@ pub fn update_context_menu(state: &mut ContextMenuState, message: &Message) -> O
     }
 }
 
-pub fn view_context_menu(state: &ContextMenuState) -> Element<'_, Message> {
-    use menu::context_menu;
+/// Creates the context menu nodes for this page
+pub fn context_menu_nodes() -> Vec<menu::MenuNode<Message>> {
+    vec![
+        menu::item!("Cut", Message::ContextAction("Cut".into())),
+        menu::item!("Copy", Message::ContextAction("Copy".into())),
+        menu::item!("Paste", Message::ContextAction("Paste".into())),
+        menu::separator!(),
+        menu::submenu!(
+            "More Actions",
+            [
+                menu::item!("Select All", Message::ContextAction("Select All".into())),
+                menu::item!("Find", Message::ContextAction("Find".into())),
+                menu::separator!(),
+                menu::item!("Replace", Message::ContextAction("Replace".into())),
+            ]
+        ),
+    ]
+}
 
+pub fn view_context_menu(state: &ContextMenuState) -> Element<'_, Message> {
     let target = container(center(
         column![
             text("Right-click here").size(16),
@@ -41,36 +60,17 @@ pub fn view_context_menu(state: &ContextMenuState) -> Element<'_, Message> {
         ..Default::default()
     });
 
-    let menu_items = vec![
-        ("Cut", Message::ContextAction("Cut".into())),
-        ("Copy", Message::ContextAction("Copy".into())),
-        ("Paste", Message::ContextAction("Paste".into())),
-        ("Delete", Message::ContextAction("Delete".into())),
-    ];
-
-    let ctx_menu = context_menu(
-        target,
-        Some(
-            menu_items
-                .into_iter()
-                .map(|(label, msg)| {
-                    menu::Tree::new(
-                        button(text(label))
-                            .on_press(msg)
-                            .width(Fill)
-                            .style(button::text_style),
-                    )
-                })
-                .collect(),
-        ),
-    );
+    // Use context_menu widget - automatically uses native menu on macOS
+    let nodes = context_menu_nodes();
+    let interactive_target = context_menu(target, &nodes);
 
     column![
         text("Context Menu").size(18),
         space().height(10),
-        text("Right-click on the area below to see a context menu:").size(14),
+        text("Right-click on the area below to open a context menu:").size(14),
+        text("On macOS, this shows a native NSMenu. On other platforms, an overlay menu.").size(12),
         space().height(10),
-        ctx_menu,
+        interactive_target,
         space().height(20),
         text(format!(
             "Last action: {}",
