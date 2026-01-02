@@ -4,7 +4,6 @@
 //! or no-ops, allowing the crate to compile on all platforms.
 
 use std::ptr::NonNull;
-use std::sync::mpsc::Receiver;
 
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- See doc/new what changed in 
+  - clipboard, mouse events, scrollbars and theming.
+  - got added new buttons, clolr/date packer, dnd, menus, toaster and accessibility
 - New `icy_ui_macos` crate for macOS-specific platform integration
   - **URL Handler**: Register custom URL schemes (e.g., `myapp://action`) and receive URL events via `event::listen_url()`
   - **DnD Initiation**: Start native drag-and-drop operations from your app using `NSDraggingSource`
+- New `icy_ui_windows` crate for Windows-specific platform integration
+  - **DnD Initiation**: Start native drag-and-drop operations using OLE `IDropSource`/`IDataObject`
+  - Supports text, file lists, and custom MIME types via COM interfaces
 - Event Log page in demo app for debugging platform events
 
 ### Changed

@@ -8,6 +8,8 @@ use crate::futures::futures::channel::oneshot;
 use crate::runtime::dnd::Action;
 
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 use std::sync::Arc;
 use winit::window::Window;
 
