@@ -13,7 +13,7 @@ use std::path::PathBuf;
 ///
 /// - **Linux/X11/Wayland**: MIME types (e.g., `text/plain`, `text/html`, `image/png`)
 /// - **macOS**: UTI strings (e.g., `public.utf8-plain-text`, `public.rtf`, `public.html`)
-/// - **Windows**: Registered format names (e.g., `CF_UNICODETEXT`, `Rich Text Format`, `HTML Format`)
+/// - **Windows**: Registered format names (e.g., `Rich Text Format`, `HTML Format`, `PNG`)
 ///
 /// Using these constants abstracts away platform differences.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,15 +59,16 @@ impl Format {
     /// will understand. The strings are platform-appropriate.
     #[cfg(target_os = "windows")]
     pub const fn formats(self) -> &'static [&'static str] {
-        // Windows uses registered format names
+        // Windows uses registered format names for custom formats.
+        // Standard formats like text and files are handled specially by the backend.
         match self {
-            Format::Text => &["CF_UNICODETEXT"],
+            Format::Text => &["text/plain"],
             Format::Rtf => &["Rich Text Format"],
             Format::Html => &["HTML Format"],
             Format::Png => &["PNG"],
-            Format::Jpeg => &["JFIF"],
-            Format::Image => &["PNG", "CF_DIBV5"],
-            Format::Files => &["CF_HDROP"],
+            Format::Jpeg => &["JFIF", "JPEG"],
+            Format::Image => &["PNG", "JFIF", "JPEG"],
+            Format::Files => &["FileNameW", "FileName"],
         }
     }
 

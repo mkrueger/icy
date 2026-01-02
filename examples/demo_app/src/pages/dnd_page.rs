@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use crate::Message;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DndPageState {
     /// Text to drag from this app
     pub drag_text: String,
@@ -23,12 +23,23 @@ pub struct DndPageState {
     pub drop_history: Vec<String>,
 }
 
+impl Default for DndPageState {
+    fn default() -> Self {
+        Self {
+            drag_text: "Hello from icy_ui! 🦀".to_string(),
+            is_dragging: false,
+            incoming_drag: None,
+            drop_history: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct DragState {
     /// Current position of the drag cursor
     position: Point,
-    /// MIME types offered by the drag source
-    mime_types: Vec<String>,
+    /// Formats offered by the drag source
+    formats: Vec<String>,
     /// Files being hovered (from winit FileHovered events)
     hovered_files: Vec<PathBuf>,
     /// Dropped data (from DragDropped event)
@@ -40,30 +51,27 @@ pub struct DragState {
 #[derive(Debug, Clone)]
 struct DroppedData {
     data: Vec<u8>,
-    mime_type: String,
+    format: String,
 }
 
 pub fn subscription_dnd() -> Subscription<Message> {
     event::listen_with(|event, _status, _id| match event {
         Event::Window(window_event) => match window_event {
-            window::Event::DragEntered {
+            window::Event::DragEntered { position, formats } => Some(Message::DndDragEntered {
                 position,
-                mime_types,
-            } => Some(Message::DndDragEntered {
-                position,
-                mime_types,
+                mime_types: formats,
             }),
             window::Event::DragMoved { position } => Some(Message::DndDragMoved(position)),
             window::Event::DragLeft => Some(Message::DndDragLeft),
             window::Event::DragDropped {
                 position,
                 data,
-                mime_type,
+                format,
                 ..
             } => Some(Message::DndDragDropped {
                 position,
                 data,
-                mime_type,
+                mime_type: format,
             }),
             window::Event::FileHovered(path) => Some(Message::DndFileHovered(path)),
             window::Event::FileDropped(path) => Some(Message::DndFileDropped(path)),
@@ -98,7 +106,9 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
                         .push(format!("Outgoing drag completed: {:?}", action));
                 }
                 DropResult::Cancelled => {
-                    state.drop_history.push("Outgoing drag cancelled".to_string());
+                    state
+                        .drop_history
+                        .push("Outgoing drag cancelled".to_string());
                 }
             }
             None
@@ -109,7 +119,7 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
         } => {
             state.incoming_drag = Some(DragState {
                 position: *position,
-                mime_types: mime_types.clone(),
+                formats: mime_types.clone(),
                 ..Default::default()
             });
             None
@@ -139,7 +149,7 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
                 drag.position = *position;
                 drag.dropped_data = Some(DroppedData {
                     data: data.clone(),
-                    mime_type: mime_type.clone(),
+                    format: mime_type.clone(),
                 });
             }
 
@@ -351,7 +361,7 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
         text("📥").size(48)
     };
 
-    let content_type = describe_mime_types(&drag.mime_types);
+    let content_type = describe_formats(&drag.formats);
     let type_label = text(format!("Content: {}", content_type)).size(14);
 
     let position_text = if drag.position != Point::ORIGIN {
@@ -379,10 +389,10 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
     };
 
     let drop_info: Element<'static, Message> = if let Some(ref dropped) = drag.dropped_data {
-        let preview = preview_data(&dropped.data, &dropped.mime_type);
+        let preview = preview_data(&dropped.data, &dropped.format);
         column![
             text("✓ Dropped!").size(16),
-            text(format!("{}", dropped.mime_type)).size(10),
+            text(format!("{}", dropped.format)).size(10),
             text(preview).size(11),
         ]
         .spacing(3)
@@ -405,9 +415,16 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
         text("Release to drop...").size(12).into()
     };
 
-    let content = column![title, icon, type_label, position_text, files_info, drop_info]
-        .spacing(5)
-        .align_x(Center);
+    let content = column![
+        title,
+        icon,
+        type_label,
+        position_text,
+        files_info,
+        drop_info
+    ]
+    .spacing(5)
+    .align_x(Center);
 
     let has_drop = drag.dropped_data.is_some() || !drag.dropped_files.is_empty();
 
@@ -438,17 +455,17 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
         .into()
 }
 
-fn describe_mime_types(mime_types: &[String]) -> String {
-    if mime_types.is_empty() {
+fn describe_formats(formats: &[String]) -> String {
+    if formats.is_empty() {
         return "File(s)".into();
     }
 
-    let has_files = mime_types
+    let has_files = formats
         .iter()
         .any(|m| m.contains("uri-list") || m.contains("file"));
-    let has_text = mime_types.iter().any(|m| m.starts_with("text/plain"));
-    let has_image = mime_types.iter().any(|m| m.starts_with("image/"));
-    let has_html = mime_types.iter().any(|m| m.contains("html"));
+    let has_text = formats.iter().any(|m| m.starts_with("text/plain"));
+    let has_image = formats.iter().any(|m| m.starts_with("image/"));
+    let has_html = formats.iter().any(|m| m.contains("html"));
 
     if has_files {
         "📁 File(s)".into()
@@ -459,15 +476,12 @@ fn describe_mime_types(mime_types: &[String]) -> String {
     } else if has_text {
         "📝 Text".into()
     } else {
-        format!("📦 {}", mime_types[0])
+        format!("📦 {}", formats[0])
     }
 }
 
-fn preview_data(data: &[u8], mime_type: &str) -> String {
-    if mime_type.starts_with("text/")
-        || mime_type.contains("uri-list")
-        || mime_type.contains("UTF8")
-    {
+fn preview_data(data: &[u8], format: &str) -> String {
+    if format.starts_with("text/") || format.contains("uri-list") || format.contains("UTF8") {
         match std::str::from_utf8(data) {
             Ok(s) => {
                 let clean: String = s
@@ -484,8 +498,8 @@ fn preview_data(data: &[u8], mime_type: &str) -> String {
             }
             Err(_) => "(binary)".into(),
         }
-    } else if mime_type.starts_with("image/") {
-        format!("{} image", mime_type.replace("image/", "").to_uppercase())
+    } else if format.starts_with("image/") {
+        format!("{} image", format.replace("image/", "").to_uppercase())
     } else {
         "(binary data)".into()
     }

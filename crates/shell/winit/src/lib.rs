@@ -41,6 +41,8 @@ pub use dnd::DndManager;
 pub use error::Error;
 pub use proxy::Proxy;
 
+#[cfg(feature = "hinting")]
+use crate::core::Renderer as _;
 use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::theme;

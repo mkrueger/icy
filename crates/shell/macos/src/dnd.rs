@@ -169,7 +169,7 @@ impl DragSource {
     /// # Arguments
     ///
     /// * `data` - The data to drag
-    /// * `mime_type` - The MIME type of the data (e.g., "text/plain", "text/uri-list")
+    /// * `format` - The format of the data (e.g., "text/plain", "text/uri-list")
     /// * `allowed_operations` - Which drag operations are allowed
     ///
     /// # Returns
@@ -182,17 +182,17 @@ impl DragSource {
     pub fn start_drag(
         &self,
         data: &[u8],
-        mime_type: &str,
+        format: &str,
         allowed_operations: DragOperation,
     ) -> Result<&Receiver<DragResult>, DragError> {
-        self.start_drag_impl(data, mime_type, allowed_operations)?;
+        self.start_drag_impl(data, format, allowed_operations)?
         Ok(&self.result_receiver)
     }
 
     fn start_drag_impl(
         &self,
         data: &[u8],
-        mime_type: &str,
+        format: &str,
         allowed_operations: DragOperation,
     ) -> Result<(), DragError> {
         let mtm = MainThreadMarker::new().ok_or(DragError::NotMainThread)?;
@@ -205,7 +205,7 @@ impl DragSource {
         self.delegate.set_allowed_operations(allowed_operations);
 
         // Create a pasteboard item with the data
-        let pasteboard_item = create_pasteboard_item(data, mime_type)?;
+        let pasteboard_item = create_pasteboard_item(data, format)?;
 
         // Create a dragging item
         let dragging_item = create_dragging_item(&pasteboard_item, &event, mtm);
@@ -331,7 +331,7 @@ fn operation_to_result(operation: NSDragOperation) -> DragResult {
 /// Create an NSPasteboardItem with the given data.
 fn create_pasteboard_item(
     data: &[u8],
-    mime_type: &str,
+    format: &str,
 ) -> Result<Retained<NSPasteboardItem>, DragError> {
     // SAFETY: NSPasteboardItem creation
     #[allow(unsafe_code)]
@@ -340,8 +340,8 @@ fn create_pasteboard_item(
         item
     };
 
-    // Convert MIME type to NSPasteboardType (UTI)
-    let pasteboard_type = mime_type_to_uti(mime_type);
+    // Convert format to NSPasteboardType (UTI)
+    let pasteboard_type = format_to_uti(format);
     let type_string = NSString::from_str(&pasteboard_type);
 
     // Create NSData from the bytes
@@ -395,10 +395,10 @@ fn create_dragging_item(
     item
 }
 
-/// Convert MIME type to macOS UTI (Uniform Type Identifier).
+/// Convert format to macOS UTI (Uniform Type Identifier).
 #[cfg(target_os = "macos")]
-fn mime_type_to_uti(mime_type: &str) -> String {
-    match mime_type {
+fn format_to_uti(format: &str) -> String {
+    match format {
         "text/plain" | "text/plain;charset=utf-8" => "public.utf8-plain-text".to_string(),
         "text/html" => "public.html".to_string(),
         "text/uri-list" => "public.url".to_string(),
@@ -422,9 +422,9 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "macos")]
-    fn test_mime_type_conversion() {
-        assert_eq!(mime_type_to_uti("text/plain"), "public.utf8-plain-text");
-        assert_eq!(mime_type_to_uti("text/uri-list"), "public.url");
-        assert_eq!(mime_type_to_uti("custom/type"), "custom/type");
+    fn test_format_conversion() {
+        assert_eq!(format_to_uti("text/plain"), "public.utf8-plain-text");
+        assert_eq!(format_to_uti("text/uri-list"), "public.url");
+        assert_eq!(format_to_uti("custom/type"), "custom/type");
     }
 }

@@ -40,14 +40,14 @@ enum Message {
     // External drag events (from outside the app via Wayland DnD)
     DragEntered {
         position: Point,
-        mime_types: Vec<String>,
+        formats: Vec<String>,
     },
     DragMoved(Point),
     DragLeft,
     DragDropped {
         position: Point,
         data: Vec<u8>,
-        mime_type: String,
+        format: String,
     },
 
     // File drag events (winit native - works on X11/Windows/macOS)
@@ -60,8 +60,8 @@ enum Message {
 struct DragState {
     /// Current position of the drag cursor
     position: Point,
-    /// MIME types offered by the drag source
-    mime_types: Vec<String>,
+    /// Formats offered by the drag source
+    formats: Vec<String>,
     /// Files being hovered (from winit FileHovered events)
     hovered_files: Vec<PathBuf>,
     /// Dropped data (from DragDropped event)
@@ -73,7 +73,7 @@ struct DragState {
 #[derive(Debug, Clone)]
 struct DroppedData {
     data: Vec<u8>,
-    mime_type: String,
+    format: String,
 }
 
 struct DndDemo {
@@ -102,24 +102,20 @@ impl DndDemo {
     fn subscription(&self) -> Subscription<Message> {
         event::listen_with(|event, _status, _id| match event {
             Event::Window(window_event) => match window_event {
-                window::Event::DragEntered {
-                    position,
-                    mime_types,
-                } => Some(Message::DragEntered {
-                    position,
-                    mime_types,
-                }),
+                window::Event::DragEntered { position, formats } => {
+                    Some(Message::DragEntered { position, formats })
+                }
                 window::Event::DragMoved { position } => Some(Message::DragMoved(position)),
                 window::Event::DragLeft => Some(Message::DragLeft),
                 window::Event::DragDropped {
                     position,
                     data,
-                    mime_type,
+                    format,
                     ..
                 } => Some(Message::DragDropped {
                     position,
                     data,
-                    mime_type,
+                    format,
                 }),
                 window::Event::FileHovered(path) => Some(Message::FileHovered(path)),
                 window::Event::FileDropped(path) => Some(Message::FileDropped(path)),
@@ -158,13 +154,10 @@ impl DndDemo {
                 }
             }
 
-            Message::DragEntered {
-                position,
-                mime_types,
-            } => {
+            Message::DragEntered { position, formats } => {
                 self.incoming_drag = Some(DragState {
                     position,
-                    mime_types,
+                    formats,
                     ..Default::default()
                 });
             }
@@ -182,19 +175,19 @@ impl DndDemo {
             Message::DragDropped {
                 position,
                 data,
-                mime_type,
+                format,
             } => {
                 // Add to history
-                let preview = Self::preview_data(&data, &mime_type);
+                let preview = Self::preview_data(&data, &format);
                 self.drop_history.push(format!(
                     "Received at ({:.0}, {:.0}): {} - {}",
-                    position.x, position.y, mime_type, preview
+                    position.x, position.y, format, preview
                 ));
 
                 // Update drag state to show drop result
                 if let Some(ref mut drag) = self.incoming_drag {
                     drag.position = position;
-                    drag.dropped_data = Some(DroppedData { data, mime_type });
+                    drag.dropped_data = Some(DroppedData { data, format });
                 }
             }
 
@@ -405,7 +398,7 @@ impl DndDemo {
         };
 
         // Content type description
-        let content_type = Self::describe_mime_types(&drag.mime_types);
+        let content_type = Self::describe_formats(&drag.formats);
         let type_label = text(format!("Content: {}", content_type)).size(14);
 
         // Position
@@ -436,10 +429,10 @@ impl DndDemo {
 
         // Dropped data info
         let drop_info: Element<'_, Message> = if let Some(ref dropped) = drag.dropped_data {
-            let preview = Self::preview_data(&dropped.data, &dropped.mime_type);
+            let preview = Self::preview_data(&dropped.data, &dropped.format);
             column![
                 text("✓ Dropped!").size(16),
-                text(format!("{}", dropped.mime_type)).size(10),
+                text(format!("{}", dropped.format)).size(10),
                 text(preview).size(11),
             ]
             .spacing(3)
@@ -501,17 +494,17 @@ impl DndDemo {
             .into()
     }
 
-    fn describe_mime_types(mime_types: &[String]) -> String {
-        if mime_types.is_empty() {
+    fn describe_formats(formats: &[String]) -> String {
+        if formats.is_empty() {
             return "File(s)".into();
         }
 
-        let has_files = mime_types
+        let has_files = formats
             .iter()
             .any(|m| m.contains("uri-list") || m.contains("file"));
-        let has_text = mime_types.iter().any(|m| m.starts_with("text/plain"));
-        let has_image = mime_types.iter().any(|m| m.starts_with("image/"));
-        let has_html = mime_types.iter().any(|m| m.contains("html"));
+        let has_text = formats.iter().any(|m| m.starts_with("text/plain"));
+        let has_image = formats.iter().any(|m| m.starts_with("image/"));
+        let has_html = formats.iter().any(|m| m.contains("html"));
 
         if has_files {
             "📁 File(s)".into()
@@ -522,15 +515,12 @@ impl DndDemo {
         } else if has_text {
             "📝 Text".into()
         } else {
-            format!("📦 {}", mime_types[0])
+            format!("📦 {}", formats[0])
         }
     }
 
-    fn preview_data(data: &[u8], mime_type: &str) -> String {
-        if mime_type.starts_with("text/")
-            || mime_type.contains("uri-list")
-            || mime_type.contains("UTF8")
-        {
+    fn preview_data(data: &[u8], format: &str) -> String {
+        if format.starts_with("text/") || format.contains("uri-list") || format.contains("UTF8") {
             match std::str::from_utf8(data) {
                 Ok(s) => {
                     let clean: String = s
@@ -546,8 +536,8 @@ impl DndDemo {
                 }
                 Err(_) => "(binary)".into(),
             }
-        } else if mime_type.starts_with("image/") {
-            format!("{} image", mime_type.replace("image/", "").to_uppercase())
+        } else if format.starts_with("image/") {
+            format!("{} image", format.replace("image/", "").to_uppercase())
         } else {
             "(binary data)".into()
         }

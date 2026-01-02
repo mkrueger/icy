@@ -65,9 +65,20 @@ struct State {
     active_drag: Option<ActiveDrag>,
 }
 
+/// Windows-specific DnD state using icy_ui_windows.
+#[cfg(target_os = "windows")]
+struct State {
+    /// The drag source for initiating drags
+    drag_source: Option<icy_ui_windows::DragSource>,
+    /// Active drag channel (if we initiated a drag)
+    #[allow(dead_code)]
+    active_drag: Option<ActiveDrag>,
+}
+
 #[cfg(not(any(
     all(feature = "wayland", unix, not(target_os = "macos")),
-    target_os = "macos"
+    target_os = "macos",
+    target_os = "windows"
 )))]
 struct State {
     unavailable: (),
@@ -250,9 +261,48 @@ impl DndManager {
             }
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            use std::ptr::NonNull;
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+            let drag_source = if let Ok(window_handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(win32) = window_handle.as_raw() {
+                    // Convert NonZero<isize> to NonNull<c_void>
+                    // Safety: win32.hwnd is a valid, non-zero handle
+                    let hwnd_ptr = win32.hwnd.get() as *mut std::ffi::c_void;
+                    #[allow(unsafe_code)]
+                    let hwnd_non_null = unsafe { NonNull::new_unchecked(hwnd_ptr) };
+                    match icy_ui_windows::DragSource::new(hwnd_non_null) {
+                        Ok(source) => {
+                            log::debug!("DnD: Created Windows drag source");
+                            Some(source)
+                        }
+                        Err(e) => {
+                            log::warn!("DnD: Failed to create Windows drag source: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let _ = wakeup; // Not needed for Windows (yet)
+            DndManager {
+                state: State {
+                    drag_source,
+                    active_drag: None,
+                },
+            }
+        }
+
         #[cfg(not(any(
             all(feature = "wayland", unix, not(target_os = "macos")),
-            target_os = "macos"
+            target_os = "macos",
+            target_os = "windows"
         )))]
         {
             let _ = window;
@@ -293,9 +343,20 @@ impl DndManager {
             }
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            DndManager {
+                state: State {
+                    drag_source: None,
+                    active_drag: None,
+                },
+            }
+        }
+
         #[cfg(not(any(
             all(feature = "wayland", unix, not(target_os = "macos")),
-            target_os = "macos"
+            target_os = "macos",
+            target_os = "windows"
         )))]
         {
             DndManager {
@@ -316,9 +377,15 @@ impl DndManager {
             self.state.drag_source.is_some()
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            self.state.drag_source.is_some()
+        }
+
         #[cfg(not(any(
             all(feature = "wayland", unix, not(target_os = "macos")),
-            target_os = "macos"
+            target_os = "macos",
+            target_os = "windows"
         )))]
         {
             false
@@ -413,20 +480,20 @@ impl DndManager {
             }
             Action::AcceptDrag {
                 window,
-                mime_types,
+                formats,
                 action,
             } => {
-                self.accept_drag(window, mime_types, action);
+                self.accept_drag(window, formats, action);
             }
             Action::RejectDrag { window } => {
                 self.reject_drag(window);
             }
             Action::RequestData {
                 window,
-                mime_type,
+                format,
                 channel,
             } => {
-                self.request_data(window, mime_type, channel);
+                self.request_data(window, format, channel);
             }
         }
     }
@@ -444,7 +511,7 @@ impl DndManager {
                 // Convert our DragData to smithay's DndData
                 let smithay_data = SmithayDndData::new(
                     data.data,
-                    data.mime_types.iter().map(|s| s.to_string()).collect(),
+                    data.formats.iter().map(|s| s.to_string()).collect(),
                 );
 
                 // Convert DndAction to Wayland DndAction
@@ -467,9 +534,9 @@ impl DndManager {
         #[cfg(target_os = "macos")]
         {
             if let Some(ref drag_source) = self.state.drag_source {
-                // Get the first MIME type for the drag (use text/plain as fallback)
-                let mime_type = data
-                    .mime_types
+                // Get the first format for the drag (use text/plain as fallback)
+                let format = data
+                    .formats
                     .first()
                     .map(|s| s.as_ref())
                     .unwrap_or("text/plain");
@@ -482,7 +549,7 @@ impl DndManager {
                     _ => icy_ui_macos::dnd::DragOperation::ALL,
                 };
 
-                match drag_source.start_drag(&data.data, mime_type, operations) {
+                match drag_source.start_drag(&data.data, format, operations) {
                     Ok(_) => {
                         // Store the channel to receive completion notification
                         self.state.active_drag = Some(ActiveDrag { channel });
@@ -495,9 +562,53 @@ impl DndManager {
             }
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(ref drag_source) = self.state.drag_source {
+                // Get the first format for the drag (use text/plain as fallback)
+                let format = data
+                    .formats
+                    .first()
+                    .map(|s| s.as_ref())
+                    .unwrap_or("text/plain");
+
+                // Convert our DndAction to Windows DragOperation
+                let operations = match allowed_actions {
+                    DndAction::Copy => icy_ui_windows::dnd::DragOperation::COPY,
+                    DndAction::Move => icy_ui_windows::dnd::DragOperation::MOVE,
+                    DndAction::Link => icy_ui_windows::dnd::DragOperation::LINK,
+                    _ => icy_ui_windows::dnd::DragOperation::ALL,
+                };
+
+                match drag_source.start_drag(&data.data, format, operations) {
+                    Ok(result) => {
+                        // Windows DnD is synchronous, convert the result and send it
+                        let drop_result = match result {
+                            icy_ui_windows::dnd::DragResult::Copied => {
+                                DropResult::Dropped(DndAction::Copy)
+                            }
+                            icy_ui_windows::dnd::DragResult::Moved => {
+                                DropResult::Dropped(DndAction::Move)
+                            }
+                            icy_ui_windows::dnd::DragResult::Linked => {
+                                DropResult::Dropped(DndAction::Link)
+                            }
+                            icy_ui_windows::dnd::DragResult::Cancelled => DropResult::Cancelled,
+                        };
+                        let _ = channel.send(drop_result);
+                        return;
+                    }
+                    Err(e) => {
+                        log::warn!("DnD: Failed to start Windows drag: {}", e);
+                    }
+                }
+            }
+        }
+
         #[cfg(not(any(
             all(feature = "wayland", unix, not(target_os = "macos")),
-            target_os = "macos"
+            target_os = "macos",
+            target_os = "windows"
         )))]
         {
             let _ = (data, allowed_actions);
@@ -523,7 +634,7 @@ impl DndManager {
                             height: zone.height as f64,
                         },
                         mime_types: zone
-                            .accepted_mime_types
+                            .accepted_formats
                             .iter()
                             .map(|s| s.to_string())
                             .collect(),
@@ -561,7 +672,7 @@ impl DndManager {
     fn accept_drag(
         &mut self,
         _window: WindowId,
-        _mime_types: Vec<Cow<'static, str>>,
+        _formats: Vec<Cow<'static, str>>,
         action: DndAction,
     ) {
         #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
@@ -608,19 +719,19 @@ impl DndManager {
     fn request_data(
         &mut self,
         _window: WindowId,
-        mime_type: String,
+        _format: String,
         channel: oneshot::Sender<Option<Vec<u8>>>,
     ) {
         #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
         {
             if let Some(ref clipboard) = self.state.clipboard {
                 // Try to peek at the DnD offer data
-                match clipboard.peek_dnd_offer(&mime_type) {
+                match clipboard.peek_dnd_offer(&_format) {
                     Ok(data) => {
                         let _ = channel.send(Some(data.data));
                     }
                     Err(e) => {
-                        log::debug!("DnD request_data failed for {}: {:?}", mime_type, e);
+                        log::debug!("DnD request_data failed for {}: {:?}", _format, e);
                         let _ = channel.send(None);
                     }
                 }
@@ -634,9 +745,9 @@ impl DndManager {
             // For in-app drags, we'd need to implement NSPasteboard reading
             log::debug!(
                 "DnD request_data: {} (macOS - not yet implemented for in-app drags)",
-                mime_type
+                _format
             );
-            let _ = mime_type;
+            let _ = _format;
         }
 
         // If we can't request data, send None
@@ -696,7 +807,7 @@ impl DndManager {
                     self.state.last_position = (x as f32, y as f32);
                     Some(crate::core::Event::Window(WindowEvent::DragEntered {
                         position: Point::new(x as f32, y as f32),
-                        mime_types,
+                        formats: mime_types,
                     }))
                 }
                 OfferEvent::Motion { x, y } => {
@@ -729,7 +840,7 @@ impl DndManager {
                     Some(crate::core::Event::Window(WindowEvent::DragDropped {
                         position: Point::new(x, y),
                         data,
-                        mime_type,
+                        format: mime_type,
                         action,
                     }))
                 }

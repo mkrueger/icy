@@ -83,8 +83,8 @@ pub enum Event {
     DragEntered {
         /// Position where the drag entered, relative to the window.
         position: Point,
-        /// MIME types offered by the drag source.
-        mime_types: Vec<String>,
+        /// Formats offered by the drag source.
+        formats: Vec<String>,
     },
 
     /// A drag moved within this window.
@@ -99,8 +99,8 @@ pub enum Event {
         position: Point,
         /// The dropped data bytes.
         data: Vec<u8>,
-        /// The MIME type of the dropped data.
-        mime_type: String,
+        /// The format of the dropped data.
+        format: String,
         /// The action that was performed (Copy, Move, Link).
         action: DndAction,
     },

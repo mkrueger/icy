@@ -322,8 +322,8 @@ where
 /// on the wrapped content.
 pub struct DropTarget<'a, Message, Theme = crate::Theme, Renderer = crate::Renderer> {
     content: Element<'a, Message, Theme, Renderer>,
-    /// MIME types this target accepts
-    accepted_mime_types: Vec<String>,
+    /// Formats this target accepts
+    accepted_formats: Vec<String>,
     /// Message when drag enters
     on_enter: Option<Box<dyn Fn(Point, Vec<String>) -> Message + 'a>>,
     /// Message when drag moves
@@ -343,7 +343,7 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
     pub fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>) -> Self {
         DropTarget {
             content: content.into(),
-            accepted_mime_types: Vec::new(),
+            accepted_formats: Vec::new(),
             on_enter: None,
             on_move: None,
             on_leave: None,
@@ -353,17 +353,17 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
         }
     }
 
-    /// Sets the MIME types this drop target accepts.
+    /// Sets the formats this drop target accepts.
     #[must_use]
-    pub fn mime_types(mut self, types: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.accepted_mime_types = types.into_iter().map(Into::into).collect();
+    pub fn formats(mut self, types: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.accepted_formats = types.into_iter().map(Into::into).collect();
         self
     }
 
     /// Convenience method to accept text drops.
     #[must_use]
     pub fn accept_text(mut self) -> Self {
-        self.accepted_mime_types = Format::Text
+        self.accepted_formats = Format::Text
             .formats()
             .iter()
             .map(|s| s.to_string())
@@ -374,7 +374,7 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
     /// Convenience method to accept file drops.
     #[must_use]
     pub fn accept_files(mut self) -> Self {
-        self.accepted_mime_types = Format::Files
+        self.accepted_formats = Format::Files
             .formats()
             .iter()
             .map(|s| s.to_string())
@@ -434,8 +434,8 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
 struct DropTargetState {
     /// Whether a drag is currently over this target
     is_hovered: bool,
-    /// MIME types offered by the current drag
-    offered_mime_types: Vec<String>,
+    /// Formats offered by the current drag
+    offered_formats: Vec<String>,
 }
 
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -519,16 +519,13 @@ where
 
         // Handle DnD window events
         match event {
-            Event::Window(crate::core::window::Event::DragEntered {
-                position,
-                mime_types,
-            }) => {
+            Event::Window(crate::core::window::Event::DragEntered { position, formats }) => {
                 if bounds.contains(*position) {
                     state.is_hovered = true;
-                    state.offered_mime_types = mime_types.clone();
+                    state.offered_formats = formats.clone();
 
                     if let Some(on_enter) = &self.on_enter {
-                        shell.publish(on_enter(*position, mime_types.clone()));
+                        shell.publish(on_enter(*position, formats.clone()));
                     }
                 }
             }
@@ -539,7 +536,7 @@ where
                     // Entered
                     state.is_hovered = true;
                     if let Some(on_enter) = &self.on_enter {
-                        shell.publish(on_enter(*position, state.offered_mime_types.clone()));
+                        shell.publish(on_enter(*position, state.offered_formats.clone()));
                     }
                 } else if !is_over && state.is_hovered {
                     // Left
@@ -557,13 +554,13 @@ where
             Event::Window(crate::core::window::Event::DragDropped {
                 position,
                 data,
-                mime_type,
+                format,
                 ..
             }) => {
                 if bounds.contains(*position) {
                     state.is_hovered = false;
                     if let Some(on_drop) = &self.on_drop {
-                        shell.publish(on_drop(*position, data.clone(), mime_type.clone()));
+                        shell.publish(on_drop(*position, data.clone(), format.clone()));
                     }
                 }
             }

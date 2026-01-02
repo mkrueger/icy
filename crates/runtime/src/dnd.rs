@@ -88,18 +88,14 @@ pub fn set_drop_zones<T>(window: Id, zones: Vec<DropZone>) -> Task<T> {
     task::effect(crate::Action::Dnd(Action::SetDropZones { window, zones }))
 }
 
-/// Accept a drag with the given MIME types.
+/// Accept a drag with the given formats.
 ///
 /// Call this in response to a `DragEntered` event to indicate which
-/// MIME types your drop target can accept.
-pub fn accept_drag<T>(
-    window: Id,
-    mime_types: Vec<Cow<'static, str>>,
-    action: DndAction,
-) -> Task<T> {
+/// formats your drop target can accept.
+pub fn accept_drag<T>(window: Id, formats: Vec<Cow<'static, str>>, action: DndAction) -> Task<T> {
     task::effect(crate::Action::Dnd(Action::AcceptDrag {
         window,
-        mime_types,
+        formats,
         action,
     }))
 }
@@ -112,15 +108,15 @@ pub fn reject_drag<T>(window: Id) -> Task<T> {
     task::effect(crate::Action::Dnd(Action::RejectDrag { window }))
 }
 
-/// Request the drag data for a specific MIME type.
+/// Request the drag data for a specific format.
 ///
 /// Call this when you want to peek at the data during drag (before drop).
 /// Note: Some platforms may not support this.
-pub fn request_data(window: Id, mime_type: String) -> Task<Option<Vec<u8>>> {
+pub fn request_data(window: Id, format: String) -> Task<Option<Vec<u8>>> {
     task::oneshot(|channel| {
         crate::Action::Dnd(Action::RequestData {
             window,
-            mime_type,
+            format,
             channel,
         })
     })
@@ -157,8 +153,8 @@ pub enum Action {
     AcceptDrag {
         /// The window accepting the drag.
         window: Id,
-        /// MIME types we accept.
-        mime_types: Vec<Cow<'static, str>>,
+        /// Formats we accept.
+        formats: Vec<Cow<'static, str>>,
         /// Action we prefer.
         action: DndAction,
     },
@@ -169,12 +165,12 @@ pub enum Action {
         window: Id,
     },
 
-    /// Request drag data for a MIME type.
+    /// Request drag data for a format.
     RequestData {
         /// The window requesting data.
         window: Id,
-        /// The MIME type to request.
-        mime_type: String,
+        /// The format to request.
+        format: String,
         /// Channel to receive the data.
         channel: oneshot::Sender<Option<Vec<u8>>>,
     },

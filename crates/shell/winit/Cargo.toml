@@ -66,6 +66,10 @@ wayland-client = { workspace = true, optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 icy_ui_macos.workspace = true
 
+# Windows platform integration (DnD initiation)
+[target.'cfg(target_os = "windows")'.dependencies]
+icy_ui_windows.workspace = true
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys.workspace = true
 web-sys.features = ["Document", "Window", "HtmlCanvasElement"]

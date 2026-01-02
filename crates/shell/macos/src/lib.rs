@@ -16,7 +16,7 @@
 //!
 //! // Create a drag source for a window
 //! let drag_source = DragSource::new(ns_view_ptr);
-//! drag_source.start_drag(data, mime_types)?;
+//! drag_source.start_drag(data, formats)?;
 //! ```
 //!
 //! # Platform Support
@@ -29,17 +29,35 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(feature = "url-handler")]
+// Only compile the actual implementations on macOS
+#[cfg(all(target_os = "macos", feature = "url-handler"))]
 pub mod url_handler;
 
-#[cfg(feature = "dnd")]
+#[cfg(all(target_os = "macos", feature = "dnd"))]
 pub mod dnd;
 
-#[cfg(feature = "url-handler")]
+#[cfg(all(target_os = "macos", feature = "url-handler"))]
 pub use url_handler::UrlHandler;
 
-#[cfg(feature = "dnd")]
-pub use dnd::{DragError, DragSource};
+#[cfg(all(target_os = "macos", feature = "dnd"))]
+pub use dnd::{DragError, DragOperation, DragResult, DragSource};
+
+// Provide stub implementations for non-macOS platforms
+#[cfg(not(target_os = "macos"))]
+mod stubs;
+
+// Re-export stubs as the dnd module for non-macOS
+#[cfg(all(not(target_os = "macos"), feature = "dnd"))]
+pub mod dnd {
+    //! Stub dnd module for non-macOS platforms.
+    pub use super::stubs::{DragError, DragOperation, DragResult, DragSource};
+}
+
+#[cfg(all(not(target_os = "macos"), feature = "url-handler"))]
+pub use stubs::UrlHandler;
+
+#[cfg(all(not(target_os = "macos"), feature = "dnd"))]
+pub use stubs::{DragError, DragOperation, DragResult, DragSource};
 
 /// macOS platform-specific events.
 #[derive(Debug, Clone, PartialEq, Eq)]

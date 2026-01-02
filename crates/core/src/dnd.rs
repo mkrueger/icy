@@ -33,32 +33,32 @@ impl DndAction {
 
 /// Data for a drag and drop operation.
 ///
-/// Contains the serialized payload and the MIME types it's available in.
+/// Contains the serialized payload and the formats it's available in.
 #[derive(Debug, Clone)]
 pub struct DragData {
     /// The serialized data bytes.
     pub data: Vec<u8>,
-    /// The MIME types this data is available in.
-    pub mime_types: Vec<Cow<'static, str>>,
+    /// The formats this data is available in (e.g., "text/plain", "text/uri-list").
+    pub formats: Vec<Cow<'static, str>>,
 }
 
 impl DragData {
-    /// Create new drag data with the given bytes and MIME types.
-    pub fn new(data: impl Into<Vec<u8>>, mime_types: Vec<Cow<'static, str>>) -> Self {
+    /// Create new drag data with the given bytes and formats.
+    pub fn new(data: impl Into<Vec<u8>>, formats: Vec<Cow<'static, str>>) -> Self {
         Self {
             data: data.into(),
-            mime_types,
+            formats,
         }
     }
 
     /// Create drag data from a text string.
     ///
-    /// Automatically sets appropriate text MIME types using platform-appropriate
+    /// Automatically sets appropriate text formats using platform-appropriate
     /// format strings from [`clipboard::Format`].
     pub fn from_text(text: impl AsRef<str>) -> Self {
         Self {
             data: text.as_ref().as_bytes().to_vec(),
-            mime_types: Format::Text
+            formats: Format::Text
                 .formats()
                 .iter()
                 .map(|s| Cow::Borrowed(*s))
@@ -80,7 +80,7 @@ impl DragData {
 
         Self {
             data: uri_list.into_bytes(),
-            mime_types: Format::Files
+            formats: Format::Files
                 .formats()
                 .iter()
                 .map(|s| Cow::Borrowed(*s))
@@ -157,8 +157,8 @@ pub struct DropZone {
     pub width: f32,
     /// Height of the drop zone.
     pub height: f32,
-    /// MIME types accepted by this drop zone.
-    pub accepted_mime_types: Vec<Cow<'static, str>>,
+    /// Formats accepted by this drop zone (e.g., "text/plain", "text/uri-list").
+    pub accepted_formats: Vec<Cow<'static, str>>,
     /// Actions supported by this drop zone.
     pub accepted_actions: DndAction,
     /// Preferred action for this drop zone.
@@ -174,15 +174,15 @@ impl DropZone {
             y,
             width,
             height,
-            accepted_mime_types: Vec::new(),
+            accepted_formats: Vec::new(),
             accepted_actions: DndAction::Copy,
             preferred_action: DndAction::Copy,
         }
     }
 
-    /// Set the accepted MIME types.
-    pub fn mime_types(mut self, types: Vec<Cow<'static, str>>) -> Self {
-        self.accepted_mime_types = types;
+    /// Set the accepted formats.
+    pub fn formats(mut self, types: Vec<Cow<'static, str>>) -> Self {
+        self.accepted_formats = types;
         self
     }
 
@@ -209,8 +209,8 @@ impl DropZone {
 pub enum DragSourceEvent {
     /// The drag operation started.
     Started,
-    /// A MIME type was accepted by the drop target.
-    MimeAccepted(Option<String>),
+    /// A format was accepted by the drop target.
+    FormatAccepted(Option<String>),
     /// The action was updated by the drop target.
     ActionChanged(DndAction),
     /// The drag was dropped on a target.
@@ -230,8 +230,8 @@ pub enum DropTargetEvent {
         x: f32,
         /// Y coordinate relative to the surface.
         y: f32,
-        /// MIME types offered by the drag source.
-        mime_types: Vec<String>,
+        /// Formats offered by the drag source.
+        formats: Vec<String>,
     },
     /// The drag moved within the drop zone.
     Motion {
@@ -250,7 +250,7 @@ pub enum DropTargetEvent {
         y: f32,
         /// The dropped data.
         data: Vec<u8>,
-        /// The MIME type of the dropped data.
-        mime_type: String,
+        /// The format of the dropped data.
+        format: String,
     },
 }
