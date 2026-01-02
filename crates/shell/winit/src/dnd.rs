@@ -8,10 +8,14 @@ use crate::futures::futures::channel::oneshot;
 use crate::runtime::dnd::Action;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 use std::sync::Arc;
 use winit::window::Window;
+
+#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+use std::collections::HashMap;
+
+#[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+use std::sync::mpsc::{self, Receiver, SendError, TryRecvError};
 
 #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
 use smithay_clipboard::dnd::{

@@ -276,6 +276,253 @@ impl MenuShortcut {
     }
 }
 
+/// Error type for parsing a [`MenuShortcut`] from a string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MenuShortcutParseError {
+    /// The input string was empty.
+    Empty,
+    /// No key was found after the modifier(s).
+    MissingKey,
+    /// Multiple keys were specified (only one allowed).
+    DuplicateKey,
+    /// An unrecognized token was found.
+    UnknownToken(String),
+}
+
+impl std::fmt::Display for MenuShortcutParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Empty => write!(f, "empty shortcut string"),
+            Self::MissingKey => write!(f, "no key specified"),
+            Self::DuplicateKey => write!(f, "multiple keys specified"),
+            Self::UnknownToken(s) => write!(f, "unknown token: '{s}'"),
+        }
+    }
+}
+
+impl std::error::Error for MenuShortcutParseError {}
+
+impl std::str::FromStr for MenuShortcut {
+    type Err = MenuShortcutParseError;
+
+    /// Parses a shortcut from a string like `"cmd+s"`, `"Ctrl+Shift+N"`, or `"⌘⇧S"`.
+    ///
+    /// # Supported modifiers
+    /// - `cmd`, `command`, `⌘` - Command/Ctrl (platform-dependent)
+    /// - `ctrl`, `control` - Control key
+    /// - `alt`, `option`, `opt`, `⌥` - Alt/Option key
+    /// - `shift`, `⇧` - Shift key
+    /// - `super`, `logo`, `win`, `meta` - Logo/Super/Windows key
+    ///
+    /// # Supported keys
+    /// - Single characters: `a`-`z`, `0`-`9`, punctuation
+    /// - Function keys: `f1`-`f35`
+    /// - Named keys: `enter`, `return`, `tab`, `space`, `escape`, `esc`,
+    ///   `backspace`, `delete`, `del`, `insert`, `home`, `end`,
+    ///   `pageup`, `pagedown`, `up`, `down`, `left`, `right`,
+    ///   `plus`, `minus`
+    ///
+    /// # Examples
+    /// ```
+    /// use icy_ui_core::menu::MenuShortcut;
+    ///
+    /// let shortcut: MenuShortcut = "cmd+s".parse().unwrap();
+    /// let shortcut2: MenuShortcut = "Ctrl+Shift+N".parse().unwrap();
+    /// let shortcut3: MenuShortcut = "F5".parse().unwrap();
+    /// ```
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        if s.is_empty() {
+            return Err(MenuShortcutParseError::Empty);
+        }
+
+        let mut modifiers = keyboard::Modifiers::empty();
+        let mut key: Option<keyboard::Key> = None;
+
+        // Split by '+' or whitespace, but also handle symbol modifiers like ⌘⇧S
+        let tokens = tokenize_shortcut(s);
+
+        for token in tokens {
+            let lower = token.to_lowercase();
+
+            // Check if this is a modifier
+            if let Some(m) = parse_modifier(&lower, &token) {
+                modifiers = modifiers.union(m);
+                continue;
+            }
+
+            // Try parsing as a key
+            if let Some(k) = parse_key(&lower, &token) {
+                if key.is_some() {
+                    return Err(MenuShortcutParseError::DuplicateKey);
+                }
+                key = Some(k);
+                continue;
+            }
+
+            return Err(MenuShortcutParseError::UnknownToken(token));
+        }
+
+        let key = key.ok_or(MenuShortcutParseError::MissingKey)?;
+
+        Ok(MenuShortcut { modifiers, key })
+    }
+}
+
+/// Tokenizes a shortcut string, handling both `+` separated and symbol-based formats.
+fn tokenize_shortcut(s: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+
+    for c in s.chars() {
+        match c {
+            '+' | ' ' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            // Symbol modifiers - each is its own token
+            '⌘' | '⇧' | '⌥' | '⌃' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+                tokens.push(c.to_string());
+            }
+            _ => current.push(c),
+        }
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+}
+
+/// Parses a modifier from a token.
+fn parse_modifier(lower: &str, _original: &str) -> Option<keyboard::Modifiers> {
+    match lower {
+        "cmd" | "command" | "⌘" => Some(keyboard::Modifiers::COMMAND),
+        "ctrl" | "control" | "⌃" => Some(keyboard::Modifiers::CTRL),
+        "alt" | "option" | "opt" | "⌥" => Some(keyboard::Modifiers::ALT),
+        "shift" | "⇧" => Some(keyboard::Modifiers::SHIFT),
+        "super" | "logo" | "win" | "meta" => Some(keyboard::Modifiers::LOGO),
+        _ => None,
+    }
+}
+
+/// Parses a key from a token.
+fn parse_key(lower: &str, original: &str) -> Option<keyboard::Key> {
+    use keyboard::key::Named;
+
+    // Function keys F1-F35
+    if lower.starts_with('f') && lower.len() >= 2 {
+        if let Ok(num) = lower[1..].parse::<u8>() {
+            let named = match num {
+                1 => Named::F1,
+                2 => Named::F2,
+                3 => Named::F3,
+                4 => Named::F4,
+                5 => Named::F5,
+                6 => Named::F6,
+                7 => Named::F7,
+                8 => Named::F8,
+                9 => Named::F9,
+                10 => Named::F10,
+                11 => Named::F11,
+                12 => Named::F12,
+                13 => Named::F13,
+                14 => Named::F14,
+                15 => Named::F15,
+                16 => Named::F16,
+                17 => Named::F17,
+                18 => Named::F18,
+                19 => Named::F19,
+                20 => Named::F20,
+                21 => Named::F21,
+                22 => Named::F22,
+                23 => Named::F23,
+                24 => Named::F24,
+                25 => Named::F25,
+                26 => Named::F26,
+                27 => Named::F27,
+                28 => Named::F28,
+                29 => Named::F29,
+                30 => Named::F30,
+                31 => Named::F31,
+                32 => Named::F32,
+                33 => Named::F33,
+                34 => Named::F34,
+                35 => Named::F35,
+                _ => return None,
+            };
+            return Some(keyboard::Key::Named(named));
+        }
+    }
+
+    // Named keys
+    let named = match lower {
+        "enter" | "return" => Some(Named::Enter),
+        "tab" => Some(Named::Tab),
+        "space" => Some(Named::Space),
+        "escape" | "esc" => Some(Named::Escape),
+        "backspace" => Some(Named::Backspace),
+        "delete" | "del" => Some(Named::Delete),
+        "insert" | "ins" => Some(Named::Insert),
+        "home" => Some(Named::Home),
+        "end" => Some(Named::End),
+        "pageup" | "pgup" => Some(Named::PageUp),
+        "pagedown" | "pgdn" => Some(Named::PageDown),
+        "up" | "arrowup" => Some(Named::ArrowUp),
+        "down" | "arrowdown" => Some(Named::ArrowDown),
+        "left" | "arrowleft" => Some(Named::ArrowLeft),
+        "right" | "arrowright" => Some(Named::ArrowRight),
+        "clear" => Some(Named::Clear),
+        "copy" => Some(Named::Copy),
+        "cut" => Some(Named::Cut),
+        "paste" => Some(Named::Paste),
+        "undo" => Some(Named::Undo),
+        "redo" => Some(Named::Redo),
+        "pause" => Some(Named::Pause),
+        "printscreen" | "print" => Some(Named::PrintScreen),
+        "scrolllock" => Some(Named::ScrollLock),
+        "capslock" => Some(Named::CapsLock),
+        "numlock" => Some(Named::NumLock),
+        _ => None,
+    };
+
+    if let Some(n) = named {
+        return Some(keyboard::Key::Named(n));
+    }
+
+    // Special character aliases
+    match lower {
+        "plus" => return Some(keyboard::Key::Character("+".into())),
+        "minus" => return Some(keyboard::Key::Character("-".into())),
+        "comma" => return Some(keyboard::Key::Character(",".into())),
+        "period" | "dot" => return Some(keyboard::Key::Character(".".into())),
+        "slash" => return Some(keyboard::Key::Character("/".into())),
+        "backslash" => return Some(keyboard::Key::Character("\\".into())),
+        "semicolon" => return Some(keyboard::Key::Character(";".into())),
+        "colon" => return Some(keyboard::Key::Character(":".into())),
+        "quote" => return Some(keyboard::Key::Character("'".into())),
+        "doublequote" => return Some(keyboard::Key::Character("\"".into())),
+        "bracketleft" | "lbracket" => return Some(keyboard::Key::Character("[".into())),
+        "bracketright" | "rbracket" => return Some(keyboard::Key::Character("]".into())),
+        "equal" | "equals" => return Some(keyboard::Key::Character("=".into())),
+        "grave" | "backtick" => return Some(keyboard::Key::Character("`".into())),
+        _ => {}
+    }
+
+    // Single character - use original case for letters
+    let chars: Vec<char> = original.chars().collect();
+    if chars.len() == 1 {
+        return Some(keyboard::Key::Character(original.to_uppercase().into()));
+    }
+
+    None
+}
+
 /// Current window information provided to `Program::application_menu`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WindowInfo {

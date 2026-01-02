@@ -759,6 +759,7 @@ pub mod menu {
         MenuNode,
         MenuRole,
         MenuShortcut,
+        MenuShortcutParseError,
         WindowInfo,
         // Helper functions
         fnv1a_hash_location,

@@ -1,35 +1,162 @@
 # Menu System
 
-The menu system provides a flexible, hierarchical menu implementation for desktop applications. It is ported from [libcosmic](https://github.com/pop-os/libcosmic) and [iced_aw](https://github.com/iced-rs/iced_aw), licensed under MIT/MPL-2.0.
+icy_ui has **two layers** of menu APIs:
 
-## Overview
+1. **High-level (recommended):** `icy_ui::menu` — a platform-agnostic menu model with macros, shortcuts, and native integration.
+   - **Application menu**: native menu bar on macOS; widget-based fallback on Windows/Linux.
+   - **Context menu**: native on macOS; widget overlay on other platforms.
+2. **Low-level widget menus:** `icy_ui::widget::menu` — a fully custom in-window menu system (MenuBar/MenuTree/etc.).
 
-The menu system consists of several components:
+In most apps you want `icy_ui::menu` as the **default entry**.
 
-- **MenuBar** - A horizontal bar containing top-level menu buttons
-- **MenuTree** - A tree structure representing menu items and submenus
-- **ContextMenu** - Right-click context menus
-- **MenuAction** - A trait for defining actionable menu items
-- **KeyBind** - Keyboard shortcut definitions
-- **Mnemonics** - Keyboard navigation via `Alt+letter` underlines
+## Recommended: `icy_ui::menu`
 
-## Basic Usage
+### Application Menu (native menu bar on macOS)
+
+Define an `AppMenu<Message>` using the `menu::*` macros. IDs are stable by default (based on source location), and you can pin them explicitly via `id = ...`.
+
+```rust
+use icy_ui::menu::{self, AppMenu, MenuContext, MenuId, MenuShortcut, MenuNode};
+use icy_ui::keyboard::Key;
+
+fn application_menu(context: &MenuContext) -> Option<AppMenu<Message>> {
+    let file_menu = menu::submenu!("File", [
+        menu::item!("New", Message::New, MenuShortcut::cmd(Key::Character("n".into()))),
+        menu::item!("Open…", Message::Open, MenuShortcut::cmd(Key::Character("o".into()))),
+        menu::separator!(),
+        // macOS will relocate this to the Application menu with ⌘Q
+        menu::quit!(Message::Quit),
+    ]);
+
+    let window_menu = menu::submenu!("Window", [
+        // Example dynamic menu: pin IDs deterministically
+        // (instead of relying on file!/line! which changes when you edit code)
+        MenuNode::submenu("Windows", context
+            .windows
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let id = MenuId::from_str("window").child(i as u64);
+                MenuNode::item_with_id(id, &w.title, Message::FocusWindow(w.id))
+            })
+            .collect()),
+    ]);
+
+    Some(AppMenu::new(vec![file_menu, window_menu]))
+}
+```
+
+Enable the application menu in the builder:
+
+```rust
+fn main() -> icy_ui::Result {
+    icy_ui::application(MyApp::default, MyApp::update, MyApp::view)
+        .application_menu(MyApp::application_menu)
+        .run()
+}
+```
+
+### Context Menus (native on macOS)
+
+Use the `context_menu` widget with `Vec<MenuNode<Message>>`. The widget handles native menu display and routes selection back into your `Message` automatically.
+
+```rust
+use icy_ui::menu;
+use icy_ui::widget::menu::context_menu;
+
+let nodes = vec![
+    menu::item!("Cut", Message::Cut),
+    menu::item!("Copy", Message::Copy),
+    menu::separator!(),
+    menu::item!("Paste", Message::Paste),
+];
+
+let content = my_content();
+let with_menu = context_menu(content, &nodes);
+```
+
+### Keyboard Shortcuts
+
+Shortcuts are part of the menu model (`MenuShortcut`). On macOS they show up as native key equivalents.
+
+```rust
+use icy_ui::menu::{self, MenuShortcut};
+use icy_ui::keyboard::Key;
+
+menu::item!("Save", Message::Save, MenuShortcut::cmd(Key::Character("s".into())));
+```
+
+#### Parsing Shortcuts from Strings
+
+For user-configurable shortcuts (e.g., from config files), use `FromStr`:
+
+```rust
+use icy_ui::menu::MenuShortcut;
+
+// Parse from string
+let shortcut: MenuShortcut = "cmd+s".parse().unwrap();
+let shortcut2: MenuShortcut = "Ctrl+Shift+N".parse().unwrap();
+let shortcut3: MenuShortcut = "F5".parse().unwrap();
+
+// macOS symbols also work
+let shortcut4: MenuShortcut = "⌘⇧S".parse().unwrap();
+```
+
+**Supported modifiers:**
+- `cmd`, `command`, `⌘` — Command/Ctrl (platform-dependent)
+- `ctrl`, `control`, `⌃` — Control key
+- `alt`, `option`, `opt`, `⌥` — Alt/Option key
+- `shift`, `⇧` — Shift key
+- `super`, `logo`, `win`, `meta` — Logo/Super/Windows key
+
+**Supported keys:**
+- Single characters: `a`-`z`, `0`-`9`, punctuation
+- Function keys: `f1`-`f35`
+- Named keys: `enter`, `return`, `tab`, `space`, `escape`, `esc`, `backspace`, `delete`, `del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `up`, `down`, `left`, `right`
+- Aliases: `plus`, `minus`, `comma`, `period`, `slash`, `backslash`, `equal`, `grave`
+
+### Stable IDs (and `id = ...`)
+
+The macros default to a stable ID derived from `file!/line!`. For items that must remain stable across refactors, pin the ID explicitly:
+
+```rust
+use icy_ui::menu::{self, MenuId};
+
+menu::item!("Open", Message::Open, id = MenuId::from_str("file.open"));
+menu::separator!(id = MenuId::from_str("file.sep"));
+menu::submenu!("File", [/* ... */], id = MenuId::from_str("menu.file"));
+```
+
+For dynamic lists, derive IDs from a base:
+
+```rust
+use icy_ui::menu::MenuId;
+
+let base = MenuId::from_str("recent");
+let id0 = base.child(0);
+let id_docs = base.child_str("docs");
+```
+
+## Low-level: `icy_ui::widget::menu`
+
+The widget menu system (`MenuBar`, `MenuTree`, mnemonics, etc.) is the **low-level API** for building fully custom, in-window menus.
+Use it when you want complete control over layout/styling/behavior beyond the standard application/context menu model.
+
+### Basic Usage
 
 ```rust
 use icy_ui::widget::button;
 use icy_ui::widget::menu::{MenuTree, MenuBar};
 
-// Create a submenu
 let sub_menu = MenuTree::with_children(
     button("Sub Menu"),
     vec![
         MenuTree::new(button("Item 1")),
         MenuTree::new(button("Item 2")),
         MenuTree::new(button("Item 3")),
-    ]
+    ],
 );
 
-// Create a root menu with nested items
 let file_menu = MenuTree::with_children(
     button("File"),
     vec![
@@ -37,7 +164,7 @@ let file_menu = MenuTree::with_children(
         MenuTree::new(button("Open")),
         sub_menu,
         MenuTree::new(button("Save")),
-    ]
+    ],
 );
 
 let edit_menu = MenuTree::with_children(
@@ -46,16 +173,15 @@ let edit_menu = MenuTree::with_children(
         MenuTree::new(button("Cut")),
         MenuTree::new(button("Copy")),
         MenuTree::new(button("Paste")),
-    ]
+    ],
 );
 
-// Create the menu bar
 let menu_bar = MenuBar::new(vec![file_menu, edit_menu]);
 ```
 
-## MenuTree
+### MenuTree
 
-`MenuTree` represents a node in the menu hierarchy. It can be either a leaf item or a folder containing children.
+`MenuTree` represents a node in a widget menu hierarchy. It can be either a leaf item or a folder containing children.
 
 ### Creating Items
 
@@ -138,7 +264,7 @@ Controls how the selected path is highlighted:
 - `PathHighlight::Full` - Highlight the entire path from root
 - `PathHighlight::Single` - Highlight only the hovered item
 
-## ContextMenu
+## ContextMenu (Widget)
 
 Right-click context menus for elements:
 
@@ -360,210 +486,53 @@ fn view(&self) -> Element<Message> {
 - The `Super` modifier maps to Command on macOS and Windows key on other platforms
 - Mnemonic underlines are typically shown only when Alt is pressed
 
-## Application Menu (Native Menu Bar)
+## Application Menus: `MenuRole` and `MenuContext`
 
-For a native platform experience, icy_ui supports an **Application Menu** model that renders as the system menu bar on macOS and as an in-window widget menu bar on Windows/Linux.
+When you build your application menu via `icy_ui::menu`, you can assign roles to let the macOS backend place items in the standard Application menu.
 
-### Overview
+### MenuRole
 
-The application menu is defined via the `Program::application_menu` method, which returns an `AppMenu<Message>` structure. The platform backend then renders it appropriately:
+On **macOS**, items with roles are moved to the Application menu (named after your app). On other platforms, roles are ignored and items stay where defined.
 
-- **macOS**: Native `NSMenu` in the system menu bar
-- **Windows/Linux**: Widget-based `MenuBar` rendered in the window
+| Role | macOS behavior |
+|------|----------------|
+| `MenuRole::About` | moved to app menu |
+| `MenuRole::Preferences` | moved to app menu (typically ⌘,) |
+| `MenuRole::Quit` | moved to app menu (typically ⌘Q) |
+| `MenuRole::ApplicationSpecific` | moved to app menu |
 
-### Basic Usage
+Convenience macros/builders:
 
 ```rust
-use icy_ui_core::menu::{AppMenu, MenuNode, MenuKind, MenuContext};
+use icy_ui::menu::{self, MenuRole, MenuNode};
 
-impl Program for MyApp {
-    // ...
+let about = menu::about!("About My App", Message::ShowAbout);
+let prefs = menu::preferences!("Settings…", Message::OpenSettings);
+let quit = menu::quit!(Message::Quit);
 
-    fn application_menu(
-        &self,
-        context: &MenuContext,
-    ) -> Option<AppMenu<Message>> {
-        let file_menu = MenuNode::submenu(
-            "File",
-            vec![
-                MenuNode::item("New", Message::New),
-                MenuNode::item("Open", Message::Open),
-                MenuNode::separator(),
-                MenuNode::quit(Message::Quit),
-            ],
-        );
-
-        let help_menu = MenuNode::submenu(
-            "Help",
-            vec![
-                MenuNode::about("About My App", Message::ShowAbout),
-            ],
-        );
-
-        Some(AppMenu::new(vec![file_menu, help_menu]))
-    }
-}
+let license = MenuNode::item("License Info", Message::ShowLicense)
+    .with_role(MenuRole::ApplicationSpecific);
 ```
 
-### Enable in Application Builder
+### MenuContext (dynamic menus)
+
+Use `MenuContext` to build dynamic menus (e.g. window switcher). For stable IDs, prefer `MenuId::child(...)` over relying on source location.
 
 ```rust
-fn main() -> icy_ui::Result {
-    icy_ui::application(MyApp::default, MyApp::update, MyApp::view)
-        .application_menu(MyApp::application_menu)  // Enable app menu
-        .run()
-}
-```
+use icy_ui::menu::{AppMenu, MenuContext, MenuId, MenuNode};
 
-### MenuNode Types
-
-```rust
-// Simple clickable item
-MenuNode::item("Label", Message::Action)
-
-// Submenu with children
-MenuNode::submenu("Label", vec![...children...])
-
-// Visual separator
-MenuNode::separator()
-
-// Checkbox item
-MenuNode::new(MenuKind::CheckItem {
-    label: "Dark Mode".into(),
-    enabled: true,
-    checked: state.dark_mode,
-    shortcut: None,
-    on_activate: Message::ToggleDarkMode,
-})
-```
-
-### MenuRole - Cross-Platform Item Relocation
-
-`MenuRole` allows certain menu items to be automatically relocated to platform-specific locations. On **macOS**, items with roles are moved to the **Application menu** (the menu named after the app). On **Windows/Linux**, roles are ignored and items stay where defined.
-
-#### Available Roles
-
-| Role | Description | macOS Behavior |
-|------|-------------|----------------|
-| `MenuRole::None` | No special handling (default) | Stays in place |
-| `MenuRole::About` | "About" dialog | Moved to app menu |
-| `MenuRole::Preferences` | Settings/Preferences | Moved to app menu with ⌘, |
-| `MenuRole::Quit` | Quit/Exit application | Moved to app menu with ⌘Q |
-| `MenuRole::ApplicationSpecific` | Custom app-specific items | Moved to app menu |
-
-#### Role-Based Convenience Constructors
-
-```rust
-// Creates a Quit item with MenuRole::Quit
-// On macOS: appears in app menu with ⌘Q shortcut
-MenuNode::quit(Message::Quit)
-
-// Creates an About item with MenuRole::About
-// On macOS: appears at top of app menu
-MenuNode::about("About My App", Message::ShowAbout)
-
-// Creates a Preferences item with MenuRole::Preferences
-// On macOS: appears in app menu with ⌘, shortcut
-MenuNode::preferences("Settings…", Message::OpenSettings)
-```
-
-#### Custom Role Assignment
-
-```rust
-// Use with_role() for any item
-MenuNode::item("License Info", Message::ShowLicense)
-    .with_role(MenuRole::ApplicationSpecific)
-```
-
-#### macOS Application Menu Order
-
-Items are arranged in standard macOS order:
-
-1. **About** (MenuRole::About)
-2. Separator
-3. **Preferences** (MenuRole::Preferences) with ⌘,
-4. Separator
-5. **Application-Specific Items** (MenuRole::ApplicationSpecific)
-6. Separator
-7. **Quit** (MenuRole::Quit) with ⌘Q
-
-### MenuContext
-
-The `MenuContext` provides runtime information useful for building dynamic menus:
-
-```rust
-fn application_menu(
-    &self,
-    context: &MenuContext,
-) -> Option<AppMenu<Message>> {
-    // Access list of open windows
-    for window in &context.windows {
-        println!("Window: {} (id: {:?})", window.title, window.id);
-    }
-
-    // Build window switcher menu
-    let window_items: Vec<_> = context.windows
+fn application_menu(context: &MenuContext) -> Option<AppMenu<Message>> {
+    let windows: Vec<_> = context
+        .windows
         .iter()
-        .map(|w| MenuNode::item(
-            &w.title,
-            Message::FocusWindow(w.id),
-        ))
+        .enumerate()
+        .map(|(i, w)| {
+            let id = MenuId::from_str("window").child(i as u64);
+            MenuNode::item_with_id(id, &w.title, Message::FocusWindow(w.id))
+        })
         .collect();
 
-    // ...
+    Some(AppMenu::new(vec![MenuNode::submenu("Window", windows)]))
 }
 ```
-
-### Complete Example with Roles
-
-```rust
-fn application_menu(
-    state: &MyApp,
-    context: &MenuContext,
-) -> Option<AppMenu<Message>> {
-    let file_menu = MenuNode::submenu("File", vec![
-        MenuNode::item("New", Message::New),
-        MenuNode::item("Open…", Message::Open),
-        MenuNode::separator(),
-        // Quit will move to app menu on macOS
-        MenuNode::quit(Message::Quit),
-    ]);
-
-    let edit_menu = MenuNode::submenu("Edit", vec![
-        MenuNode::item("Undo", Message::Undo),
-        MenuNode::item("Redo", Message::Redo),
-        MenuNode::separator(),
-        // Preferences will move to app menu on macOS
-        MenuNode::preferences("Settings…", Message::OpenSettings),
-    ]);
-
-    let help_menu = MenuNode::submenu("Help", vec![
-        // About will move to app menu on macOS
-        MenuNode::about("About My App", Message::ShowAbout),
-        MenuNode::item("Documentation", Message::OpenDocs),
-    ]);
-
-    Some(AppMenu::new(vec![file_menu, edit_menu, help_menu]))
-}
-```
-
-On **macOS**, the resulting menus look like:
-
-**Application Menu (e.g., "My App"):**
-- About My App
-- ---
-- Settings… (⌘,)
-- ---
-- Quit My App (⌘Q)
-
-**File Menu:**
-- New
-- Open…
-
-**Edit Menu:**
-- Undo
-- Redo
-
-**Help Menu:**
-- Documentation
 
