@@ -1943,6 +1943,23 @@ impl operation::Scrollable for State {
         };
         State::scroll_to_animated(self, target, bounds, content_bounds);
     }
+
+    fn scroll_by_animated(
+        &mut self,
+        offset: AbsoluteOffset,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) {
+        let current = AbsoluteOffset {
+            x: self.offset_x.absolute(bounds.width, content_bounds.width),
+            y: self.offset_y.absolute(bounds.height, content_bounds.height),
+        };
+        let target = AbsoluteOffset {
+            x: current.x + offset.x,
+            y: current.y + offset.y,
+        };
+        State::scroll_to_animated(self, target, bounds, content_bounds);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

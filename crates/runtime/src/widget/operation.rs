@@ -50,6 +50,14 @@ pub fn scroll_to_animated<T>(
     )))
 }
 
+/// Scrolls the scrollable with the given [`Id`] by the provided [`AbsoluteOffset`] with smooth animation.
+pub fn scroll_by_animated<T>(id: impl Into<Id>, offset: AbsoluteOffset) -> Task<T> {
+    task::effect(Action::widget(operation::scrollable::scroll_by_animated(
+        id.into(),
+        offset,
+    )))
+}
+
 /// Focuses the previous focusable widget.
 pub fn focus_previous<T>() -> Task<T> {
     task::effect(Action::widget(operation::focusable::focus_previous()))

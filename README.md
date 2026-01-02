@@ -35,7 +35,7 @@ I try to keep doc up 2 date. I take PRs and ideas and try to listen to my users 
 
 I can't promise to take/implement all feature request because of my time limits. 
 
-But the goal is to make a more community friendly project.
+But the goal is to make a more community friendly project. I hope that my contribution to the rust ecosystem is useful and that as many as possible ui libraries take stuff from icy_ui - rust needs way better desktop UI libraries.
 
 ## License
 

@@ -410,6 +410,23 @@ impl operation::Scrollable for State {
         };
         State::scroll_to_animated(self, target, bounds, content_bounds);
     }
+
+    fn scroll_by_animated(
+        &mut self,
+        offset: AbsoluteOffset,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) {
+        let current = AbsoluteOffset {
+            x: self.offset_x.absolute(bounds.width, content_bounds.width),
+            y: self.offset_y.absolute(bounds.height, content_bounds.height),
+        };
+        let target = AbsoluteOffset {
+            x: current.x + offset.x,
+            y: current.y + offset.y,
+        };
+        State::scroll_to_animated(self, target, bounds, content_bounds);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1799,18 +1816,67 @@ where
             let draw_scrollbar = |renderer: &mut Renderer,
                                   scroll_style: &ScrollStyle,
                                   scrollbar: &internals::Scrollbar,
+                                  is_vertical: bool,
                                   is_hovered: bool,
                                   is_dragged: bool| {
+                let is_interacting = is_hovered || is_dragged;
+
+                let shrink_axis = |bounds: Rectangle, target_thickness: f32| -> Rectangle {
+                    let target_thickness = target_thickness.max(0.0).min(if is_vertical {
+                        bounds.width
+                    } else {
+                        bounds.height
+                    });
+
+                    if is_vertical {
+                        Rectangle {
+                            // Flush to the outer edge (right)
+                            x: bounds.x + bounds.width - target_thickness,
+                            width: target_thickness,
+                            ..bounds
+                        }
+                    } else {
+                        Rectangle {
+                            // Flush to the outer edge (bottom)
+                            y: bounds.y + bounds.height - target_thickness,
+                            height: target_thickness,
+                            ..bounds
+                        }
+                    }
+                };
+
+                // For the `thin` preset we want a collapsed thin line unless the user is
+                // hovering/dragging the scrollbar itself.
+                //
+                // We distinguish it from regular `floating` by the fact that `thin` allocates
+                // a small width (`floating_allocated_width > 0`), while `floating` allocates none.
+                let is_thin_like =
+                    scroll_style.floating && scroll_style.floating_allocated_width > 0.0;
+
+                let scrollbar_bounds = if is_thin_like && !is_interacting {
+                    shrink_axis(scrollbar.bounds, scroll_style.floating_width)
+                } else {
+                    scrollbar.bounds
+                };
+
+                let scroller_bounds = if is_thin_like && !is_interacting {
+                    scrollbar
+                        .scroller
+                        .map(|s| shrink_axis(s.bounds, scroll_style.floating_width))
+                } else {
+                    scrollbar.scroller.map(|s| s.bounds)
+                };
+
                 // Draw rail background
-                if scrollbar.bounds.width > 0.0
-                    && scrollbar.bounds.height > 0.0
+                if scrollbar_bounds.width > 0.0
+                    && scrollbar_bounds.height > 0.0
                     && scroll_style.rail_background.is_some()
                 {
                     let bg_color = scroll_style.rail_background.unwrap_or(Color::TRANSPARENT);
                     if bg_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
-                                bounds: scrollbar.bounds,
+                                bounds: scrollbar_bounds,
                                 border: corner_radius,
                                 ..renderer::Quad::default()
                             },
@@ -1820,9 +1886,9 @@ where
                 }
 
                 // Draw handle/scroller
-                if let Some(scroller) = scrollbar.scroller
-                    && scroller.bounds.width > 0.0
-                    && scroller.bounds.height > 0.0
+                if let Some(bounds) = scroller_bounds
+                    && bounds.width > 0.0
+                    && bounds.height > 0.0
                 {
                     let handle_color = if is_dragged {
                         scroll_style.handle_color_dragged
@@ -1835,7 +1901,7 @@ where
                     if handle_color != Color::TRANSPARENT {
                         renderer.fill_quad(
                             renderer::Quad {
-                                bounds: scroller.bounds,
+                                bounds,
                                 border: corner_radius,
                                 ..renderer::Quad::default()
                             },
@@ -1882,6 +1948,7 @@ where
                             renderer,
                             scroll_style,
                             &scrollbar,
+                            true, // is_vertical
                             is_v_hovered,
                             is_v_dragged,
                         );
@@ -1892,6 +1959,7 @@ where
                             renderer,
                             scroll_style,
                             &scrollbar,
+                            false, // is_vertical
                             is_h_hovered,
                             is_h_dragged,
                         );

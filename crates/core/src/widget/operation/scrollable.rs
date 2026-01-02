@@ -26,6 +26,18 @@ pub trait Scrollable {
         let _ = bounds;
         let _ = content_bounds;
     }
+
+    /// Scroll the widget by the given [`AbsoluteOffset`] with smooth animation.
+    /// Default implementation falls back to immediate scroll_by.
+    fn scroll_by_animated(
+        &mut self,
+        offset: AbsoluteOffset,
+        bounds: Rectangle,
+        content_bounds: Rectangle,
+    ) {
+        // Default: fall back to immediate scroll
+        self.scroll_by(offset, bounds, content_bounds);
+    }
 }
 
 /// Produces an [`Operation`] that snaps the widget with the given [`Id`] to
@@ -146,6 +158,36 @@ pub fn scroll_to_animated<T>(target: Id, offset: AbsoluteOffset<Option<f32>>) ->
     }
 
     ScrollToAnimated { target, offset }
+}
+
+/// Produces an [`Operation`] that scrolls the widget with the given [`Id`] by
+/// the provided [`AbsoluteOffset`] with smooth animation.
+pub fn scroll_by_animated<T>(target: Id, offset: AbsoluteOffset) -> impl Operation<T> {
+    struct ScrollByAnimated {
+        target: Id,
+        offset: AbsoluteOffset,
+    }
+
+    impl<T> Operation<T> for ScrollByAnimated {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation<T>)) {
+            operate(self);
+        }
+
+        fn scrollable(
+            &mut self,
+            id: Option<&Id>,
+            bounds: Rectangle,
+            content_bounds: Rectangle,
+            _translation: Vector,
+            state: &mut dyn Scrollable,
+        ) {
+            if Some(&self.target) == id {
+                state.scroll_by_animated(self.offset, bounds, content_bounds);
+            }
+        }
+    }
+
+    ScrollByAnimated { target, offset }
 }
 
 /// The amount of absolute offset in each direction of a [`Scrollable`].
