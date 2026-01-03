@@ -203,7 +203,9 @@ impl<P: Program> Daemon<P> {
     pub fn title(
         self,
         title: impl TitleFn<P::State>,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>> {
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Daemon {
             raw: program::with_title(self.raw, move |state, window| title.title(state, window)),
             settings: self.settings,
@@ -215,7 +217,9 @@ impl<P: Program> Daemon<P> {
     pub fn subscription(
         self,
         f: impl Fn(&P::State) -> Subscription<P::Message>,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>> {
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Daemon {
             raw: program::with_subscription(self.raw, f),
             settings: self.settings,
@@ -227,7 +231,9 @@ impl<P: Program> Daemon<P> {
     pub fn theme(
         self,
         f: impl ThemeFn<P::State, P::Theme>,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>> {
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Daemon {
             raw: program::with_theme(self.raw, move |state, window| f.theme(state, window)),
             settings: self.settings,
@@ -239,7 +245,9 @@ impl<P: Program> Daemon<P> {
     pub fn style(
         self,
         f: impl Fn(&P::State, &P::Theme) -> theme::Style,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>> {
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Daemon {
             raw: program::with_style(self.raw, f),
             settings: self.settings,
@@ -251,7 +259,9 @@ impl<P: Program> Daemon<P> {
     pub fn scale_factor(
         self,
         f: impl Fn(&P::State, window::Id) -> f32,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>> {
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
         Daemon {
             raw: program::with_scale_factor(self.raw, f),
             settings: self.settings,
@@ -262,7 +272,9 @@ impl<P: Program> Daemon<P> {
     /// Sets the executor of the [`Daemon`].
     pub fn executor<E>(
         self,
-    ) -> Daemon<impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>>
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    >
     where
         E: Executor,
     {

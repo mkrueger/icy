@@ -85,7 +85,11 @@ use super::scrollable::{
 
 pub use super::scrollable::{AbsoluteOffset, RelativeOffset};
 
+use std::cell::RefCell;
 use std::ops::Range;
+
+/// Animation frame interval (~60fps) for smooth animations
+const ANIMATION_FRAME_MS: u64 = 16;
 
 /// Creates a virtual scrollable optimized for uniform-height rows.
 ///
@@ -153,6 +157,12 @@ where
     /// Row height for smooth sub-row scrolling (internal, set by `with_rows`).
     /// When set, translation offset uses `translation % row_height` for smooth scrolling.
     row_height: Option<f32>,
+    /// Optional cache key to invalidate the viewport cache when data changes.
+    /// When this value changes, the view callback will be called even if the viewport hasn't changed.
+    cache_key: u64,
+    /// Cached content element and viewport to avoid rebuilding on every draw.
+    /// The tuple is (viewport, element).
+    cached_content: RefCell<Option<(Rectangle, Element<'a, Message, Theme, Renderer>)>>,
 }
 
 impl<'a, Message, Theme, Renderer> VirtualScrollable<'a, Message, Theme, Renderer>
@@ -177,6 +187,8 @@ where
             class: Theme::default(),
             last_status: None,
             row_height: None,
+            cache_key: 0,
+            cached_content: RefCell::new(None),
         }
     }
 
@@ -209,6 +221,8 @@ where
             class: Theme::default(),
             last_status: None,
             row_height: Some(row_height),
+            cache_key: 0,
+            cached_content: RefCell::new(None),
         }
     }
 
@@ -315,6 +329,29 @@ where
         self.class = class.into();
         self
     }
+
+    /// Sets a cache key for the viewport content.
+    ///
+    /// The view callback is cached based on the visible viewport. If your data changes
+    /// but the viewport stays the same, the cached content would be stale. Use this method
+    /// to provide a key that changes when your data changes, forcing a refresh.
+    ///
+    /// Common patterns:
+    /// - Use `items.len() as u64` if only the count matters
+    /// - Use a hash of your data
+    /// - Use a version counter that increments on data changes
+    ///
+    /// # Example
+    /// ```ignore
+    /// scroll_area()
+    ///     .show_rows(30.0, items.len(), |range| { ... })
+    ///     .cache_key(data_version)
+    /// ```
+    #[must_use]
+    pub fn cache_key(mut self, key: u64) -> Self {
+        self.cache_key = key;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -341,6 +378,18 @@ struct State {
 
     is_y_scrollbar_visible: bool,
     is_x_scrollbar_visible: bool,
+
+    /// Cached viewport for avoiding redundant view callback calls.
+    /// When the visible viewport hasn't changed, we reuse the cached layout.
+    cached_viewport: Option<Rectangle>,
+    /// Cached layout node from the last view callback.
+    cached_content_layout: Option<layout::Node>,
+    /// Last cache key used to generate the cached content.
+    cached_key: u64,
+
+    /// Whether a pointer is currently pressed (mouse button down or touch active).
+    /// Used to avoid rebuilding/updating viewport content on every hover move.
+    is_pointer_down: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -377,6 +426,12 @@ impl Default for State {
 
             is_y_scrollbar_visible: true,
             is_x_scrollbar_visible: true,
+
+            cached_viewport: None,
+            cached_content_layout: None,
+            cached_key: 0,
+
+            is_pointer_down: false,
         }
     }
 }
@@ -678,6 +733,24 @@ impl State {
         )
     }
 
+    /// Returns true if any animation is currently active that requires redraws.
+    fn needs_animation(&self, now: Instant) -> bool {
+        self.is_kinetic_active()
+            || self.is_scroll_to_animating(now)
+            || self.hover_animation.is_animating(now)
+            || matches!(self.interaction, Interaction::AutoScrolling { .. })
+    }
+
+    /// Returns the next instant at which a redraw is needed for animations.
+    /// Returns None if no animation is active.
+    fn next_redraw_instant(&self, now: Instant) -> Option<Instant> {
+        if self.needs_animation(now) {
+            Some(now + Duration::from_millis(ANIMATION_FRAME_MS))
+        } else {
+            None
+        }
+    }
+
     fn y_scroller_grabbed_at(&self) -> Option<f32> {
         if let Interaction::YScrollerGrabbed(at) = self.interaction {
             Some(at)
@@ -906,23 +979,57 @@ where
                 .max(0.0),
         };
 
-        // Create the visible content
-        let mut content = (self.view)(visible_viewport);
+        // Check if we can reuse the cached layout
+        let viewport_changed = state
+            .cached_viewport
+            .map(|cached| {
+                // Consider viewport changed if position or size differs
+                // Use a small epsilon for floating point comparison
+                const EPSILON: f32 = 0.01;
+                (cached.x - visible_viewport.x).abs() > EPSILON
+                    || (cached.y - visible_viewport.y).abs() > EPSILON
+                    || (cached.width - visible_viewport.width).abs() > EPSILON
+                    || (cached.height - visible_viewport.height).abs() > EPSILON
+            })
+            .unwrap_or(true);
 
-        // Create a temporary tree for the content
-        if tree.children.is_empty() {
-            tree.children.push(Tree::new(content.as_widget()));
-        } else {
-            tree.children[0] = Tree::new(content.as_widget());
-        }
+        // Also check if the cache key changed (data invalidation)
+        let cache_key_changed = state.cached_key != self.cache_key;
 
-        // Layout the visible content within the visible bounds
-        let content_limits =
-            layout::Limits::new(Size::ZERO, Size::new(viewport_width, viewport_height));
         let content_node =
-            content
-                .as_widget_mut()
-                .layout(&mut tree.children[0], renderer, &content_limits);
+            if viewport_changed || cache_key_changed || state.cached_content_layout.is_none() {
+                // Viewport changed, cache key changed, or no cache - call the view callback
+                let mut content = (self.view)(visible_viewport);
+
+                // Create a temporary tree for the content
+                if tree.children.is_empty() {
+                    tree.children.push(Tree::new(content.as_widget()));
+                } else {
+                    tree.children[0].diff(content.as_widget());
+                }
+
+                // Layout the visible content within the visible bounds
+                let content_limits =
+                    layout::Limits::new(Size::ZERO, Size::new(viewport_width, viewport_height));
+                let content_node = content.as_widget_mut().layout(
+                    &mut tree.children[0],
+                    renderer,
+                    &content_limits,
+                );
+
+                // Cache the viewport, key, and layout for next time
+                state.cached_viewport = Some(visible_viewport);
+                state.cached_content_layout = Some(content_node.clone());
+                state.cached_key = self.cache_key;
+
+                // Also cache the content element for draw() to reuse
+                *self.cached_content.borrow_mut() = Some((visible_viewport, content));
+
+                content_node
+            } else {
+                // Viewport and cache key unchanged - reuse cached layout
+                state.cached_content_layout.clone().unwrap()
+            };
 
         // The main node has the outer bounds, with content as child (shrunken by right/bottom padding)
         layout::Node::with_children(bounds, vec![content_node])
@@ -982,6 +1089,20 @@ where
 
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
+
+        // Track pressed state so we can keep drag interactions working while
+        // avoiding expensive content rebuilds on hover-only cursor movement.
+        match event {
+            Event::Mouse(mouse::Event::ButtonPressed { .. })
+            | Event::Touch(touch::Event::FingerPressed { .. }) => {
+                state.is_pointer_down = true;
+            }
+            Event::Mouse(mouse::Event::ButtonReleased { .. })
+            | Event::Touch(touch::Event::FingerLifted { .. } | touch::Event::FingerLost { .. }) => {
+                state.is_pointer_down = false;
+            }
+            _ => {}
+        }
         let cursor_over_scrollable = cursor.position_over(bounds);
 
         let (right_padding, bottom_padding) = embedded_padding(self.direction, state);
@@ -1184,9 +1305,18 @@ where
             }
 
             // Forward events to content if not interacting with scrollbars
-            if state.last_scrolled.is_none()
-                || !matches!(event, Event::Mouse(mouse::Event::WheelScrolled { .. }))
-            {
+            let mut forward_to_content = state.last_scrolled.is_none()
+                || !matches!(event, Event::Mouse(mouse::Event::WheelScrolled { .. }));
+
+            if forward_to_content {
+                // Window-level events (e.g. RedrawRequested) are handled internally by
+                // VirtualScrollable and don't need to be forwarded to content.
+                if matches!(event, Event::Window(_)) {
+                    forward_to_content = false;
+                }
+            }
+
+            if forward_to_content {
                 let translation = state.translation(self.direction, bounds, content_bounds);
 
                 // Content is rendered without translation. Give it viewport-local coordinates.
@@ -1199,41 +1329,81 @@ where
                     _ => cursor.levitate(),
                 };
 
-                // Rebuild content for current viewport and update it
-                // Like egui: the viewport is simply the visible area offset by the scroll position
+                // Calculate visible viewport (using viewport size, not bounds, to match layout())
                 let visible_viewport = Rectangle {
                     x: translation.x,
                     y: translation.y,
-                    width: bounds
+                    width: viewport_bounds
                         .width
                         .min(content_bounds.width - translation.x)
                         .max(0.0),
-                    height: bounds
+                    height: viewport_bounds
                         .height
                         .min(content_bounds.height - translation.y)
                         .max(0.0),
                 };
 
-                let mut content = (self.view)(visible_viewport);
+                // Try to use cached content instead of regenerating
+                let mut cached = self.cached_content.borrow_mut();
+                let content_from_cache = cached
+                    .as_ref()
+                    .map(|(cached_vp, _)| {
+                        const EPSILON: f32 = 0.01;
+                        (cached_vp.x - visible_viewport.x).abs() <= EPSILON
+                            && (cached_vp.y - visible_viewport.y).abs() <= EPSILON
+                            && (cached_vp.width - visible_viewport.width).abs() <= EPSILON
+                            && (cached_vp.height - visible_viewport.height).abs() <= EPSILON
+                    })
+                    .unwrap_or(false);
 
-                if tree.children.is_empty() {
-                    tree.children.push(Tree::new(content.as_widget()));
+                if content_from_cache {
+                    // Use cached content for update
+                    let (_, content) = cached.as_mut().unwrap();
+
+                    if tree.children.is_empty() {
+                        tree.children.push(Tree::new(content.as_widget()));
+                    }
+
+                    if let Some(content_layout) = layout.children().next() {
+                        content.as_widget_mut().update(
+                            &mut tree.children[0],
+                            event,
+                            content_layout,
+                            cursor,
+                            renderer,
+                            clipboard,
+                            shell,
+                            &bounds,
+                        );
+                    }
                 } else {
-                    tree.children[0].diff(content.as_widget());
+                    // Cache miss - regenerate content
+                    drop(cached);
+
+                    let mut content = (self.view)(visible_viewport);
+
+                    if tree.children.is_empty() {
+                        tree.children.push(Tree::new(content.as_widget()));
+                    } else {
+                        tree.children[0].diff(content.as_widget());
+                    }
+
+                    if let Some(content_layout) = layout.children().next() {
+                        content.as_widget_mut().update(
+                            &mut tree.children[0],
+                            event,
+                            content_layout,
+                            cursor,
+                            renderer,
+                            clipboard,
+                            shell,
+                            &bounds,
+                        );
+                    }
+
+                    // Update cache
+                    *self.cached_content.borrow_mut() = Some((visible_viewport, content));
                 }
-
-                let content_layout = layout.children().next().unwrap();
-
-                content.as_widget_mut().update(
-                    &mut tree.children[0],
-                    event,
-                    content_layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    &bounds,
-                );
             }
 
             if matches!(
@@ -1250,9 +1420,10 @@ where
                     // Apply direction constraints to velocity
                     state.velocity = self.direction.align(state.velocity);
                     state.last_kinetic_update = Some(Instant::now());
-                    // Request redraw to animate kinetic scrolling
+                    // Schedule redraw to animate kinetic scrolling
                     if state.is_kinetic_active() {
-                        shell.request_redraw();
+                        let now = Instant::now();
+                        shell.request_redraw_at(now + Duration::from_millis(ANIMATION_FRAME_MS));
                     }
                 }
                 state.interaction = Interaction::None;
@@ -1390,7 +1561,8 @@ where
 
                     state.scroll_to_animated(target, viewport_bounds, content_bounds);
                     shell.capture_event();
-                    shell.request_redraw();
+                    let now = Instant::now();
+                    shell.request_redraw_at(now + Duration::from_millis(ANIMATION_FRAME_MS));
                 }
                 Event::Mouse(mouse::Event::ButtonPressed {
                     button: mouse::Button::Middle,
@@ -1407,7 +1579,8 @@ where
                     };
 
                     shell.capture_event();
-                    shell.request_redraw();
+                    let now = Instant::now();
+                    shell.request_redraw_at(now + Duration::from_millis(ANIMATION_FRAME_MS));
                 }
                 Event::Touch(event)
                     if matches!(state.interaction, Interaction::TouchScrolling { .. })
@@ -1500,11 +1673,20 @@ where
                             || delta.y.abs() >= AUTOSCROLL_DEADZONE)
                             && last_frame.is_none()
                         {
-                            shell.request_redraw();
+                            let now = Instant::now();
+                            shell
+                                .request_redraw_at(now + Duration::from_millis(ANIMATION_FRAME_MS));
                         }
                     }
                 }
                 Event::Window(window::Event::RedrawRequested(now)) => {
+                    // Update hover animation state (consolidated here instead of outside update())
+                    let is_mouse_over = cursor_over_scrollable.is_some();
+                    if is_mouse_over != state.is_mouse_over_area {
+                        state.is_mouse_over_area = is_mouse_over;
+                        state.hover_animation.go_mut(is_mouse_over, *now);
+                    }
+
                     if let Interaction::AutoScrolling {
                         origin,
                         current,
@@ -1512,7 +1694,10 @@ where
                     } = state.interaction
                     {
                         if last_frame == Some(*now) {
-                            shell.request_redraw();
+                            // Schedule next frame
+                            if let Some(next) = state.next_redraw_instant(*now) {
+                                shell.request_redraw_at(next);
+                            }
                             return;
                         }
 
@@ -1568,11 +1753,7 @@ where
                                     current,
                                     last_frame: Some(*now),
                                 };
-
-                                shell.request_redraw();
                             }
-
-                            return;
                         }
                     }
 
@@ -1586,9 +1767,6 @@ where
                                 content_bounds,
                                 shell,
                             );
-                            if state.is_kinetic_active() {
-                                shell.request_redraw();
-                            }
                         }
                     }
 
@@ -1602,7 +1780,6 @@ where
                                 content_bounds,
                                 shell,
                             );
-                            shell.request_redraw();
                         }
                     }
 
@@ -1613,6 +1790,11 @@ where
                         content_bounds,
                         shell,
                     );
+
+                    // Schedule next redraw only if animations are still active
+                    if let Some(next) = state.next_redraw_instant(*now) {
+                        shell.request_redraw_at(next);
+                    }
                 }
                 _ => {}
             }
@@ -1620,22 +1802,22 @@ where
 
         update();
 
-        // Update hover animation state
-        let is_mouse_over = cursor_over_scrollable.is_some();
+        // For non-RedrawRequested events, update hover animation state if needed
         let now = Instant::now();
-
-        if is_mouse_over != state.is_mouse_over_area {
-            state.is_mouse_over_area = is_mouse_over;
-            state.hover_animation.go_mut(is_mouse_over, now);
+        let is_mouse_over = cursor_over_scrollable.is_some();
+        if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
+            if is_mouse_over != state.is_mouse_over_area {
+                state.is_mouse_over_area = is_mouse_over;
+                state.hover_animation.go_mut(is_mouse_over, now);
+                // Schedule redraw for the animation
+                if let Some(next) = state.next_redraw_instant(now) {
+                    shell.request_redraw_at(next);
+                }
+            }
         }
 
         // Calculate hover factor from animation
         let hover_factor = state.hover_animation.interpolate(0.0, 1.0, now);
-
-        // Request redraw while animating
-        if state.hover_animation.is_animating(now) {
-            shell.request_redraw();
-        }
 
         let status = if state.scrollers_grabbed() {
             Status::Dragged {
@@ -1665,12 +1847,18 @@ where
             self.last_status = Some(status);
         }
 
-        if last_offsets != (state.offset_x, state.offset_y)
-            || self
-                .last_status
-                .is_some_and(|last_status| last_status != status)
-        {
+        // Only request immediate redraw if scroll offset changed (not for status/animation changes)
+        if last_offsets != (state.offset_x, state.offset_y) {
             shell.request_redraw();
+        } else if self.last_status.is_some_and(|last_status| {
+            // Compare status structurally, ignoring hover_factor to avoid animation-induced redraw loops
+            std::mem::discriminant(&last_status) != std::mem::discriminant(&status)
+                || status_fields_changed(last_status, status)
+        }) {
+            // Status changed structurally (e.g., Active -> Hovered) - schedule next animation frame
+            if let Some(next) = state.next_redraw_instant(now) {
+                shell.request_redraw_at(next);
+            }
         }
     }
 
@@ -1765,49 +1953,96 @@ where
                     .max(0.0),
             };
 
-            // Generate content for visible viewport
-            let content = (self.view)(visible_viewport);
-
-            // Get the tree for the content - use existing child tree if available
-            let content_tree = if let Some(child) = tree.children.first() {
-                child
-            } else {
-                // Fallback: create a temporary tree (this shouldn't happen normally)
-                &Tree::new(content.as_widget())
-            };
-
-            renderer.with_layer(visible_bounds, |renderer| {
-                if let Some(content_layout) = layout.children().next() {
-                    // Calculate translation offset for smooth scrolling
-                    // Like egui: for row-based scrolling, use sub-row offset (translation % row_height)
-                    // For viewport-based scrolling, use fractional pixel offset
-                    let (offset_x, offset_y) = if let Some(row_height) = self.row_height {
-                        // Row-based smooth scrolling: offset by sub-row amount
-                        let offset_y = translation.y % row_height;
-                        // For horizontal, use fractional pixel if no row width specified
-                        let offset_x = translation.x - translation.x.floor();
-                        (offset_x, offset_y)
-                    } else {
-                        // Viewport-based: fractional pixel offset for sub-pixel smoothness
-                        (
-                            translation.x - translation.x.floor(),
-                            translation.y - translation.y.floor(),
-                        )
-                    };
-
-                    renderer.with_translation(Vector::new(-offset_x, -offset_y), |renderer| {
-                        content.as_widget().draw(
-                            content_tree,
-                            renderer,
-                            theme,
-                            defaults,
-                            content_layout,
-                            cursor,
-                            &visible_bounds,
-                        );
-                    });
+            // Try to use cached content from layout(), otherwise regenerate
+            let cached = self.cached_content.borrow();
+            let content_from_cache = cached.as_ref().and_then(|(cached_vp, _)| {
+                // Check if viewport matches (use same epsilon as layout)
+                const EPSILON: f32 = 0.01;
+                if (cached_vp.x - visible_viewport.x).abs() <= EPSILON
+                    && (cached_vp.y - visible_viewport.y).abs() <= EPSILON
+                    && (cached_vp.width - visible_viewport.width).abs() <= EPSILON
+                    && (cached_vp.height - visible_viewport.height).abs() <= EPSILON
+                {
+                    Some(())
+                } else {
+                    None
                 }
             });
+
+            if content_from_cache.is_some() {
+                // Use cached content - borrow it for drawing
+                let cached = self.cached_content.borrow();
+                let (_, content) = cached.as_ref().unwrap();
+
+                // Get the tree for the content - must exist after layout()
+                let Some(content_tree) = tree.children.first() else {
+                    return;
+                };
+
+                renderer.with_layer(visible_bounds, |renderer| {
+                    if let Some(content_layout) = layout.children().next() {
+                        // Calculate translation offset for smooth scrolling
+                        let (offset_x, offset_y) = if let Some(row_height) = self.row_height {
+                            let offset_y = translation.y % row_height;
+                            let offset_x = translation.x - translation.x.floor();
+                            (offset_x, offset_y)
+                        } else {
+                            (
+                                translation.x - translation.x.floor(),
+                                translation.y - translation.y.floor(),
+                            )
+                        };
+
+                        renderer.with_translation(Vector::new(-offset_x, -offset_y), |renderer| {
+                            content.as_widget().draw(
+                                content_tree,
+                                renderer,
+                                theme,
+                                defaults,
+                                content_layout,
+                                cursor,
+                                &visible_bounds,
+                            );
+                        });
+                    }
+                });
+            } else {
+                // Cache miss (shouldn't happen normally if layout was called) - regenerate
+                drop(cached); // Release the borrow before calling view
+                let content = (self.view)(visible_viewport);
+
+                // Get the tree for the content - must exist after layout()
+                let Some(content_tree) = tree.children.first() else {
+                    return;
+                };
+
+                renderer.with_layer(visible_bounds, |renderer| {
+                    if let Some(content_layout) = layout.children().next() {
+                        let (offset_x, offset_y) = if let Some(row_height) = self.row_height {
+                            let offset_y = translation.y % row_height;
+                            let offset_x = translation.x - translation.x.floor();
+                            (offset_x, offset_y)
+                        } else {
+                            (
+                                translation.x - translation.x.floor(),
+                                translation.y - translation.y.floor(),
+                            )
+                        };
+
+                        renderer.with_translation(Vector::new(-offset_x, -offset_y), |renderer| {
+                            content.as_widget().draw(
+                                content_tree,
+                                renderer,
+                                theme,
+                                defaults,
+                                content_layout,
+                                cursor,
+                                &visible_bounds,
+                            );
+                        });
+                    }
+                });
+            }
 
             // Draw scrollbars
             let scroll_style = &style.scroll;
@@ -1990,29 +2225,63 @@ where
             let visible_viewport = Rectangle {
                 x: 0.0,
                 y: 0.0,
-                width: bounds.width,
-                height: bounds.height,
+                width: viewport_size.width,
+                height: viewport_size.height,
             };
 
-            let content = (self.view)(visible_viewport);
+            // Try to use cached content from layout()
+            let cached = self.cached_content.borrow();
+            let content_from_cache = cached.as_ref().and_then(|(cached_vp, _)| {
+                const EPSILON: f32 = 0.01;
+                if (cached_vp.x - visible_viewport.x).abs() <= EPSILON
+                    && (cached_vp.y - visible_viewport.y).abs() <= EPSILON
+                    && (cached_vp.width - visible_viewport.width).abs() <= EPSILON
+                    && (cached_vp.height - visible_viewport.height).abs() <= EPSILON
+                {
+                    Some(())
+                } else {
+                    None
+                }
+            });
 
-            // Get the tree for the content
-            let content_tree = if let Some(child) = tree.children.first() {
-                child
+            if content_from_cache.is_some() {
+                let cached = self.cached_content.borrow();
+                let (_, content) = cached.as_ref().unwrap();
+
+                let Some(content_tree) = tree.children.first() else {
+                    return;
+                };
+
+                if let Some(content_layout) = layout.children().next() {
+                    content.as_widget().draw(
+                        content_tree,
+                        renderer,
+                        theme,
+                        defaults,
+                        content_layout,
+                        cursor,
+                        &visible_bounds,
+                    );
+                }
             } else {
-                &Tree::new(content.as_widget())
-            };
+                drop(cached);
+                let content = (self.view)(visible_viewport);
 
-            if let Some(content_layout) = layout.children().next() {
-                content.as_widget().draw(
-                    content_tree,
-                    renderer,
-                    theme,
-                    defaults,
-                    content_layout,
-                    cursor,
-                    &visible_bounds,
-                );
+                let Some(content_tree) = tree.children.first() else {
+                    return;
+                };
+
+                if let Some(content_layout) = layout.children().next() {
+                    content.as_widget().draw(
+                        content_tree,
+                        renderer,
+                        theme,
+                        defaults,
+                        content_layout,
+                        cursor,
+                        &visible_bounds,
+                    );
+                }
             }
         }
     }
@@ -2080,29 +2349,69 @@ where
         let visible_viewport = Rectangle {
             x: translation.x,
             y: translation.y,
-            width: viewport_size.width,
-            height: viewport_size.height,
+            width: viewport_size
+                .width
+                .min(content_bounds.width - translation.x)
+                .max(0.0),
+            height: viewport_size
+                .height
+                .min(content_bounds.height - translation.y)
+                .max(0.0),
         };
 
-        let content = (self.view)(visible_viewport);
+        // Try to use cached content
+        let cached = self.cached_content.borrow();
+        let content_from_cache = cached.as_ref().and_then(|(cached_vp, _)| {
+            const EPSILON: f32 = 0.01;
+            if (cached_vp.x - visible_viewport.x).abs() <= EPSILON
+                && (cached_vp.y - visible_viewport.y).abs() <= EPSILON
+                && (cached_vp.width - visible_viewport.width).abs() <= EPSILON
+                && (cached_vp.height - visible_viewport.height).abs() <= EPSILON
+            {
+                Some(())
+            } else {
+                None
+            }
+        });
 
-        // Get the tree for the content
-        let content_tree = if let Some(child) = tree.children.first() {
-            child
-        } else {
-            &Tree::new(content.as_widget())
-        };
+        if content_from_cache.is_some() {
+            let cached = self.cached_content.borrow();
+            let (_, content) = cached.as_ref().unwrap();
 
-        if let Some(content_layout) = layout.children().next() {
-            content.as_widget().mouse_interaction(
-                content_tree,
-                content_layout,
-                cursor,
-                &bounds,
-                renderer,
-            )
+            let Some(content_tree) = tree.children.first() else {
+                return mouse::Interaction::None;
+            };
+
+            if let Some(content_layout) = layout.children().next() {
+                content.as_widget().mouse_interaction(
+                    content_tree,
+                    content_layout,
+                    cursor,
+                    &bounds,
+                    renderer,
+                )
+            } else {
+                mouse::Interaction::None
+            }
         } else {
-            mouse::Interaction::None
+            drop(cached);
+            let content = (self.view)(visible_viewport);
+
+            let Some(content_tree) = tree.children.first() else {
+                return mouse::Interaction::None;
+            };
+
+            if let Some(content_layout) = layout.children().next() {
+                content.as_widget().mouse_interaction(
+                    content_tree,
+                    content_layout,
+                    cursor,
+                    &bounds,
+                    renderer,
+                )
+            } else {
+                mouse::Interaction::None
+            }
         }
     }
 
@@ -2654,5 +2963,58 @@ mod internals {
     #[derive(Debug, Clone, Copy)]
     pub struct Scroller {
         pub bounds: Rectangle,
+    }
+}
+
+/// Compares two Status values ignoring the hover_factor field.
+/// Returns true if any field other than hover_factor differs.
+fn status_fields_changed(a: Status, b: Status) -> bool {
+    match (a, b) {
+        (
+            Status::Active {
+                is_horizontal_scrollbar_disabled: h1,
+                is_vertical_scrollbar_disabled: v1,
+                ..
+            },
+            Status::Active {
+                is_horizontal_scrollbar_disabled: h2,
+                is_vertical_scrollbar_disabled: v2,
+                ..
+            },
+        ) => h1 != h2 || v1 != v2,
+        (
+            Status::Hovered {
+                is_horizontal_scrollbar_hovered: hh1,
+                is_vertical_scrollbar_hovered: vh1,
+                is_horizontal_scrollbar_disabled: hd1,
+                is_vertical_scrollbar_disabled: vd1,
+                ..
+            },
+            Status::Hovered {
+                is_horizontal_scrollbar_hovered: hh2,
+                is_vertical_scrollbar_hovered: vh2,
+                is_horizontal_scrollbar_disabled: hd2,
+                is_vertical_scrollbar_disabled: vd2,
+                ..
+            },
+        ) => hh1 != hh2 || vh1 != vh2 || hd1 != hd2 || vd1 != vd2,
+        (
+            Status::Dragged {
+                is_horizontal_scrollbar_dragged: hd1,
+                is_vertical_scrollbar_dragged: vd1,
+                is_horizontal_scrollbar_disabled: hdi1,
+                is_vertical_scrollbar_disabled: vdi1,
+                ..
+            },
+            Status::Dragged {
+                is_horizontal_scrollbar_dragged: hd2,
+                is_vertical_scrollbar_dragged: vd2,
+                is_horizontal_scrollbar_disabled: hdi2,
+                is_vertical_scrollbar_disabled: vdi2,
+                ..
+            },
+        ) => hd1 != hd2 || vd1 != vd2 || hdi1 != hdi2 || vdi1 != vdi2,
+        // Different variants - discriminant check handles this, but for safety:
+        _ => true,
     }
 }
