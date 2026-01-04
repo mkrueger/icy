@@ -257,6 +257,7 @@ where
                         .operate(state, layout, renderer, operation);
                 });
         });
+        operation.leave_container();
     }
 
     fn update(

@@ -45,6 +45,7 @@ use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::theme;
 use crate::core::time::Instant;
+use crate::core::widget::Operation;
 use crate::core::widget::operation;
 use crate::core::widget::operation::focusable::FocusLevel;
 use crate::core::{Point, Size};
@@ -528,10 +529,10 @@ enum Control {
 
 #[cfg(feature = "accessibility")]
 struct AccessibilityState {
+    /// The accesskit adapter for this window.
     adapter: crate::accessibility::AccessibilityAdapter,
-    pending_announcement: Option<(String, crate::runtime::accessibility::Priority)>,
-    announcement_serial: u64,
-    focus_override: Option<crate::core::accessibility::NodeId>,
+    /// Core accessibility state (mode, focus, announcements).
+    state: crate::core::accessibility::AccessibilityState,
     /// The last focused node id, used to detect focus changes and announce them.
     last_focused: Option<crate::core::accessibility::NodeId>,
 }
@@ -769,9 +770,7 @@ async fn run_instance<P>(
                         id,
                         AccessibilityState {
                             adapter,
-                            pending_announcement: None,
-                            announcement_serial: 0,
-                            focus_override: None,
+                            state: crate::core::accessibility::AccessibilityState::new(),
                             last_focused: None,
                         },
                     );
@@ -1051,6 +1050,7 @@ async fn run_instance<P>(
 
                         #[cfg(feature = "accessibility")]
                         if let Some(state) = accessibility.get_mut(&id)
+                            && state.state.is_active()
                             && state.adapter.is_enabled()
                         {
                             update_accessibility_tree(id, window, interface, state);
@@ -1190,6 +1190,20 @@ async fn run_instance<P>(
                             continue;
                         };
 
+                        #[cfg(feature = "accessibility")]
+                        if let Some(state) = accessibility.get_mut(&id) {
+                            if crate::accessibility::trace_enabled() {
+                                eprintln!(
+                                    "[a11y] process_event window={id:?} winit_event={:?}",
+                                    window_event
+                                );
+                            }
+
+                            state
+                                .adapter
+                                .process_event(window.raw.as_ref(), &window_event);
+                        }
+
                         match window_event {
                             winit::event::WindowEvent::Resized(_) => {
                                 window.raw.request_redraw();
@@ -1297,20 +1311,92 @@ async fn run_instance<P>(
                         #[cfg(feature = "accessibility")]
                         {
                             use crate::accessibility::ProcessedEvent;
+                            use accesskit::Action;
 
                             for (id, state) in accessibility.iter_mut() {
                                 for event in state.adapter.drain_events() {
                                     match event {
                                         ProcessedEvent::Activated => {
+                                            // Screen reader connected - enter accessibility mode
+                                            state.state.activate();
+                                            crate::core::accessibility::set_accessibility_active(
+                                                true,
+                                            );
+                                            log::info!(
+                                                "Accessibility mode activated for window {:?}",
+                                                id
+                                            );
                                             if let Some(window) = window_manager.get_mut(*id) {
                                                 window.raw.request_redraw();
+
+                                                // Publish an initial tree immediately so the
+                                                // screen reader has content even if the app is idle.
+                                                if let Some(ui) = user_interfaces.get_mut(id) {
+                                                    update_accessibility_tree(
+                                                        *id, window, ui, state,
+                                                    );
+                                                }
                                             }
                                         }
-                                        ProcessedEvent::ActionRequested(acc_event) => {
-                                            events
-                                                .push((*id, core::Event::Accessibility(acc_event)));
+                                        ProcessedEvent::ActionRequested(ref acc_event) => {
+                                            if crate::accessibility::trace_enabled() {
+                                                eprintln!(
+                                                    "[a11y] ActionRequested: {:?} on {:?}",
+                                                    acc_event.action, acc_event.target
+                                                );
+                                            }
+
+                                            // For Click actions, set focus and pass the event
+                                            // The widget will handle the click via Event::Accessibility
+                                            if acc_event.action == Action::Click
+                                                || acc_event.action == Action::Focus
+                                            {
+                                                // Set the a11y focus
+                                                state.state.set_a11y_focus(acc_event.target);
+
+                                                // Set widget focus to the target
+                                                if let Some(ui) = user_interfaces.get_mut(id) {
+                                                    if let Some(window) =
+                                                        window_manager.get_mut(*id)
+                                                    {
+                                                        let mut focus_op: Box<dyn Operation<()>> =
+                                                            Box::new(
+                                                                operation::accessibility::focus_widget_by_node_id(
+                                                                    acc_event.target,
+                                                                ),
+                                                            );
+                                                        ui.operate(
+                                                            &window.renderer,
+                                                            focus_op.as_mut(),
+                                                        );
+                                                    }
+                                                }
+                                            }
+
+                                            // Pass the accessibility event to widgets
+                                            // Widgets handle Click via Event::Accessibility
+                                            events.push((
+                                                *id,
+                                                core::Event::Accessibility(acc_event.clone()),
+                                            ));
                                         }
-                                        ProcessedEvent::Deactivated => {}
+                                        ProcessedEvent::Deactivated => {
+                                            // Screen reader disconnected - exit accessibility mode
+                                            if crate::accessibility::trace_enabled() {
+                                                eprintln!(
+                                                    "[a11y] Deactivated event received for window {:?}",
+                                                    id
+                                                );
+                                            }
+                                            state.state.deactivate();
+                                            crate::core::accessibility::set_accessibility_active(
+                                                false,
+                                            );
+                                            log::info!(
+                                                "Accessibility mode deactivated for window {:?}",
+                                                id
+                                            );
+                                        }
                                         ProcessedEvent::InitialTreeRequested => {
                                             // Not used by the direct-handler adapter.
                                         }
@@ -1355,67 +1441,172 @@ async fn run_instance<P>(
 
                             #[cfg(feature = "accessibility")]
                             if let Some(state) = accessibility.get_mut(&id)
+                                && state.state.is_active()
                                 && state.adapter.is_enabled()
                             {
+                                use crate::core::accessibility::NodeId;
                                 use crate::core::keyboard;
                                 use crate::core::keyboard::key::Named;
                                 use crate::core::widget::operation;
-                                use crate::core::widget::operation::Operation as _;
+                                use std::sync::{Arc, Mutex};
 
-                                // Accessibility mode = full focus on steroids:
-                                // When the screen reader is enabled, Tab/Shift+Tab should
-                                // traverse ALL focusable controls.
-                                let mut moved_focus = false;
-                                for (event, status) in window_events.iter().zip(statuses.iter()) {
-                                    if *status != crate::core::event::Status::Ignored {
-                                        continue;
-                                    }
+                                // In accessibility mode, Tab/Shift-Tab navigates the VO focus
+                                // through all accessibility nodes, NOT the widget focus.
+                                let mut handled_tab = false;
+                                let mut handled_click = false;
 
-                                    let crate::core::Event::Keyboard(keyboard::Event::KeyPressed {
-                                        key,
-                                        modifiers,
-                                        ..
-                                    }) = event
-                                    else {
-                                        continue;
-                                    };
+                                for event in window_events.iter() {
+                                    // Handle Tab navigation
+                                    if let crate::core::Event::Keyboard(
+                                        keyboard::Event::KeyPressed { key, modifiers, .. },
+                                    ) = event
+                                    {
+                                        if *key == keyboard::Key::Named(Named::Tab) {
+                                            if let Some(ui) = user_interfaces.get_mut(&id) {
+                                                let current_focus = state.state.effective_focus();
 
-                                    if *key != keyboard::Key::Named(Named::Tab) {
-                                        continue;
-                                    }
+                                                let output: Arc<
+                                                    Mutex<
+                                                        Option<
+                                                            operation::accessibility::A11yNavigation,
+                                                        >,
+                                                    >,
+                                                > = Arc::new(Mutex::new(None));
 
-                                    if let Some(ui) = user_interfaces.get_mut(&id) {
-                                        let level = operation::FocusLevel::AllControls;
+                                                if modifiers.shift() {
+                                                    let output_ref = Arc::clone(&output);
+                                                    let mut op = operation::map(
+                                                        operation::accessibility::focus_previous_a11y_node(
+                                                            current_focus,
+                                                        ),
+                                                        move |nav| {
+                                                            *output_ref.lock().expect("lock nav") =
+                                                                Some(nav);
+                                                        },
+                                                    );
+                                                    ui.operate(&window.renderer, &mut op);
+                                                    let _ = op.finish();
+                                                } else {
+                                                    let output_ref = Arc::clone(&output);
+                                                    let mut op = operation::map(
+                                                        operation::accessibility::focus_next_a11y_node(
+                                                            current_focus,
+                                                        ),
+                                                        move |nav| {
+                                                            *output_ref.lock().expect("lock nav") =
+                                                                Some(nav);
+                                                        },
+                                                    );
+                                                    ui.operate(&window.renderer, &mut op);
+                                                    let _ = op.finish();
+                                                }
 
-                                        if modifiers.shift() {
-                                            let mut op =
-                                                operation::focusable::focus_previous_filtered::<()>(
-                                                    level,
-                                                );
-                                            ui.operate(&window.renderer, &mut op);
-                                            let _ = op.finish();
-                                        } else {
-                                            let mut op =
-                                                operation::focusable::focus_next_filtered::<()>(
-                                                    level,
-                                                );
-                                            ui.operate(&window.renderer, &mut op);
-                                            let _ = op.finish();
+                                                if let Some(nav) =
+                                                    output.lock().expect("lock nav").take()
+                                                {
+                                                    if let Some(new_focus) = nav.new_focus {
+                                                        if crate::accessibility::trace_enabled() {
+                                                            eprintln!(
+                                                                "[a11y] Tab navigation: {:?} -> {:?} (total={})",
+                                                                current_focus,
+                                                                new_focus,
+                                                                nav.total_nodes
+                                                            );
+                                                        }
+
+                                                        // Set both a11y focus AND widget focus
+                                                        // Widget focus is needed for cursor rendering etc.
+                                                        state.state.set_a11y_focus(new_focus);
+
+                                                        let mut focus_op: Box<
+                                                            dyn Operation<()>,
+                                                        > = Box::new(
+                                                            operation::accessibility::focus_widget_by_node_id(
+                                                                new_focus,
+                                                            ),
+                                                        );
+                                                        ui.operate(
+                                                            &window.renderer,
+                                                            focus_op.as_mut(),
+                                                        );
+
+                                                        update_accessibility_tree(
+                                                            id, window, ui, state,
+                                                        );
+                                                        handled_tab = true;
+                                                    }
+                                                }
+                                            }
+
+                                            break;
                                         }
                                     }
 
-                                    window.raw.request_redraw();
-                                    moved_focus = true;
-                                    break;
+                                    // Handle mouse click - update VO focus to clicked widget
+                                    if let crate::core::Event::Mouse(
+                                        mouse::Event::ButtonPressed {
+                                            button: mouse::Button::Left,
+                                            ..
+                                        },
+                                    ) = event
+                                    {
+                                        if let mouse::Cursor::Available(position) =
+                                            window.state.cursor()
+                                        {
+                                            if let Some(ui) = user_interfaces.get_mut(&id) {
+                                                let output: Arc<Mutex<Option<Option<NodeId>>>> =
+                                                    Arc::new(Mutex::new(None));
+
+                                                let output_ref = Arc::clone(&output);
+                                                let mut op = operation::map(
+                                                    operation::accessibility::find_a11y_node_at_position(
+                                                        position,
+                                                    ),
+                                                    move |found| {
+                                                        *output_ref.lock().expect("lock found") =
+                                                            Some(found);
+                                                    },
+                                                );
+                                                ui.operate(&window.renderer, &mut op);
+                                                let _ = op.finish();
+
+                                                if let Some(Some(new_focus)) =
+                                                    output.lock().expect("lock found").take()
+                                                {
+                                                    if crate::accessibility::trace_enabled() {
+                                                        eprintln!(
+                                                            "[a11y] Click navigation: {:?} -> {:?}",
+                                                            state.state.effective_focus(),
+                                                            new_focus
+                                                        );
+                                                    }
+
+                                                    // Set both a11y focus AND widget focus
+                                                    state.state.set_a11y_focus(new_focus);
+
+                                                    let mut focus_op: Box<dyn Operation<()>> =
+                                                        Box::new(
+                                                            operation::accessibility::focus_widget_by_node_id(
+                                                                new_focus,
+                                                            ),
+                                                        );
+                                                    ui.operate(&window.renderer, focus_op.as_mut());
+
+                                                    update_accessibility_tree(
+                                                        id, window, ui, state,
+                                                    );
+                                                    handled_click = true;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
-                                // Ensure the VoiceOver marker follows the new focus.
-                                if moved_focus {
+                                // Keep the accessibility tree in sync for other events
+                                if !handled_tab && !handled_click {
                                     if let Some(ui) = user_interfaces.get_mut(&id) {
                                         update_accessibility_tree(id, window, ui, state);
                                     }
-                                } else if let Some(ui) = user_interfaces.get_mut(&id) {
-                                    update_accessibility_tree(id, window, ui, state);
                                 }
                             }
 
@@ -1486,7 +1677,21 @@ async fn run_instance<P>(
                             //
                             // If an application wants to handle Tab itself (e.g. text editors
                             // using Tab for indentation), it can set `FocusLevel::Manual`.
-                            if focus_level != FocusLevel::Manual {
+                            //
+                            // In accessibility mode, Tab is handled by the VO navigation above,
+                            // so we skip this normal focus handling.
+                            // We also check adapter.is_enabled() because the Deactivated event
+                            // might not always be received (e.g., when VoiceOver is turned off
+                            // system-wide on macOS).
+                            #[cfg(feature = "accessibility")]
+                            let a11y_active = accessibility.get(&id).is_some_and(|state| {
+                                state.state.is_active() && state.adapter.is_enabled()
+                            });
+
+                            #[cfg(not(feature = "accessibility"))]
+                            let a11y_active = false;
+
+                            if !a11y_active && focus_level != FocusLevel::Manual {
                                 for event in window_events.iter() {
                                     if let core::Event::Keyboard(
                                         core::keyboard::Event::KeyPressed {
@@ -1499,6 +1704,14 @@ async fn run_instance<P>(
                                         },
                                     ) = event
                                     {
+                                        #[cfg(feature = "accessibility")]
+                                        if crate::accessibility::trace_enabled() {
+                                            eprintln!(
+                                                "[a11y] Tab pressed (normal mode): shift={}",
+                                                modifiers.shift()
+                                            );
+                                        }
+
                                         let ui = user_interfaces
                                             .get_mut(&id)
                                             .expect("Get user interface");
@@ -1635,17 +1848,45 @@ fn update_accessibility_tree<'a, P, C>(
     C: Compositor<Renderer = P::Renderer> + 'static,
     P::Theme: theme::Base,
 {
-    use crate::core::accessibility::{Node, NodeId, Role, node_id_from_widget_id};
+    use crate::core::accessibility::{Node, NodeId, Role};
     use crate::core::widget::operation;
     use crate::core::widget::operation::Operation;
     use accesskit::Live;
     use std::sync::{Arc, Mutex};
 
-    if !state.adapter.is_enabled() {
+    if !state.state.is_active() {
         return;
     }
 
-    let bounds = crate::core::Rectangle::with_size(window.state.logical_size());
+    if crate::accessibility::trace_enabled() {
+        eprintln!(
+            "[a11y] update_accessibility_tree window={:?} adapter_enabled={} ",
+            _id,
+            state.adapter.is_enabled()
+        );
+    }
+
+    // AccessKit coordinate system varies by platform:
+    // - macOS: expects physical pixels (scaled by scale_factor)
+    // - Windows/Linux: expects logical pixels (no scaling needed)
+    #[cfg(target_os = "macos")]
+    let (bounds, scale_factor) = {
+        let physical_size = window.state.physical_size();
+        let bounds = crate::core::Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: physical_size.width as f32,
+            height: physical_size.height as f32,
+        };
+        (bounds, window.state.scale_factor() as f64)
+    };
+
+    #[cfg(not(target_os = "macos"))]
+    let (bounds, scale_factor) = {
+        let logical_size = window.state.logical_size();
+        let bounds = crate::core::Rectangle::with_size(logical_size);
+        (bounds, 1.0_f64)
+    };
 
     let collected = {
         let output: Arc<Mutex<Option<operation::AccessibilityTree>>> = Arc::new(Mutex::new(None));
@@ -1662,8 +1903,15 @@ fn update_accessibility_tree<'a, P, C>(
     };
 
     let Some(collected) = collected else {
+        if crate::accessibility::trace_enabled() {
+            eprintln!("[a11y] collect() produced no tree");
+        }
         return;
     };
+
+    if crate::accessibility::trace_enabled() {
+        eprintln!("[a11y] collected nodes_len={}", collected.nodes.len());
+    }
 
     let root_id = crate::accessibility::AccessibilityAdapter::ROOT_ID;
     let announcer_id = NodeId(1);
@@ -1679,41 +1927,65 @@ fn update_accessibility_tree<'a, P, C>(
     });
     announcer.set_live(Live::Off);
 
-    if let Some((message, priority)) = state.pending_announcement.take() {
-        state.announcement_serial = state.announcement_serial.wrapping_add(1);
+    if let Some((message, priority)) = state.state.take_announcement() {
+        let serial = state.state.next_announcement_serial();
 
         // Ensure the value changes even if the same message is repeated.
-        let label = format!("{message} ({})", state.announcement_serial);
+        let label = format!("{message} ({serial})");
         announcer.set_label(label);
 
         announcer.set_live(match priority {
-            crate::runtime::accessibility::Priority::Polite => Live::Polite,
-            crate::runtime::accessibility::Priority::Assertive => Live::Assertive,
+            crate::core::accessibility::AnnouncementPriority::Polite => Live::Polite,
+            crate::core::accessibility::AnnouncementPriority::Assertive => Live::Assertive,
         });
     }
 
-    let mut children = Vec::with_capacity(1 + collected.nodes.len());
+    let mut children = Vec::with_capacity(1 + collected.top_level_ids.len());
     children.push(announcer_id);
-    children.extend(collected.nodes.iter().map(|(id, _)| *id));
+    // Deduplicate child IDs - some widgets may generate the same path-based ID
+    // if they don't have explicit widget IDs. Use top_level_ids which excludes
+    // extra generated children (like TextRun) that are nested inside widgets.
+    {
+        let mut seen = std::collections::HashSet::new();
+        let _ = seen.insert(announcer_id);
+        for id in collected.top_level_ids.iter() {
+            if seen.insert(*id) {
+                children.push(*id);
+            } else if crate::accessibility::trace_enabled() {
+                eprintln!(
+                    "[a11y] WARNING: duplicate NodeId {:?} in children, skipping",
+                    id
+                );
+            }
+        }
+    }
     root.set_children(children);
 
-    let focus = state.focus_override.take().or_else(|| {
-        let output: Arc<Mutex<Option<crate::core::widget::Id>>> = Arc::new(Mutex::new(None));
+    // Get the effective focus - prefer a11y focus, then fall back to widget focus
+    let focus = state.state.a11y_focus.node.or_else(|| {
+        let output: Arc<Mutex<Option<NodeId>>> = Arc::new(Mutex::new(None));
         let output_ref = Arc::clone(&output);
 
-        let mut op = operation::map(operation::focusable::find_focused(), move |id| {
-            *output_ref.lock().expect("lock focused widget") = Some(id);
+        let mut op = operation::map(operation::accessibility::find_focused_node(), move |id| {
+            *output_ref.lock().expect("lock focused node") = Some(id);
         });
 
         ui.operate(&window.renderer, &mut op);
         let _ = op.finish();
 
-        output
-            .lock()
-            .expect("lock focused widget")
-            .take()
-            .map(|id| node_id_from_widget_id(&id))
+        let focused = output.lock().expect("lock focused node").take();
+
+        // Update the state's widget focus (used as fallback for effective focus).
+        state.state.set_widget_focus(focused);
+
+        focused
     });
+
+    let focus = focus.or_else(|| collected.nodes.first().map(|(id, _)| *id));
+
+    if crate::accessibility::trace_enabled() {
+        eprintln!("[a11y] effective focus={:?}", focus);
+    }
 
     // Detect focus change and announce the newly focused widget's label/value.
     if focus != state.last_focused {
@@ -1739,8 +2011,8 @@ fn update_accessibility_tree<'a, P, C>(
                 };
 
                 // Use existing announcer mechanism.
-                state.announcement_serial = state.announcement_serial.wrapping_add(1);
-                let label = format!("{announcement} ({})", state.announcement_serial);
+                let serial = state.state.next_announcement_serial();
+                let label = format!("{announcement} ({serial})");
                 announcer.set_label(label);
                 announcer.set_live(Live::Polite);
             }
@@ -1750,9 +2022,59 @@ fn update_accessibility_tree<'a, P, C>(
     let mut nodes = Vec::with_capacity(2 + collected.nodes.len());
     nodes.push((root_id, root));
     nodes.push((announcer_id, announcer));
-    nodes.extend(collected.nodes);
+
+    // Track which NodeIds we've already added to avoid duplicates
+    let mut seen_node_ids = std::collections::HashSet::new();
+    let _ = seen_node_ids.insert(root_id);
+    let _ = seen_node_ids.insert(announcer_id);
+
+    // Scale bounds using the platform-specific scale factor determined above.
+    // On macOS: physical pixels (scale_factor from system)
+    // On other platforms: logical pixels (scale_factor = 1.0)
+    for (node_id, mut node) in collected.nodes {
+        // Skip duplicate NodeIds
+        if !seen_node_ids.insert(node_id) {
+            if crate::accessibility::trace_enabled() {
+                eprintln!(
+                    "[a11y] WARNING: duplicate NodeId {:?} in nodes, skipping",
+                    node_id
+                );
+            }
+            continue;
+        }
+
+        // Scale the bounds if they exist
+        if let Some(bounds) = node.bounds() {
+            node.set_bounds(accesskit::Rect {
+                x0: bounds.x0 * scale_factor,
+                y0: bounds.y0 * scale_factor,
+                x1: bounds.x1 * scale_factor,
+                y1: bounds.y1 * scale_factor,
+            });
+        }
+        nodes.push((node_id, node));
+    }
+
+    // Verify all child references are valid before sending to AccessKit
+    if crate::accessibility::trace_enabled() {
+        let node_id_set: std::collections::HashSet<_> = nodes.iter().map(|(id, _)| *id).collect();
+        for (nid, node) in &nodes {
+            for child_id in node.children() {
+                if !node_id_set.contains(child_id) {
+                    eprintln!(
+                        "[a11y] ERROR: node {:?} references child {:?} which does not exist in tree!",
+                        nid, child_id
+                    );
+                }
+            }
+        }
+    }
 
     state.adapter.update_tree(nodes, focus);
+
+    if crate::accessibility::trace_enabled() {
+        eprintln!("[a11y] update_accessibility_tree done");
+    }
 }
 
 /// Builds a window's [`UserInterface`] for the [`Program`].
@@ -2566,7 +2888,16 @@ fn run_action<'a, P, C>(
                     };
 
                     log::info!("Screen reader announcement ({:?}): {}", priority, message);
-                    state.pending_announcement = Some((message, priority));
+                    // Convert runtime priority to core priority
+                    let core_priority = match priority {
+                        crate::runtime::accessibility::Priority::Polite => {
+                            crate::core::accessibility::AnnouncementPriority::Polite
+                        }
+                        crate::runtime::accessibility::Priority::Assertive => {
+                            crate::core::accessibility::AnnouncementPriority::Assertive
+                        }
+                    };
+                    state.state.announce(message, core_priority);
                     window.raw.request_redraw();
                 }
                 AccessibilityAction::Focus { target } => {
@@ -2579,7 +2910,7 @@ fn run_action<'a, P, C>(
                     };
 
                     log::info!("Focus accessible element: {:?}", target);
-                    state.focus_override = Some(target);
+                    state.state.set_a11y_focus(target);
                     window.raw.request_redraw();
                 }
             }

@@ -114,6 +114,16 @@ where
     icon: Option<Icon<Renderer::Font>>,
     class: Theme::Class<'a>,
     last_status: Option<Status>,
+    // Accessibility fields
+    /// The accessibility label for the text input.
+    /// This is announced by VoiceOver as the name of the control.
+    a11y_label: Option<String>,
+    /// The accessibility description/help text.
+    /// This is announced by VoiceOver when pressing VO+Shift+H (hear hint).
+    a11y_description: Option<String>,
+    /// Whether this field is required.
+    /// VoiceOver announces "required" for required fields.
+    is_required: bool,
 }
 
 /// The default [`Padding`] of a [`TextInput`].
@@ -145,6 +155,9 @@ where
             icon: None,
             class: Theme::default(),
             last_status: None,
+            a11y_label: None,
+            a11y_description: None,
+            is_required: false,
         }
     }
 
@@ -264,6 +277,41 @@ where
     #[must_use]
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.class = class.into();
+        self
+    }
+
+    // ========================================================================
+    // Accessibility Methods
+    // ========================================================================
+
+    /// Sets the accessibility label for the text input.
+    ///
+    /// This is announced by VoiceOver as the name of the control.
+    /// Example: "Username" for a username field.
+    ///
+    /// VoiceOver announces: "[label], text field, [value]"
+    #[must_use]
+    pub fn a11y_label(mut self, label: impl Into<String>) -> Self {
+        self.a11y_label = Some(label.into());
+        self
+    }
+
+    /// Sets the accessibility description/help text.
+    ///
+    /// This is announced by VoiceOver when pressing VO+Shift+H (hear hint).
+    /// Use for additional context like "Enter your email address".
+    #[must_use]
+    pub fn a11y_description(mut self, description: impl Into<String>) -> Self {
+        self.a11y_description = Some(description.into());
+        self
+    }
+
+    /// Marks the text input as required.
+    ///
+    /// VoiceOver announces "required" for required fields.
+    #[must_use]
+    pub fn required(mut self, is_required: bool) -> Self {
+        self.is_required = is_required;
         self
     }
 
@@ -1243,6 +1291,78 @@ where
                     shell.request_input_method(&self.input_method(state, layout, &self.value));
                 }
             }
+            #[cfg(feature = "accessibility")]
+            Event::Accessibility(accessibility_event) => {
+                let state = state::<Renderer>(tree);
+
+                // Check if the event is for this widget
+                // If widget has an explicit ID, check if the event target matches
+                if let Some(id) = self.id.as_ref() {
+                    if accessibility_event.target
+                        != crate::core::accessibility::node_id_from_widget_id(id)
+                    {
+                        return;
+                    }
+                } else {
+                    // Widget has no explicit ID - only respond if we're already focused
+                    // This prevents multiple ID-less text inputs from all responding
+                    if !state.is_focused() {
+                        return;
+                    }
+                }
+
+                // Handle screen reader "click" action - focus the text input
+                if accessibility_event.is_click() {
+                    state.is_focused = Some(Focus {
+                        updated_at: Instant::now(),
+                        now: Instant::now(),
+                        is_window_focused: true,
+                    });
+                    // Move cursor to end of text
+                    state.cursor.move_to(self.value.len());
+                    // Activate input method so VoiceOver can send text
+                    shell.request_input_method(&self.input_method(state, layout, &self.value));
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "focus" action
+                if accessibility_event.is_focus() {
+                    state.is_focused = Some(Focus {
+                        updated_at: Instant::now(),
+                        now: Instant::now(),
+                        is_window_focused: true,
+                    });
+                    // Move cursor to end of text for better UX
+                    state.cursor.move_to(self.value.len());
+                    // Activate input method so VoiceOver can send text
+                    shell.request_input_method(&self.input_method(state, layout, &self.value));
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "blur" action
+                if accessibility_event.is_blur() {
+                    state.is_focused = None;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "set value" action
+                if let Some(new_value) = accessibility_event.set_value_data() {
+                    if let Some(on_input) = &self.on_input {
+                        let message = (on_input)(new_value.to_string());
+                        shell.publish(message);
+                        shell.capture_event();
+                    }
+                }
+                // Handle screen reader "set text selection" action
+                if let Some(selection) = accessibility_event.text_selection_data() {
+                    state.cursor.select_range(
+                        selection.anchor.character_index,
+                        selection.focus.character_index,
+                    );
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
             _ => {}
         }
 
@@ -1306,15 +1426,118 @@ where
     #[cfg(feature = "accessibility")]
     fn accessibility(
         &self,
-        _tree: &crate::core::widget::Tree,
+        tree: &crate::core::widget::Tree,
         layout: crate::core::Layout<'_>,
     ) -> Option<crate::core::accessibility::WidgetInfo> {
-        Some(
-            crate::core::accessibility::WidgetInfo::text_input(self.value.to_string())
-                .with_bounds(layout.bounds())
-                .with_enabled(self.on_input.is_some())
-                .with_placeholder(&self.placeholder),
-        )
+        use crate::core::accessibility::{TextSelectionTarget, WidgetInfo};
+        use unicode_segmentation::UnicodeSegmentation;
+
+        let state = tree
+            .state
+            .downcast_ref::<State<<Renderer as text::Renderer>::Paragraph>>();
+
+        // For secure text inputs, use PasswordInput role and mask the value
+        // to prevent screen readers from announcing actual password characters.
+        // VoiceOver announces "secure text field" for PasswordInput role.
+        let (widget_info, accessible_text) = if self.is_secure {
+            let masked_value: String = std::iter::repeat('•').take(self.value.len()).collect();
+            (
+                WidgetInfo::text_input_secure(self.value.len()),
+                masked_value,
+            )
+        } else {
+            let text = self.value.to_string();
+            (WidgetInfo::text_input(text.clone()), text)
+        };
+
+        // Get cursor/selection position
+        let (selection_start, selection_end) = match state.cursor.state(&self.value) {
+            cursor::State::Selection { start, end } => (start, end),
+            cursor::State::Index(pos) => (pos, pos),
+        };
+
+        // Build a TextRun child for the editable text.
+        // AccessKit uses `character_lengths` + `word_lengths` to support
+        // per-character announcements, caret tracking, and word navigation.
+        let mut character_lengths: Vec<u8> = Vec::new();
+        let mut ok_character_lengths = true;
+        for g in UnicodeSegmentation::graphemes(accessible_text.as_str(), true) {
+            let len = g.as_bytes().len();
+            if len > u8::MAX as usize {
+                ok_character_lengths = false;
+                break;
+            }
+            character_lengths.push(len as u8);
+        }
+
+        let mut word_lengths: Vec<u8> = Vec::new();
+        let mut ok_word_lengths = true;
+        if ok_character_lengths {
+            let total_graphemes = character_lengths.len();
+            let mut sum: usize = 0;
+            for (_, segment) in
+                UnicodeSegmentation::split_word_bound_indices(accessible_text.as_str())
+            {
+                let count = UnicodeSegmentation::graphemes(segment, true).count();
+                if count == 0 {
+                    continue;
+                }
+                if count > u8::MAX as usize {
+                    ok_word_lengths = false;
+                    break;
+                }
+                word_lengths.push(count as u8);
+                sum += count;
+            }
+
+            // If segmentation didn't cover everything as expected, skip word lengths.
+            if ok_word_lengths && sum != total_graphemes {
+                ok_word_lengths = false;
+            }
+        }
+
+        let mut text_run = WidgetInfo::new(crate::core::accessibility::Role::TextRun)
+            .with_bounds(layout.bounds())
+            .with_enabled(self.on_input.is_some())
+            .with_value(accessible_text);
+
+        if ok_character_lengths {
+            text_run = text_run.with_character_lengths(character_lengths);
+        }
+
+        if ok_word_lengths {
+            text_run = text_run.with_word_lengths(word_lengths);
+        }
+
+        // Build the widget info with all accessibility properties
+        // VoiceOver announcement format: "[label], text field, [value], [hint], required"
+        let mut info = widget_info
+            .with_bounds(layout.bounds())
+            .with_enabled(self.on_input.is_some())
+            .with_placeholder(&self.placeholder)
+            .with_selection(selection_start, selection_end)
+            .with_extra_child(text_run)
+            .with_text_selection_target(TextSelectionTarget::ExtraChild(0));
+
+        // Set accessibility label if provided
+        // This is announced as the name of the control
+        if let Some(ref label) = self.a11y_label {
+            info = info.with_label(label.clone());
+        }
+
+        // Set accessibility description (hint) if provided
+        // This is announced by VoiceOver when pressing VO+Shift+H
+        if let Some(ref description) = self.a11y_description {
+            info = info.with_description(description.clone());
+        }
+
+        // Set required flag if true
+        // VoiceOver announces "required" for required fields
+        if self.is_required {
+            info = info.with_required();
+        }
+
+        Some(info)
     }
 }
 

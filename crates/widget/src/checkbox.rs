@@ -397,6 +397,45 @@ where
                     }
                 }
             }
+            #[cfg(feature = "accessibility")]
+            Event::Accessibility(accessibility_event) => {
+                // If widget has an explicit ID, check if the event target matches
+                if let Some(id) = self.id.as_ref() {
+                    if accessibility_event.target
+                        != crate::core::accessibility::node_id_from_widget_id(id)
+                    {
+                        return;
+                    }
+                } else {
+                    // Widget has no explicit ID - only respond if we're focused
+                    let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+                    if !state.is_focused {
+                        return;
+                    }
+                }
+
+                // Handle screen reader "click" action (toggle checkbox)
+                if accessibility_event.is_click() {
+                    if let Some(on_toggle) = &self.on_toggle {
+                        shell.publish((on_toggle)(!self.is_checked));
+                        shell.capture_event();
+                    }
+                }
+                // Handle screen reader "focus" action
+                if accessibility_event.is_focus() {
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+                    state.is_focused = true;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "blur" action
+                if accessibility_event.is_blur() {
+                    let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
+                    state.is_focused = false;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
             _ => {}
         }
 

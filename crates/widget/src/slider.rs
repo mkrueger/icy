@@ -445,6 +445,70 @@ where
 
         update();
 
+        // Handle accessibility events separately (outside the closure to avoid borrow issues)
+        #[cfg(feature = "accessibility")]
+        if let Event::Accessibility(accessibility_event) = event {
+            // Check if the event is for this widget
+            if self.id.as_ref().is_some_and(|id| {
+                accessibility_event.target != crate::core::accessibility::node_id_from_widget_id(id)
+            }) {
+                // Not for this widget
+            } else {
+                let do_change =
+                    |new_value: T, slider: &mut Self, shell: &mut Shell<'_, Message>| {
+                        if (slider.value.into() - new_value.into()).abs() > f64::EPSILON {
+                            shell.publish((slider.on_change)(new_value));
+                            slider.value = new_value;
+                        }
+                    };
+
+                let step_val: f64 = self.step.into();
+                let current: f64 = self.value.into();
+                let start: f64 = (*self.range.start()).into();
+                let end: f64 = (*self.range.end()).into();
+
+                // Handle screen reader increment action
+                if accessibility_event.is_increment() {
+                    let steps = (current / step_val).round();
+                    let new_value = step_val * (steps + 1.0);
+                    let clamped = new_value.min(end);
+                    if let Some(v) = T::from_f64(clamped) {
+                        do_change(v, self, shell);
+                    }
+                    shell.capture_event();
+                }
+                // Handle screen reader decrement action
+                if accessibility_event.is_decrement() {
+                    let steps = (current / step_val).round();
+                    let new_value = step_val * (steps - 1.0);
+                    let clamped = new_value.max(start);
+                    if let Some(v) = T::from_f64(clamped) {
+                        do_change(v, self, shell);
+                    }
+                    shell.capture_event();
+                }
+                // Handle screen reader set value action
+                if let Some(numeric_value) = accessibility_event.set_numeric_value_data() {
+                    if let Some(new_value) = T::from_f64(numeric_value) {
+                        do_change(new_value, self, shell);
+                        shell.capture_event();
+                    }
+                }
+                // Handle screen reader "focus" action
+                if accessibility_event.is_focus() {
+                    state.is_focused = true;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "blur" action
+                if accessibility_event.is_blur() {
+                    state.is_focused = false;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
+        }
+
         let current_status = if state.is_dragging {
             Status::Dragged
         } else if cursor.is_over(layout.bounds()) {

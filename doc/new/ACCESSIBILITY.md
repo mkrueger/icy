@@ -1,6 +1,6 @@
 # Accessibility Support
 
-icy provides accessibility support for screen readers and assistive technologies via [AccessKit](https://accesskit.dev/).
+icy_ui provides accessibility support for screen readers and assistive technologies via [AccessKit](https://accesskit.dev/).
 
 ## Overview
 
@@ -9,27 +9,53 @@ Accessibility support is built on AccessKit, which provides cross-platform acces
 - **macOS**: NSAccessibility  
 - **Linux**: AT-SPI (via D-Bus)
 
+## Accessibility Mode
+
+When a screen reader connects (e.g., VoiceOver, NVDA), the application automatically enters **accessibility mode**. This mode changes several behaviors:
+
+| Behavior | Normal Mode | Accessibility Mode |
+|----------|-------------|-------------------|
+| **Tab Navigation** | Respects `FocusLevel` setting | Traverses ALL interactive controls |
+| **Focus Handling** | Widget focus only | Separate a11y focus (VoiceOver cursor) |
+| **Announcements** | Disabled | Focus changes are announced |
+
+The mode is tracked via `accessibility::Mode`:
+```rust
+use icy_ui::accessibility::Mode;
+
+// Mode::Inactive - no screen reader connected
+// Mode::Active   - screen reader is connected
+```
+
+## Accessibility Focus vs Widget Focus
+
+In accessibility mode, there are **two separate focus concepts**:
+
+1. **Widget Focus**: The standard keyboard focus managed by widgets (text inputs, buttons, etc.)
+2. **Accessibility Focus**: The "VoiceOver cursor" controlled by the screen reader
+
+The a11y focus can point to non-interactive elements (like static text), while widget focus only applies to interactive widgets. When widget focus changes, the a11y focus syncs automatically.
+
 ## Enabling Accessibility
 
 Accessibility is behind a feature flag. Enable it in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iced = { version = "0.15", features = ["accessibility"] }
+icy_ui = { version = "0.1", features = ["accessibility"] }
 ```
 
 ## Automatic Widget Support
 
-Most widgets automatically provide accessibility information:
+Most widgets automatically provide accessibility information and handle accessibility events:
 
-| Widget | Role | Information Provided |
-|--------|------|---------------------|
-| `Text` | StaticText | Text content |
-| `Button` | Button | Label from child text, enabled state |
-| `Checkbox` | CheckBox | Label, checked state |
-| `TextInput` | TextField | Current value, placeholder |
-| `Slider` | Slider | Value, min, max, step |
-| `VerticalSlider` | Slider | Value, min, max, step |
+| Widget | Role | Information Provided | Handled Events |
+|--------|------|---------------------|----------------|
+| `Button` | Button | Label, enabled state | Click, Focus, Blur |
+| `Checkbox` | CheckBox | Label, checked state | Click, Focus, Blur |
+| `TextInput` | TextField | Value, placeholder | Focus, Blur, SetValue |
+| `Slider` | Slider | Value, min, max, step | Increment, Decrement, SetValue, Focus, Blur |
+| `VerticalSlider` | Slider | Value, min, max, step | Increment, Decrement, SetValue, Focus, Blur |
 
 ### Examples
 
@@ -52,7 +78,7 @@ slider(0.0..=100.0, volume, Message::VolumeChanged)  // Screen reader: "50, Slid
 
 ## Handling Accessibility Events
 
-When a screen reader user interacts with your app, you receive `Event::Accessibility` events:
+Standard widgets handle accessibility events automatically. For custom widgets, you receive `Event::Accessibility` events:
 
 ```rust
 use icy_ui::{Event, Task};
@@ -194,29 +220,34 @@ Parent widgets can then query this to get their label automatically.
 ## Best Practices
 
 1. **Provide meaningful labels**: Avoid generic labels like "Button" - use descriptive text
-2. **Handle all actions**: Respond to `Click`, `Focus`, etc. from accessibility events
+2. **Widgets handle events**: Standard widgets handle accessibility events automatically
 3. **Announce important changes**: Use `announce()` for status updates, errors, confirmations
 4. **Test with screen readers**: Actually test with NVDA, VoiceOver, or Orca
 5. **Keyboard navigation**: Ensure all interactive widgets are focusable and operable via keyboard
+6. **Give widgets IDs**: Widgets with `.id()` can be targeted by accessibility events
 
 ## API Reference
 
-### Types (from `icy_ui::accessibility`)
+### Core Types (from `icy_ui::accessibility`)
 
 | Type | Description |
 |------|-------------|
+| `Mode` | Accessibility mode (`Inactive` or `Active`) |
+| `Focus` | Accessibility focus state (separate from widget focus) |
+| `AccessibilityState` | Full state including mode, focus, announcements |
+| `AnnouncementPriority` | Priority for announcements (`Polite`, `Assertive`) |
 | `WidgetInfo` | Accessibility information for a widget |
 | `Event` | Accessibility event from screen reader |
 | `Action` | Action type (Click, Focus, SetValue, etc.) |
 | `ActionData` | Optional data for actions (e.g., new value) |
-| `Priority` | Announcement priority (Polite, Assertive) |
 | `NodeId` | Unique identifier for accessibility nodes |
 | `Role` | Widget role (Button, CheckBox, Slider, etc.) |
 
-### Functions (from `icy_ui::accessibility`)
+### Runtime Functions (from `icy_ui::accessibility`)
 
 | Function | Description |
 |----------|-------------|
 | `announce(message, priority)` | Announce message to screen reader |
 | `focus(node_id)` | Programmatically focus an accessible element |
 | `node_id(u64)` | Create a NodeId from a numeric value |
+| `node_id_from_widget_id(&Id)` | Convert widget ID to NodeId |

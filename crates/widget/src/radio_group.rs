@@ -482,6 +482,69 @@ where
                     shell.capture_event();
                 }
             }
+            #[cfg(feature = "accessibility")]
+            Event::Accessibility(accessibility_event) => {
+                use crate::core::accessibility::{derived_node_id, node_id_from_widget_id};
+
+                // Check if the event targets this widget or one of its radio button children
+                let group_node_id = self.id.as_ref().map(node_id_from_widget_id);
+
+                // Check if event targets a radio button child (extra_child)
+                let mut target_option_index: Option<usize> = None;
+                if let Some(group_id) = group_node_id {
+                    for i in 0..self.options.len() {
+                        let child_id = derived_node_id(group_id, i as u64);
+                        if accessibility_event.target == child_id {
+                            target_option_index = Some(i);
+                            break;
+                        }
+                    }
+                }
+
+                // Handle click on a specific radio button
+                if let Some(idx) = target_option_index {
+                    if accessibility_event.is_click() {
+                        if let Some(option) = self.options.get(idx) {
+                            state.focused_option = Some(idx);
+                            state.is_focused = true;
+                            shell.publish((self.on_select)(option.clone()));
+                            shell.request_redraw();
+                            shell.capture_event();
+                        }
+                    }
+                    if accessibility_event.is_focus() {
+                        state.focused_option = Some(idx);
+                        state.is_focused = true;
+                        shell.request_redraw();
+                        shell.capture_event();
+                    }
+                } else if group_node_id.is_some_and(|id| id == accessibility_event.target) {
+                    // Event targets the group itself
+                    if accessibility_event.is_click() {
+                        // Click on group: select the focused option
+                        if let Some(focused_idx) = state.focused_option {
+                            if let Some(option) = self.options.get(focused_idx) {
+                                shell.publish((self.on_select)(option.clone()));
+                                shell.request_redraw();
+                                shell.capture_event();
+                            }
+                        }
+                    }
+                    if accessibility_event.is_focus() {
+                        state.is_focused = true;
+                        if state.focused_option.is_none() && !self.options.is_empty() {
+                            state.focused_option = Some(0);
+                        }
+                        shell.request_redraw();
+                        shell.capture_event();
+                    }
+                    if accessibility_event.is_blur() {
+                        state.is_focused = false;
+                        shell.request_redraw();
+                        shell.capture_event();
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -615,8 +678,45 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.accessibility(tree, layout) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        use crate::core::accessibility::WidgetInfo;
+
+        let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+
+        // Create the radio group container
+        let mut group_info =
+            WidgetInfo::radio_group(Option::<String>::None).with_bounds(layout.bounds());
+
+        // Add children for each radio button option
+        let mut children = layout.children();
+        for (i, option) in self.options.iter().enumerate() {
+            if let Some(row_layout) = children.next() {
+                let is_selected = self.selected.as_ref() == Some(option);
+                let _is_focused = state.is_focused && state.focused_option == Some(i);
+
+                let radio_info = WidgetInfo::radio_button(option.to_string(), is_selected)
+                    .with_bounds(row_layout.bounds());
+
+                // Add this as an extra child of the group
+                group_info = group_info.with_extra_child(radio_info);
+            }
+        }
+
+        Some(group_info)
     }
 }
 

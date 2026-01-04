@@ -33,6 +33,9 @@ pub trait Operation<T = ()>: Send {
     /// Operates on a widget that contains other widgets.
     fn container(&mut self, _id: Option<&Id>, _bounds: Rectangle) {}
 
+    /// Called after all children of a container have been processed.
+    fn leave_container(&mut self) {}
+
     /// Operates on a widget that can be scrolled.
     fn scrollable(
         &mut self,
@@ -82,6 +85,10 @@ where
 
     fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
         self.as_mut().container(id, bounds);
+    }
+
+    fn leave_container(&mut self) {
+        self.as_mut().leave_container();
     }
 
     fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
@@ -175,6 +182,10 @@ where
             self.operation.container(id, bounds);
         }
 
+        fn leave_container(&mut self) {
+            self.operation.leave_container();
+        }
+
         fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
             self.operation.focusable(id, bounds, state);
         }
@@ -259,6 +270,10 @@ where
                     operation.container(id, bounds);
                 }
 
+                fn leave_container(&mut self) {
+                    self.operation.leave_container();
+                }
+
                 fn scrollable(
                     &mut self,
                     id: Option<&Id>,
@@ -315,6 +330,10 @@ where
 
         fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
             self.operation.container(id, bounds);
+        }
+
+        fn leave_container(&mut self) {
+            self.operation.leave_container();
         }
 
         fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {
@@ -396,6 +415,10 @@ where
 
         fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
             self.operation.container(id, bounds);
+        }
+
+        fn leave_container(&mut self) {
+            self.operation.leave_container();
         }
 
         fn focusable(&mut self, id: Option<&Id>, bounds: Rectangle, state: &mut dyn Focusable) {

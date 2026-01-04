@@ -82,10 +82,21 @@ impl FocusRing {
     }
 
     /// Draws the focus ring around the given bounds.
+    ///
+    /// In accessibility mode (when a screen reader like VoiceOver is active),
+    /// the focus ring is not drawn because the screen reader provides its own
+    /// focus highlighting.
     pub fn draw<Renderer>(&self, renderer: &mut Renderer, widget_bounds: Rectangle)
     where
         Renderer: renderer::Renderer,
     {
+        // Skip drawing when accessibility mode is active - screen readers
+        // like VoiceOver provide their own focus highlighting
+        #[cfg(feature = "accessibility")]
+        if crate::core::accessibility::is_accessibility_active() {
+            return;
+        }
+
         let bounds = self.bounds(widget_bounds);
 
         renderer.fill_quad(

@@ -32,6 +32,8 @@ struct App {
     checked: bool,
     enabled: bool,
     last_ax: Option<String>,
+    polite_count: u32,
+    assertive_count: u32,
 }
 
 impl Default for App {
@@ -41,6 +43,8 @@ impl Default for App {
             checked: false,
             enabled: false,
             last_ax: None,
+            polite_count: 0,
+            assertive_count: 0,
         }
     }
 }
@@ -67,16 +71,33 @@ impl App {
                 self.enabled = v;
                 Task::none()
             }
-            Message::AnnouncePolite => accessibility::announce(
-                format!("Polite announcement: value is '{}'", self.value),
-                Priority::Polite,
-            )
-            .discard(),
-            Message::AnnounceAssertive => accessibility::announce(
-                "Assertive announcement: something happened",
-                Priority::Assertive,
-            )
-            .discard(),
+            Message::AnnouncePolite => {
+                self.polite_count += 1;
+                self.last_ax = Some(format!(
+                    "Polite button pressed ({} times)",
+                    self.polite_count
+                ));
+                accessibility::announce(
+                    format!(
+                        "Polite announcement #{}: value is '{}'",
+                        self.polite_count, self.value
+                    ),
+                    Priority::Polite,
+                )
+                .discard()
+            }
+            Message::AnnounceAssertive => {
+                self.assertive_count += 1;
+                self.last_ax = Some(format!(
+                    "Assertive button pressed ({} times)",
+                    self.assertive_count
+                ));
+                accessibility::announce(
+                    format!("Assertive announcement #{}", self.assertive_count),
+                    Priority::Assertive,
+                )
+                .discard()
+            }
             Message::CustomPressed => {
                 self.last_ax = Some("Custom widget pressed".to_string());
                 accessibility::announce("Custom widget pressed", Priority::Polite).discard()
@@ -101,8 +122,13 @@ impl App {
             text("Accessibility example (AccessKit)").size(24),
             text("Use a screen reader to interact. The custom control responds to AX click/focus."),
             row![
-                button("Announce (polite)").on_press(Message::AnnouncePolite),
-                button("Announce (assertive)").on_press(Message::AnnounceAssertive),
+                button(text(format!("Announce polite ({})", self.polite_count)))
+                    .on_press(Message::AnnouncePolite),
+                button(text(format!(
+                    "Announce assertive ({})",
+                    self.assertive_count
+                )))
+                .on_press(Message::AnnounceAssertive),
             ]
             .spacing(12),
             input,

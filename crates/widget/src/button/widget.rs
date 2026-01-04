@@ -349,6 +349,7 @@ where
                 operation,
             );
         });
+        operation.leave_container();
     }
 
     fn update(
@@ -459,11 +460,20 @@ where
             }
             #[cfg(feature = "accessibility")]
             Event::Accessibility(accessibility_event) => {
-                if self.id.as_ref().is_some_and(|id| {
-                    accessibility_event.target
+                // If widget has an explicit ID, check if the event target matches
+                if let Some(id) = self.id.as_ref() {
+                    if accessibility_event.target
                         != crate::core::accessibility::node_id_from_widget_id(id)
-                }) {
-                    return;
+                    {
+                        return;
+                    }
+                } else {
+                    // Widget has no explicit ID - only respond if we're focused
+                    // (the focus operation ensures only the correct widget is focused)
+                    let state = tree.state.downcast_ref::<State>();
+                    if !state.is_focused {
+                        return;
+                    }
                 }
 
                 // Handle screen reader "click" action

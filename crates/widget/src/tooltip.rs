@@ -365,6 +365,7 @@ where
                 operation,
             );
         });
+        operation.leave_container();
     }
 }
 

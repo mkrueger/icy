@@ -575,8 +575,25 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.accessibility(tree, layout) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        _tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        Some(
+            crate::core::accessibility::WidgetInfo::radio_button(&self.label, self.is_selected)
+                .with_bounds(layout.bounds()),
+        )
     }
 }
 

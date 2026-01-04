@@ -314,6 +314,7 @@ pub enum Message {
     // Text inputs
     TextChanged(String),
     PasswordChanged(String),
+    EmailChanged(String),
 
     // Sliders
     SliderChanged(f32),

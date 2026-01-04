@@ -622,6 +622,58 @@ where
                     shell.capture_event();
                 }
             }
+            #[cfg(feature = "accessibility")]
+            Event::Accessibility(accessibility_event) => {
+                // Check if the event target matches this widget
+                if let Some(id) = self.id.as_ref() {
+                    if accessibility_event.target
+                        != crate::core::accessibility::node_id_from_widget_id(id)
+                    {
+                        return;
+                    }
+                } else {
+                    // Widget has no explicit ID - only respond if we're focused
+                    if !state.is_focused {
+                        return;
+                    }
+                }
+
+                // Handle screen reader "click" action (open/close picker)
+                if accessibility_event.is_click() {
+                    if state.is_open {
+                        state.is_open = false;
+                        if let Some(on_close) = &self.on_close {
+                            shell.publish(on_close.clone());
+                        }
+                    } else {
+                        let selected = self.selected.as_ref().map(Borrow::borrow);
+                        state.is_open = true;
+                        state.hovered_option = self
+                            .options
+                            .borrow()
+                            .iter()
+                            .position(|option| Some(option) == selected);
+                        if let Some(on_open) = &self.on_open {
+                            shell.publish(on_open.clone());
+                        }
+                    }
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "focus" action
+                if accessibility_event.is_focus() {
+                    state.is_focused = true;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+                // Handle screen reader "blur" action
+                if accessibility_event.is_blur() {
+                    state.is_focused = false;
+                    state.is_open = false;
+                    shell.request_redraw();
+                    shell.capture_event();
+                }
+            }
             _ => {}
         };
 
@@ -804,8 +856,39 @@ where
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.accessibility(tree, layout) {
+            operation.accessibility(self.id.as_ref(), layout.bounds(), info);
+        }
+
         let state = tree.state.downcast_mut::<State<Renderer::Paragraph>>();
         operation.focusable(self.id.as_ref(), layout.bounds(), state);
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility(
+        &self,
+        tree: &crate::core::widget::Tree,
+        layout: crate::core::Layout<'_>,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        use crate::core::accessibility::WidgetInfo;
+
+        let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
+
+        // Get the current value or placeholder text
+        let value = self
+            .selected
+            .as_ref()
+            .map(|s| s.borrow().to_string())
+            .or_else(|| self.placeholder.clone())
+            .unwrap_or_default();
+
+        let mut info = WidgetInfo::pick_list(value).with_bounds(layout.bounds());
+
+        // Set expanded state for screen readers
+        info.expanded = Some(state.is_open);
+
+        Some(info)
     }
 
     fn overlay<'b>(

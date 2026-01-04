@@ -9,6 +9,12 @@ use winit::window::Window;
 use crate::core::Rectangle;
 
 use std::fmt;
+use std::sync::OnceLock;
+
+pub(crate) fn trace_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("ICY_UI_A11Y_TRACE").is_some())
+}
 
 // Re-export for convenience
 pub use crate::core::accessibility::Event as AccessibilityEvent;
@@ -46,8 +52,26 @@ impl AccessibilityAdapter {
 
         impl ActivationHandler for Activate {
             fn request_initial_tree(&mut self) -> Option<TreeUpdate> {
+                if trace_enabled() {
+                    eprintln!("[a11y] request_initial_tree() -> Activated");
+                }
                 let _ = self.sender.send(ProcessedEvent::Activated);
-                None
+
+                // Provide a minimal initial tree immediately.
+                // The application will publish the full tree on the next tick.
+                let mut root = Node::new(Role::Window);
+                root.set_bounds(accesskit::Rect {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 0.0,
+                    y1: 0.0,
+                });
+
+                Some(TreeUpdate {
+                    nodes: vec![(AccessibilityAdapter::ROOT_ID, root)],
+                    tree: Some(Tree::new(AccessibilityAdapter::ROOT_ID)),
+                    focus: AccessibilityAdapter::ROOT_ID,
+                })
             }
         }
 
@@ -102,11 +126,19 @@ impl AccessibilityAdapter {
     /// Called when accessibility is activated (screen reader connected).
     pub fn activate(&mut self) {
         self.enabled = true;
+
+        if trace_enabled() {
+            eprintln!("[a11y] adapter enabled=true");
+        }
     }
 
     /// Called when accessibility is deactivated.
     pub fn deactivate(&mut self) {
         self.enabled = false;
+
+        if trace_enabled() {
+            eprintln!("[a11y] adapter enabled=false");
+        }
     }
 
     /// Returns whether accessibility is currently enabled.
@@ -116,7 +148,14 @@ impl AccessibilityAdapter {
 
     /// Updates the accessibility tree if accessibility is active.
     pub fn update(&mut self, tree_update: impl FnOnce() -> TreeUpdate) {
-        self.adapter.update_if_active(tree_update);
+        if trace_enabled() {
+            self.adapter.update_if_active(|| {
+                eprintln!("[a11y] update_if_active closure called");
+                tree_update()
+            });
+        } else {
+            self.adapter.update_if_active(tree_update);
+        }
     }
 
     /// Drains any pending accessibility events.
@@ -124,6 +163,10 @@ impl AccessibilityAdapter {
         let mut drained = Vec::new();
 
         while let Ok(event) = self.receiver.try_recv() {
+            if trace_enabled() {
+                eprintln!("[a11y] drained event: {event:?}");
+            }
+
             match event {
                 ProcessedEvent::Activated => self.activate(),
                 ProcessedEvent::Deactivated => self.deactivate(),
@@ -139,14 +182,40 @@ impl AccessibilityAdapter {
     /// Sends a full tree update with the given nodes.
     pub fn update_tree(&mut self, nodes: Vec<(NodeId, Node)>, focus: Option<NodeId>) {
         if !self.enabled {
+            if trace_enabled() {
+                eprintln!(
+                    "[a11y] update_tree skipped (adapter disabled), nodes_len={} focus={:?}",
+                    nodes.len(),
+                    focus
+                );
+            }
             return;
         }
 
-        self.adapter.update_if_active(|| TreeUpdate {
-            nodes,
-            tree: Some(Tree::new(Self::ROOT_ID)),
-            focus: focus.unwrap_or(Self::ROOT_ID),
-        });
+        if trace_enabled() {
+            eprintln!(
+                "[a11y] update_tree send: nodes_len={} focus={:?}",
+                nodes.len(),
+                focus
+            );
+        }
+
+        if trace_enabled() {
+            self.adapter.update_if_active(|| {
+                eprintln!("[a11y] update_tree update_if_active closure called");
+                TreeUpdate {
+                    nodes,
+                    tree: Some(Tree::new(Self::ROOT_ID)),
+                    focus: focus.unwrap_or(Self::ROOT_ID),
+                }
+            });
+        } else {
+            self.adapter.update_if_active(|| TreeUpdate {
+                nodes,
+                tree: Some(Tree::new(Self::ROOT_ID)),
+                focus: focus.unwrap_or(Self::ROOT_ID),
+            });
+        }
     }
 }
 

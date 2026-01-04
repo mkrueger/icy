@@ -258,6 +258,16 @@ where
         })
     }
 
+    fn operate(
+        &mut self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn crate::core::widget::Operation,
+    ) {
+        use crate::core::Widget;
+        self.list.operate(self.tree, layout, renderer, operation);
+    }
+
     fn update(
         &mut self,
         event: &Event,
@@ -331,6 +341,45 @@ where
 
 struct ListState {
     is_hovered: Option<bool>,
+}
+
+#[cfg(feature = "accessibility")]
+impl<T, Message, Theme, Renderer> List<'_, '_, T, Message, Theme, Renderer>
+where
+    T: Clone + ToString,
+    Theme: Catalog,
+    Renderer: text::Renderer,
+{
+    fn build_accessibility_info(
+        &self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+    ) -> Option<crate::core::accessibility::WidgetInfo> {
+        use crate::core::accessibility::WidgetInfo;
+
+        let bounds = layout.bounds();
+        let text_size = self.text_size.unwrap_or_else(|| renderer.default_size());
+        let option_height =
+            f32::from(self.text_line_height.to_absolute(text_size)) + self.padding.y();
+
+        // Create menu info with all options as extra_children
+        let mut info = WidgetInfo::list_box().with_bounds(bounds);
+
+        for (i, option) in self.options.iter().enumerate() {
+            let is_selected = *self.hovered_option == Some(i);
+            let option_bounds = Rectangle {
+                x: bounds.x,
+                y: bounds.y + (option_height * i as f32),
+                width: bounds.width,
+                height: option_height,
+            };
+            let item_info = WidgetInfo::list_box_option(option.to_string(), is_selected)
+                .with_bounds(option_bounds);
+            info = info.with_extra_child(item_info);
+        }
+
+        Some(info)
+    }
 }
 
 impl<T, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -455,6 +504,21 @@ where
         {
             shell.request_redraw();
         }
+    }
+
+    fn operate(
+        &mut self,
+        _tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn crate::core::widget::Operation,
+    ) {
+        #[cfg(feature = "accessibility")]
+        if let Some(info) = self.build_accessibility_info(layout, renderer) {
+            operation.accessibility(None, layout.bounds(), info);
+        }
+
+        let _ = (layout, renderer, operation);
     }
 
     fn mouse_interaction(

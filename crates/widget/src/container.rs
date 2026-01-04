@@ -277,6 +277,7 @@ where
                 operation,
             );
         });
+        operation.leave_container();
     }
 
     fn update(
