@@ -1,6 +1,7 @@
 //! Change internal widget state.
 use crate::core::widget::Id;
 use crate::core::widget::operation;
+use crate::core::Rectangle;
 use crate::task;
 use crate::{Action, Task};
 
@@ -56,6 +57,27 @@ pub fn scroll_by_animated<T>(id: impl Into<Id>, offset: AbsoluteOffset) -> Task<
         id.into(),
         offset,
     )))
+}
+
+/// Scrolls the scrollable with the given [`Id`] the minimum amount to make the
+/// given [`Rectangle`] visible.
+///
+/// The rectangle should be in content coordinates. If already visible, no scrolling occurs.
+pub fn ensure_visible<T>(id: impl Into<Id>, target_rect: Rectangle) -> Task<T> {
+    task::effect(Action::widget(operation::scrollable::ensure_visible(
+        id.into(),
+        target_rect,
+    )))
+}
+
+/// Scrolls the scrollable with the given [`Id`] the minimum amount to make the
+/// given [`Rectangle`] visible, with smooth animation.
+///
+/// The rectangle should be in content coordinates. If already visible, no scrolling occurs.
+pub fn ensure_visible_animated<T>(id: impl Into<Id>, target_rect: Rectangle) -> Task<T> {
+    task::effect(Action::widget(
+        operation::scrollable::ensure_visible_animated(id.into(), target_rect),
+    ))
 }
 
 /// Focuses the previous focusable widget.

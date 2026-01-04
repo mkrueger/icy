@@ -723,63 +723,10 @@ impl ScrollableDemo {
     }
 
     fn scrollable_style(&self, theme: &Theme, status: scrollable::Status) -> scrollable::Style {
-        let base = scrollable::default(theme, status);
-
-        let scroll = match self.style_preset {
-            ScrollStylePreset::Floating => scrollable::ScrollStyle::floating(),
-            ScrollStylePreset::Thin => scrollable::ScrollStyle::thin(),
-            ScrollStylePreset::Solid => scrollable::ScrollStyle::solid(),
-        };
-
-        let hover_factor = match status {
-            scrollable::Status::Active { hover_factor, .. } => hover_factor,
-            scrollable::Status::Hovered { hover_factor, .. } => hover_factor,
-            scrollable::Status::Dragged { hover_factor, .. } => hover_factor,
-        };
-
-        let (is_h_interacting, is_v_interacting) = match status {
-            scrollable::Status::Active { .. } => (false, false),
-            scrollable::Status::Hovered {
-                is_horizontal_scrollbar_hovered,
-                is_vertical_scrollbar_hovered,
-                ..
-            } => (
-                is_horizontal_scrollbar_hovered,
-                is_vertical_scrollbar_hovered,
-            ),
-            scrollable::Status::Dragged {
-                is_horizontal_scrollbar_dragged,
-                is_vertical_scrollbar_dragged,
-                ..
-            } => (
-                is_horizontal_scrollbar_dragged,
-                is_vertical_scrollbar_dragged,
-            ),
-        };
-        let is_interacting = is_h_interacting || is_v_interacting;
-
-        let handle_opacity = scroll.handle_opacity(hover_factor, is_interacting);
-        let bg_opacity = scroll.background_opacity(hover_factor, is_interacting);
-
-        let handle_color = if is_interacting {
-            if matches!(status, scrollable::Status::Dragged { .. }) {
-                theme.accent.base
-            } else {
-                theme.accent.hover
-            }
-        } else {
-            theme.background.on
-        };
-
-        scrollable::Style {
-            scroll: scrollable::ScrollStyle {
-                rail_background: Some(theme.background.base.scale_alpha(bg_opacity)),
-                handle_color: handle_color.scale_alpha(handle_opacity),
-                handle_color_hovered: theme.accent.hover.scale_alpha(handle_opacity),
-                handle_color_dragged: theme.accent.base.scale_alpha(handle_opacity),
-                ..scroll
-            },
-            ..base
+        match self.style_preset {
+            ScrollStylePreset::Floating => scrollable::floating(theme, status),
+            ScrollStylePreset::Thin => scrollable::thin(theme, status),
+            ScrollStylePreset::Solid => scrollable::solid(theme, status),
         }
     }
 

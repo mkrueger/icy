@@ -1,220 +1,146 @@
 # Scrollbars & Virtual Scrolling
 
-This repository contains two related pieces of functionality:
+This repository provides two related features:
 
-- **Egui-style scrollbars** for `scrollable` (and `virtual_scrollable`) via `ScrollStyle`.
-- **Virtual scrolling** for efficiently rendering very large content via `virtual_scrollable`.
+- **Modern scrollbars** for `scrollable` and `virtual_scrollable` (hover-animated width/opacity, presets).
+- **Virtual scrolling** (render only what is visible) via `virtual_scrollable`.
 
-The goal is to support thin/floating scrollbars with hover animations (similar to egui), while also enabling scalable lists/canvases where you only render what is visible.
+The implementation lives in `crates/widget/src/scrolling/*`.
 
----
+## Scrollbar system overview
 
-## Scrollbars: `scrollable::ScrollStyle`
+There are two layers that work together:
 
-### What it is
-`scrollable::ScrollStyle` controls the appearance and behavior of the scrollbars.
+- **Placement & hit-testing**: the scroll directions (horizontal/vertical) and their geometry (alignment, widths, margins, spacing).
+- **Appearance & hover animation**: `scrollable::ScrollStyle`.
 
-In particular it supports:
+The key idea is that the widget computes a `hover_factor` that animates between $0$ and $1$ when the pointer enters/leaves the scroll area. `ScrollStyle` uses this to derive the *current* width and opacities.
 
-- **Floating scrollbars** (overlay the content instead of reserving layout space)
-- **Thin vs solid bars** (different widths)
-- **Animated visibility** (fade in/out driven by hover)
+### `scrollable::Status` and `hover_factor`
 
-### Presets
-There are three built-in presets:
-
-- `scrollable::ScrollStyle::floating()`
-- `scrollable::ScrollStyle::thin()`
-- `scrollable::ScrollStyle::solid()`
-
-Use them directly in your style function (see below), or treat them as a baseline and override fields.
-
-### Hover animation model
-The scroll widgets track a `hover_factor: f32` (typically in $[0, 1]$), which is animated when the mouse enters/leaves the scroll area.
-
-`ScrollStyle` exposes helpers like:
-
-- `handle_opacity(hover_factor, is_interacting)`
-- `background_opacity(hover_factor, is_interacting)`
-
-so a style function can compute final colors/alpha values consistently.
-
-### Styling a scrollable
-You customize scrollbars by providing a style function:
+Style functions receive a `scrollable::Status`, which carries the current `hover_factor`:
 
 ```rust
-use icy_ui::widget::scrollable;
-use icy_ui::{Color, Theme};
+use iced::widget::scrollable;
 
-fn style(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
-    let base = scrollable::default(theme, status);
-
-    let scroll = scrollable::ScrollStyle::floating();
-
-    scrollable::Style {
-        scroll,
-        ..base
-    }
+fn hover_factor(status: scrollable::Status) -> f32 {
+	match status {
+		scrollable::Status::Active { hover_factor, .. }
+		| scrollable::Status::Hovered { hover_factor, .. }
+		| scrollable::Status::Dragged { hover_factor, .. } => hover_factor,
+	}
 }
 ```
 
-You can also react to `status` (hovered/dragged) and `hover_factor` to blend colors.
+### `scrollable::ScrollStyle`
 
----
+`ScrollStyle` is the configuration used to compute the scrollbar visuals. It includes (among others):
 
-## Kinetic Scrolling & Smooth Scroll-To
+- Whether the scrollbar **floats** over content (`floating`) or reserves space.
+- A **base width** and a **hover-expanded width**.
+- Opacity settings for the rail/handle (idle vs hovered).
+- A minimum handle length.
 
-Both `scrollable` and `virtual_scrollable` support **kinetic scrolling** (momentum/flick scrolling) and **smooth animated scroll-to**.
+It also provides helper methods like `current_width(hover_factor)`, `rail_opacity(hover_factor)` and `handle_opacity(hover_factor)`.
 
-### Kinetic Scrolling (Touch/Flick)
-When the user scrolls via touch and releases their finger, the content continues scrolling with momentum that naturally decelerates:
+### Presets: `floating`, `thin`, `solid`
 
-- **Velocity tracking**: Touch velocity is tracked with exponential smoothing during finger movement
-- **Momentum physics**: On finger release, scrolling continues with physics-based momentum
-- **Friction decay**: Exponential friction (factor 5.0) provides natural deceleration
-- **Auto-stop**: Scrolling stops when velocity drops below 1.0 px/s or hits content edges
-- **Interruption**: Wheel scrolling or new touch interactions immediately cancel kinetic motion
+The easiest way to style scrollbars is to start from a preset:
 
-This behavior is automatic and requires no configuration.
+- `scrollable::floating(theme, status)`
+- `scrollable::thin(theme, status)`
+- `scrollable::solid(theme, status)`
 
-### Smooth Scroll-To Animation
-For programmatic scrolling, use `scroll_to_animated` instead of `scroll_to` for smooth animated transitions:
+These return a complete `scrollable::Style`.
 
-```rust
-use icy_ui::widget::scrollable;
-use icy_ui::widget::scrollable::AbsoluteOffset;
-
-// Immediate scroll (jumps instantly)
-scrollable::scroll_to(id.clone(), AbsoluteOffset { x: 0.0, y: 500.0 })
-
-// Animated scroll (smooth transition with ease-out cubic easing)
-scrollable::scroll_to_animated(id.clone(), AbsoluteOffset { x: 0.0, y: 500.0 })
-```
-
-The animation uses ease-out cubic easing ($1 - (1 - t)^3$) for a smooth, natural feel.
-
-You can also call `scroll_to_animated()` directly on the widget's `State`:
+Example (tweak a preset):
 
 ```rust
-// In your update logic with access to state
-state.scroll_to_animated(AbsoluteOffset { x: 0.0, y: 500.0 });
+use iced::widget::scrollable;
+use iced::Theme;
+
+fn style(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
+	let mut s = scrollable::floating(theme, status);
+
+	// Example tweak: keep floating, but reserve a small gutter.
+	s.scroll.floating_allocated_width = 2.0;
+	s
+}
 ```
 
-### State Query Methods
-The `State` struct provides methods to check animation status:
+## Kinetic scrolling and smooth scroll-to
 
-- `is_kinetic_active()` – Returns `true` if kinetic scrolling is in progress
-- `is_scroll_to_animating(now)` – Returns `true` if a scroll-to animation is active
+Both `scrollable` and `virtual_scrollable` support:
 
----
+- **Kinetic scrolling** (momentum after a touch drag).
+- **Smooth scroll-to animations**.
+
+### Programmatic scrolling
+
+Use `scroll_to_animated` to smoothly scroll to an absolute offset:
+
+```rust
+use iced::widget::scrollable;
+use iced::widget::scrollable::AbsoluteOffset;
+
+scrollable::scroll_to_animated(
+	"my_scroll".into(),
+	AbsoluteOffset {
+		x: Some(0.0),
+		y: Some(500.0),
+	},
+);
+```
 
 ## Virtual scrolling: `virtual_scrollable`
 
-### When to use it
-Use `virtual_scrollable` when your content is extremely large:
+`virtual_scrollable` is designed for very large content. Instead of building a widget tree for all content, it asks you to render only what is visible.
 
-- lists with tens/hundreds of thousands of rows
-- huge 2D canvases
-- grids where only a small portion is visible at any time
+There are two entry points:
 
-It avoids building widgets for the entire content. Instead, it calls your view callback only for the **currently visible viewport**.
+### `virtual_scrollable::show_viewport`
 
-### Key idea: viewport-driven rendering (no internal content translation)
-`virtual_scrollable` is designed to be **purely virtual**:
-
-- The widget maintains a scroll offset.
-- It computes the **visible rectangle in content coordinates**.
-- It calls your callback with that rectangle.
-- **You render the content for that rectangle.**
-
-Importantly: your content is not expected to be a giant widget that gets moved/translated. The scroll position is expressed through the viewport coordinates you receive.
-
-### API overview
-There are two primary entry points:
-
-#### 1) Uniform rows: `show_rows`
-For row-based lists with a constant row height:
+Use this when content is not a simple list (or row heights vary). You specify a total `content_size`, and you render based on the `viewport` rectangle (in content coordinates):
 
 ```rust
-use icy_ui::widget::{column, container, text, virtual_scrollable};
-use icy_ui::{Element, Length};
-
-const TOTAL_ROWS: usize = 100_000;
+use iced::widget::virtual_scrollable;
+use iced::{Element, Rectangle, Size};
 
 fn view<'a, Message>() -> Element<'a, Message> {
-    let row_height = 30.0;
-
-    virtual_scrollable::show_rows(row_height, TOTAL_ROWS, move |visible| {
-        column(visible.map(|i| {
-            container(text(format!("Row {}", i + 1)))
-                .height(row_height)
-                .width(Length::Fill)
-                .into()
-        }))
-        .into()
-    })
-    .into()
+	virtual_scrollable::show_viewport(Size::new(2000.0, 2_000_000.0), |viewport: Rectangle| {
+		// Render only what intersects `viewport`.
+		// Your content should use the same coordinate system.
+		todo!()
+	})
+	.into()
 }
 ```
 
-Your callback receives `Range<usize>` of visible rows.
+### `virtual_scrollable::show_rows`
 
-#### 2) Custom virtualization: `show_viewport`
-For arbitrary content (2D canvases, sparse grids, variable-sized items):
+Convenience helper for **uniform row height** lists. It returns the visible row range; you render just those rows:
 
 ```rust
-use icy_ui::widget::{column, text, virtual_scrollable};
-use icy_ui::{Element, Rectangle, Size};
+use iced::widget::{column, text, virtual_scrollable};
+use iced::Element;
 
 fn view<'a, Message>() -> Element<'a, Message> {
-    let content_size = Size::new(100_000.0, 100_000.0);
+	let row_height = 20.0;
+	let total_rows = 100_000;
 
-    virtual_scrollable::show_viewport(content_size, move |viewport: Rectangle| {
-        // viewport.x / viewport.y are the top-left coordinates in content space.
-        // viewport.width / viewport.height are the visible size.
-        column![
-            text(format!(
-                "visible rect: x={:.0} y={:.0} w={:.0} h={:.0}",
-                viewport.x, viewport.y, viewport.width, viewport.height
-            )),
-        ]
-        .into()
-    })
-    .into()
+	virtual_scrollable::show_rows(row_height, total_rows, |range| {
+		range
+			.fold(column![], |col, row| col.push(text(format!("Row {row}"))))
+			.into()
+	})
+	.into()
 }
 ```
 
-Your callback receives a `Rectangle` representing the visible area in content coordinates.
+### Caching: `cache_key`
 
-### Scroll events
-You can observe scrolling using `.on_scroll(...)`.
+`virtual_scrollable` can cache the generated viewport content. If your content changes without changing scroll position/viewport size, call `.cache_key(new_key)` to invalidate the cache.
 
-The callback receives `virtual_scrollable::Viewport`, which can provide:
+## Styling: shared between `scrollable` and `virtual_scrollable`
 
-- `absolute_offset()`
-- `relative_offset()`
-- `visible_rect()`
-
-`relative_offset()` is clamped to avoid `NaN` when content does not overflow.
-
----
-
-## Using the same scrollbar styling for `scrollable` and `virtual_scrollable`
-
-Both widgets accept `.style(|theme, status| ...)` and use the same `scrollable::Status` model (including `hover_factor`).
-
-That means you can share a single scrollbar style function across normal and virtual scrolling.
-
----
-
-## Tips
-
-- Prefer `show_rows` when you can: it’s simpler and avoids manual math.
-- In `show_viewport`, always compute visible indices/tiles from `viewport.x/y/width/height`.
-- Keep the number of widgets you produce per frame bounded (e.g. only visible tiles + a small buffer).
-
----
-
-## Related docs
-
-- [doc/MOUSE_EVENTS.md](doc/MOUSE_EVENTS.md)
+Both widgets accept a `.style(|theme, status| ...)` function and share the same `scrollable::Status` model (including `hover_factor`).

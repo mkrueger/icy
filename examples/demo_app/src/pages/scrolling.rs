@@ -247,7 +247,7 @@ fn view_long_list(
                 .scroller_width(scroller_width)
                 .preset(style_preset),
         ))
-        .style(move |theme, status| scrollable_style(theme, status, style_preset))
+        .style(style_preset.style_fn())
         .show_rows(row_height, TOTAL_ROWS, move |range| {
             column(range.map(|i| {
                 let bg = if i % 2 == 0 {
@@ -332,7 +332,7 @@ fn view_large_canvas(
                 .scroller_width(scroller_width)
                 .preset(style_preset),
         })
-        .style(move |theme, status| scrollable_style(theme, status, style_preset))
+        .style(style_preset.style_fn())
         .show_viewport(Size::new(CANVAS_SIZE, CANVAS_SIZE), move |viewport| {
             render_tiles(viewport, tile_size)
         })
@@ -536,7 +536,7 @@ fn create_style_demo_content(
         .on_scroll(Message::Scrolled)
         .width(Fill)
         .height(Length::Fixed(SCROLL_AREA_HEIGHT))
-        .style(move |theme, status| scrollable_style(theme, status, style_preset))
+        .style(style_preset.style_fn())
         .into()
 }
 
@@ -554,67 +554,6 @@ fn style_preset_picker(style_preset: scrollable::Preset) -> Element<'static, Mes
     .spacing(8)
     .align_y(Center)
     .into()
-}
-
-fn scrollable_style(
-    theme: &Theme,
-    status: scrollable::Status,
-    style_preset: scrollable::Preset,
-) -> scrollable::Style {
-    let base = scrollable::default(theme, status);
-
-    let scroll = style_preset.scroll_style();
-
-    let hover_factor = match status {
-        scrollable::Status::Active { hover_factor, .. } => hover_factor,
-        scrollable::Status::Hovered { hover_factor, .. } => hover_factor,
-        scrollable::Status::Dragged { hover_factor, .. } => hover_factor,
-    };
-
-    let (is_h_interacting, is_v_interacting) = match status {
-        scrollable::Status::Active { .. } => (false, false),
-        scrollable::Status::Hovered {
-            is_horizontal_scrollbar_hovered,
-            is_vertical_scrollbar_hovered,
-            ..
-        } => (
-            is_horizontal_scrollbar_hovered,
-            is_vertical_scrollbar_hovered,
-        ),
-        scrollable::Status::Dragged {
-            is_horizontal_scrollbar_dragged,
-            is_vertical_scrollbar_dragged,
-            ..
-        } => (
-            is_horizontal_scrollbar_dragged,
-            is_vertical_scrollbar_dragged,
-        ),
-    };
-    let is_interacting = is_h_interacting || is_v_interacting;
-
-    let handle_opacity = scroll.handle_opacity(hover_factor, is_interacting);
-    let bg_opacity = scroll.background_opacity(hover_factor, is_interacting);
-
-    let handle_color = if is_interacting {
-        if matches!(status, scrollable::Status::Dragged { .. }) {
-            theme.accent.base
-        } else {
-            theme.accent.hover
-        }
-    } else {
-        theme.background.on
-    };
-
-    scrollable::Style {
-        scroll: scrollable::ScrollStyle {
-            rail_background: Some(theme.background.base.scale_alpha(bg_opacity)),
-            handle_color: handle_color.scale_alpha(handle_opacity),
-            handle_color_hovered: theme.accent.hover.scale_alpha(handle_opacity),
-            handle_color_dragged: theme.accent.base.scale_alpha(handle_opacity),
-            ..scroll
-        },
-        ..base
-    }
 }
 
 fn view_progress(

@@ -54,12 +54,12 @@ impl Preset {
     /// All available presets.
     pub const ALL: [Preset; 3] = [Preset::Floating, Preset::Thin, Preset::Solid];
 
-    /// Returns the [`ScrollStyle`] associated with this preset.
-    pub fn scroll_style(self) -> ScrollStyle {
+    /// Returns the style function associated with this preset.
+    pub fn style_fn(self) -> fn(&Theme, Status) -> Style {
         match self {
-            Preset::Floating => ScrollStyle::floating(),
-            Preset::Thin => ScrollStyle::thin(),
-            Preset::Solid => ScrollStyle::solid(),
+            Preset::Floating => floating,
+            Preset::Thin => thin,
+            Preset::Solid => solid,
         }
     }
 }
@@ -303,11 +303,7 @@ where
     where
         <crate::Theme as Catalog>::Class<'a>: From<StyleFn<'a, crate::Theme>>,
     {
-        self.spacing(0).style(|theme, status| {
-            let mut style = default(theme, status);
-            style.scroll = ScrollStyle::solid();
-            style
-        })
+        self.spacing(0).style(solid)
     }
 }
 
@@ -1351,7 +1347,6 @@ where
             let corner_radius = border::rounded(scroll_style.corner_radius as u32);
 
             let draw_scrollbar = |renderer: &mut Renderer,
-                                  scroll_style: &ScrollStyle,
                                   scrollbar: &internals::Scrollbar,
                                   is_vertical: bool,
                                   is_hovered: bool,
@@ -1483,7 +1478,6 @@ where
                     if let Some(scrollbar) = scrollbars.y {
                         draw_scrollbar(
                             renderer,
-                            scroll_style,
                             &scrollbar,
                             true,
                             is_v_hovered,
@@ -1494,7 +1488,6 @@ where
                     if let Some(scrollbar) = scrollbars.x {
                         draw_scrollbar(
                             renderer,
-                            scroll_style,
                             &scrollbar,
                             false,
                             is_h_hovered,
@@ -2736,22 +2729,15 @@ pub struct ScrollStyle {
 
 impl Default for ScrollStyle {
     fn default() -> Self {
-        Self::floating()
-    }
-}
-
-impl ScrollStyle {
-    /// Solid scroll bars that always use up space.
-    pub fn solid() -> Self {
         Self {
-            floating: false,
-            bar_width: 6.0,
+            floating: true,
+            bar_width: 10.0,
             handle_min_length: 12.0,
             bar_inner_margin: 4.0,
             bar_outer_margin: 0.0,
             floating_width: 2.0,
             floating_allocated_width: 0.0,
-            foreground_color: false,
+            foreground_color: true,
             corner_radius: 2.0,
             dormant_background_opacity: 0.0,
             active_background_opacity: 0.4,
@@ -2765,44 +2751,9 @@ impl ScrollStyle {
             handle_color_dragged: Color::from_rgb(0.7, 0.7, 0.7),
         }
     }
+}
 
-    /// Thin scroll bars that expand on hover.
-    /// Shows a thin 2px line normally, expands to full width as overlay on hover.
-    pub fn thin() -> Self {
-        Self {
-            floating: true,
-            bar_width: 10.0,
-            floating_width: 2.0,
-            floating_allocated_width: 2.0,
-            foreground_color: true,
-            // Always visible as a thin line
-            dormant_background_opacity: 0.3,
-            dormant_handle_opacity: 0.6,
-            // More visible when hovering the scroll area
-            active_background_opacity: 0.5,
-            active_handle_opacity: 0.8,
-            // Full visibility when hovering scrollbar, semi-transparent to see content
-            interact_background_opacity: 0.6,
-            interact_handle_opacity: 1.0,
-            ..Self::solid()
-        }
-    }
-
-    /// No scroll bars until you hover the scroll area,
-    /// at which time they appear faintly, and then expand
-    /// when you hover the scroll bars.
-    pub fn floating() -> Self {
-        Self {
-            floating: true,
-            bar_width: 10.0,
-            foreground_color: true,
-            floating_allocated_width: 0.0,
-            dormant_background_opacity: 0.0,
-            dormant_handle_opacity: 0.0,
-            ..Self::solid()
-        }
-    }
-
+impl ScrollStyle {
     /// Width of a solid vertical scrollbar, or height of a horizontal scroll bar, when it is at its widest.
     pub fn allocated_width(&self) -> f32 {
         if self.floating {
@@ -2883,7 +2834,7 @@ impl Catalog for Theme {
     type Class<'a> = StyleFn<'a, Self>;
 
     fn default<'a>() -> Self::Class<'a> {
-        Box::new(default)
+        Box::new(floating)
     }
 
     fn style(&self, class: &Self::Class<'_>, status: Status) -> Style {
@@ -2891,54 +2842,56 @@ impl Catalog for Theme {
     }
 }
 
-/// The default style of a [`Scrollable`].
-pub fn default(theme: &Theme, status: Status) -> Style {
+impl<'a> From<Preset> for StyleFn<'a, Theme> {
+    fn from(preset: Preset) -> Self {
+        Box::new(preset.style_fn())
+    }
+}
+
+/// Helper function to apply theme colors and status-based styling to a ScrollStyle.
+fn apply_theme_and_status(
+    mut scroll_style: ScrollStyle,
+    theme: &Theme,
+    status: Status,
+) -> Style {
     // Get the hover factor from any status variant
     let hover_factor = match status {
-        Status::Active { hover_factor, .. } => hover_factor,
-        Status::Hovered { hover_factor, .. } => hover_factor,
-        Status::Dragged { hover_factor, .. } => hover_factor,
+        Status::Active { hover_factor, .. }
+        | Status::Hovered { hover_factor, .. }
+        | Status::Dragged { hover_factor, .. } => hover_factor,
     };
 
     // Determine if we're interacting (hovering scrollbar or dragging)
-    let (is_h_interacting, is_v_interacting) = match status {
-        Status::Active { .. } => (false, false),
+    let is_interacting = match status {
+        Status::Active { .. } => false,
         Status::Hovered {
             is_horizontal_scrollbar_hovered,
             is_vertical_scrollbar_hovered,
             ..
-        } => (
-            is_horizontal_scrollbar_hovered,
-            is_vertical_scrollbar_hovered,
-        ),
+        } => is_horizontal_scrollbar_hovered || is_vertical_scrollbar_hovered,
         Status::Dragged {
             is_horizontal_scrollbar_dragged,
             is_vertical_scrollbar_dragged,
             ..
-        } => (
-            is_horizontal_scrollbar_dragged,
-            is_vertical_scrollbar_dragged,
-        ),
+        } => is_horizontal_scrollbar_dragged || is_vertical_scrollbar_dragged,
     };
 
-    let is_interacting = is_h_interacting || is_v_interacting;
+    // Apply theme colors
+    let handle_base = theme.button.on;
+    let handle_hovered = theme.accent.hover;
+    let handle_dragged = theme.accent.pressed;
 
-    // Create base scroll style with theme colors
-    let mut scroll_style = ScrollStyle::floating();
     scroll_style.rail_background = Some(theme.background.small_widget);
-    scroll_style.handle_color = theme.button.base;
-    scroll_style.handle_color_hovered = theme.accent.hover;
-    scroll_style.handle_color_dragged = theme.accent.pressed;
 
-    // Adjust handle color based on interaction state
+    // Determine handle color based on interaction state
     let handle_color = if is_interacting {
         if matches!(status, Status::Dragged { .. }) {
-            scroll_style.handle_color_dragged
+            handle_dragged
         } else {
-            scroll_style.handle_color_hovered
+            handle_hovered
         }
     } else {
-        scroll_style.handle_color
+        handle_base
     };
 
     // Apply opacity based on hover state
@@ -2946,12 +2899,8 @@ pub fn default(theme: &Theme, status: Status) -> Style {
     let bg_opacity = scroll_style.background_opacity(hover_factor, is_interacting);
 
     scroll_style.handle_color = handle_color.scale_alpha(handle_opacity);
-    scroll_style.handle_color_hovered = scroll_style
-        .handle_color_hovered
-        .scale_alpha(handle_opacity);
-    scroll_style.handle_color_dragged = scroll_style
-        .handle_color_dragged
-        .scale_alpha(handle_opacity);
+    scroll_style.handle_color_hovered = handle_hovered.scale_alpha(handle_opacity);
+    scroll_style.handle_color_dragged = handle_dragged.scale_alpha(handle_opacity);
 
     if let Some(ref mut bg) = scroll_style.rail_background {
         *bg = bg.scale_alpha(bg_opacity);
@@ -2976,4 +2925,58 @@ pub fn default(theme: &Theme, status: Status) -> Style {
         gap: None,
         auto_scroll,
     }
+}
+
+/// Floating scrollbars - hidden until hover, float over content.
+pub fn floating(theme: &Theme, status: Status) -> Style {
+    apply_theme_and_status(
+        ScrollStyle {
+            floating: true,
+            bar_width: 10.0,
+            floating_allocated_width: 0.0,
+            foreground_color: true,
+            dormant_background_opacity: 0.0,
+            dormant_handle_opacity: 0.0,
+            ..Default::default()
+        },
+        theme,
+        status,
+    )
+}
+
+/// Thin scrollbars - thin line that expands on hover.
+pub fn thin(theme: &Theme, status: Status) -> Style {
+    apply_theme_and_status(
+        ScrollStyle {
+            floating: true,
+            bar_width: 10.0,
+            floating_allocated_width: 2.0,
+            foreground_color: true,
+            // Always visible as a thin line
+            dormant_background_opacity: 0.3,
+            dormant_handle_opacity: 0.6,
+            // More visible when hovering the scroll area
+            active_background_opacity: 0.5,
+            active_handle_opacity: 0.8,
+            // Full visibility when hovering scrollbar
+            interact_background_opacity: 0.6,
+            ..Default::default()
+        },
+        theme,
+        status,
+    )
+}
+
+/// Solid scrollbars - always visible, allocate space.
+pub fn solid(theme: &Theme, status: Status) -> Style {
+    apply_theme_and_status(
+        ScrollStyle {
+            floating: false,
+            bar_width: 6.0,
+            foreground_color: false,
+            ..Default::default()
+        },
+        theme,
+        status,
+    )
 }
