@@ -743,6 +743,7 @@ async fn run_instance<P>(
                 }
 
                 let menu_context = core::menu::MenuContext {
+                    current_window: Some(id),
                     windows: vec![core::menu::WindowInfo {
                         id,
                         title: window.state.title().to_owned(),
@@ -1294,7 +1295,8 @@ async fn run_instance<P>(
                                 });
                             }
 
-                            let menu_context = core::menu::MenuContext { windows };
+                            let focused_window = windows.iter().find(|w| w.focused).map(|w| w.id);
+                            let menu_context = core::menu::MenuContext { current_window: focused_window, windows };
 
                             if let Some(menu) = program.application_menu(&menu_context) {
                                 let (menu_for_platform, actions, signature) =
@@ -2211,7 +2213,13 @@ where
 
     let mut view = program.view(id);
 
-    if let Some(menu) = program.application_menu(menu_context) {
+    // Create a menu context with the current window set to this window's id
+    let window_menu_context = core::menu::MenuContext {
+        current_window: Some(id),
+        windows: menu_context.windows.clone(),
+    };
+
+    if let Some(menu) = program.application_menu(&window_menu_context) {
         use icy_ui_widget::menu::menu_bar_from;
         use icy_ui_widget::{Column, core::Length};
 
@@ -2946,7 +2954,8 @@ fn run_action<'a, P, C>(
                     });
                 }
 
-                core::menu::MenuContext { windows }
+                let focused_window = windows.iter().find(|w| w.focused).map(|w| w.id);
+                core::menu::MenuContext { current_window: focused_window, windows }
             };
 
             for (id, window) in window_manager.iter_mut() {
@@ -3052,7 +3061,9 @@ where
         });
     }
 
+    let focused_window = menu_windows.iter().find(|w| w.focused).map(|w| w.id);
     let menu_context = core::menu::MenuContext {
+        current_window: focused_window,
         windows: menu_windows,
     };
 

@@ -102,6 +102,14 @@ where
     fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
         state.scale_factor(&self.program, window)
     }
+
+    fn application_menu(
+        &self,
+        state: &Self::State,
+        context: &icy_ui_program::core::menu::MenuContext,
+    ) -> Option<icy_ui_program::core::menu::AppMenu<Self::Message>> {
+        self.program.application_menu(&state.state, context).map(|menu| menu.map(Event::Program))
+    }
 }
 
 /// The state of the devtools.

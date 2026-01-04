@@ -539,6 +539,8 @@ pub struct WindowInfo {
 /// Context provided to `Program::application_menu`.
 #[derive(Debug, Default, Clone)]
 pub struct MenuContext {
+    /// The currently focused window, if any.
+    pub current_window: Option<window::Id>,
     /// Snapshot of currently known windows.
     pub windows: Vec<WindowInfo>,
 }
@@ -555,6 +557,13 @@ impl<Message> AppMenu<Message> {
     #[must_use]
     pub fn new(roots: Vec<MenuNode<Message>>) -> Self {
         Self { roots }
+    }
+
+    /// Maps the message type of this menu using the provided function.
+    pub fn map<B>(self, f: impl Fn(Message) -> B + Clone) -> AppMenu<B> {
+        AppMenu {
+            roots: self.roots.into_iter().map(|node| node.map(f.clone())).collect(),
+        }
     }
 }
 
@@ -758,6 +767,15 @@ impl<Message> MenuNode<Message> {
         }
         self
     }
+
+    /// Maps the message type of this node using the provided function.
+    pub fn map<B>(self, f: impl Fn(Message) -> B + Clone) -> MenuNode<B> {
+        MenuNode {
+            id: self.id,
+            role: self.role,
+            kind: self.kind.map(f),
+        }
+    }
 }
 
 /// The concrete type of a menu node.
@@ -801,6 +819,33 @@ pub enum MenuKind<Message> {
 
     /// A separator/divider.
     Separator,
+}
+
+impl<Message> MenuKind<Message> {
+    /// Maps the message type of this menu kind using the provided function.
+    pub fn map<B>(self, f: impl Fn(Message) -> B + Clone) -> MenuKind<B> {
+        match self {
+            MenuKind::Item { label, enabled, shortcut, on_activate } => MenuKind::Item {
+                label,
+                enabled,
+                shortcut,
+                on_activate: f(on_activate),
+            },
+            MenuKind::CheckItem { label, enabled, checked, shortcut, on_activate } => MenuKind::CheckItem {
+                label,
+                enabled,
+                checked,
+                shortcut,
+                on_activate: f(on_activate),
+            },
+            MenuKind::Submenu { label, enabled, children } => MenuKind::Submenu {
+                label,
+                enabled,
+                children: children.into_iter().map(|node| node.map(f.clone())).collect(),
+            },
+            MenuKind::Separator => MenuKind::Separator,
+        }
+    }
 }
 
 // ============================================================================
