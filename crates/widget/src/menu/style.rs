@@ -75,23 +75,21 @@ impl StyleSheet for crate::Theme {
     fn appearance(&self, style: &Self::Style) -> Appearance {
         match style {
             Style::Default => {
-                let background = self.background.base;
+                // Use component colors like libcosmic for proper surface layering
+                let component = &self.background.component;
 
                 Appearance {
-                    background,
+                    background: component.base,
                     border_width: 1.0,
-                    bar_border_radius: [8.0; 4],
-                    menu_border_radius: [8.0; 4],
-                    border_color: Color {
-                        a: 0.3,
-                        ..self.background.on
-                    },
+                    bar_border_radius: self.corner_radii.radius_xl,
+                    menu_border_radius: self.corner_radii.radius_s.map(|x| x + 2.0),
+                    border_color: component.divider,
                     background_expand: [1; 4],
-                    // Use primary color for popup menu highlights
-                    path: self.accent.hover,
-                    // Use subtle color for menu bar highlights
-                    bar_path: self.primary.base,
-                    path_border_radius: [4.0; 4],
+                    // Use component hover for subtle highlights (libcosmic style)
+                    path: component.hover,
+                    // Same hover color for menu bar highlights
+                    bar_path: component.hover,
+                    path_border_radius: self.corner_radii.radius_s,
                     menu_content_padding: [2.0, 4.0, 1.0, 4.0],
                     menu_inner_content_padding: [4.0, 4.0, 4.0, 4.0],
                 }
