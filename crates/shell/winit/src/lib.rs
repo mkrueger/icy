@@ -1866,10 +1866,10 @@ fn update_accessibility_tree<'a, P, C>(
         );
     }
 
-    // AccessKit coordinate system varies by platform:
-    // - macOS: expects physical pixels (scaled by scale_factor)
-    // - Windows/Linux: expects logical pixels (no scaling needed)
-    #[cfg(target_os = "macos")]
+    // AccessKit expects coordinates in physical pixels on all platforms.
+    // See: https://github.com/AccessKit/accesskit - "AccessKit expects the final
+    // transformed coordinates to be relative to the origin of the tree's container
+    // (e.g. window), in physical pixels, with the y coordinate being top-down."
     let (bounds, scale_factor) = {
         let physical_size = window.state.physical_size();
         let bounds = crate::core::Rectangle {
@@ -1879,13 +1879,6 @@ fn update_accessibility_tree<'a, P, C>(
             height: physical_size.height as f32,
         };
         (bounds, window.state.scale_factor() as f64)
-    };
-
-    #[cfg(not(target_os = "macos"))]
-    let (bounds, scale_factor) = {
-        let logical_size = window.state.logical_size();
-        let bounds = crate::core::Rectangle::with_size(logical_size);
-        (bounds, 1.0_f64)
     };
 
     let collected = {
