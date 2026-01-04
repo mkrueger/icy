@@ -328,7 +328,7 @@ fn build_context_menu<Message>(
                     &node.id,
                     label,
                     *enabled,
-                    false,
+                    None,
                     shortcut.as_ref(),
                 );
                 menu.addItem(&item);
@@ -386,7 +386,7 @@ fn build_context_menu_from_items(
             }
             ContextMenuItemKind::Item { label, enabled } => {
                 // Context menu items don't have shortcuts yet
-                let ns_item = build_leaf_item(mtm, target, &item.id, label, *enabled, false, None);
+                let ns_item = build_leaf_item(mtm, target, &item.id, label, *enabled, None, None);
                 menu.addItem(&ns_item);
             }
             ContextMenuItemKind::CheckItem {
@@ -498,7 +498,7 @@ fn build_main_menu<Message>(
                     &node.id,
                     label,
                     *enabled,
-                    false,
+                    None,
                     shortcut.as_ref(),
                 );
                 app_submenu.addItem(&item);
@@ -523,7 +523,7 @@ fn build_main_menu<Message>(
                     &node.id,
                     label,
                     *enabled,
-                    false,
+                    None,
                     Some(shortcut_to_use),
                 );
                 app_submenu.addItem(&item);
@@ -547,7 +547,7 @@ fn build_main_menu<Message>(
                         &node.id,
                         label,
                         *enabled,
-                        false,
+                        None,
                         shortcut.as_ref(),
                     );
                     app_submenu.addItem(&item);
@@ -577,7 +577,7 @@ fn build_main_menu<Message>(
                     &node.id,
                     label,
                     *enabled,
-                    false,
+                    None,
                     Some(shortcut_to_use),
                 );
                 app_submenu.addItem(&item);
@@ -698,7 +698,7 @@ fn build_submenu_filtered<Message>(
                     &node.id,
                     label,
                     *enabled,
-                    false,
+                    None,
                     shortcut.as_ref(),
                 );
                 submenu.addItem(&item);
@@ -733,7 +733,7 @@ fn build_leaf_item(
     id: &MenuId,
     label: &str,
     enabled: bool,
-    checked: bool,
+    checked: Option<bool>,
     shortcut: Option<&MenuShortcut>,
 ) -> Retained<NSMenuItem> {
     let item = NSMenuItem::new(mtm);
@@ -752,8 +752,14 @@ fn build_leaf_item(
         let _: () = msg_send![&item, setTag: id.0 as isize];
     }
 
-    // Checked state (NSControlStateValueOn=1, Off=0)
-    let state: i64 = if checked { 1 } else { 0 };
+    // Checked state (NSControlStateValueOn=1, Off=0, Mixed=-1)
+    // None -> no checkmark indicator (Off)
+    // Some(false) -> unchecked (Off)
+    // Some(true) -> checked (On)
+    let state: i64 = match checked {
+        Some(true) => 1,
+        Some(false) | None => 0,
+    };
     // SAFETY: Objective-C message send.
     #[allow(unsafe_code)]
     unsafe {
