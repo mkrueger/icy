@@ -22,7 +22,8 @@ Iced is a great UI library. This fork exists because some of my applications hav
 - Extended theming (inspired by libcosmic)
 - Better focus / keyboard input support across controls
 - Drag & drop support
-- Accessibility
+- Accessibility 
+- RTL support
 
 ## Status / scope
 

@@ -44,10 +44,14 @@ impl Cache {
                 cosmic_text::Metrics::new(key.size, key.line_height.max(f32::MIN_POSITIVE));
             let mut buffer = cosmic_text::Buffer::new(font_system, metrics);
 
+            let width_opt = text::sanitize_buffer_dimension(key.bounds.width);
+            let height_opt =
+                text::sanitize_buffer_dimension(key.bounds.height.max(key.line_height));
+
             buffer.set_size(
                 font_system,
-                Some(key.bounds.width),
-                Some(key.bounds.height.max(key.line_height)),
+                width_opt,
+                height_opt,
             );
             buffer.set_text(
                 font_system,
@@ -126,7 +130,8 @@ impl Key<'_> {
         self.bounds.width.to_bits().hash(&mut hasher);
         self.bounds.height.to_bits().hash(&mut hasher);
         self.shaping.hash(&mut hasher);
-        self.align_x.hash(&mut hasher);
+        // Resolve alignment to ensure RTL changes invalidate cache
+        self.align_x.resolve().hash(&mut hasher);
 
         hasher.finish()
     }

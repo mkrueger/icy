@@ -49,6 +49,11 @@ impl Node {
         &self.children
     }
 
+    /// Returns a mutable reference to the children of the [`Node`].
+    pub fn children_mut(&mut self) -> &mut [Node] {
+        &mut self.children
+    }
+
     /// Aligns the [`Node`] in the given space.
     pub fn align(mut self, align_x: Alignment, align_y: Alignment, space: Size) -> Self {
         self.align_mut(align_x, align_y, space);

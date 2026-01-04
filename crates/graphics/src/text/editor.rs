@@ -587,8 +587,8 @@ impl editor::Editor for Editor {
 
                 buffer.set_size(
                     font_system.raw(),
-                    Some(new_bounds.width * internal.hint_factor),
-                    Some(new_bounds.height * internal.hint_factor),
+                    text::sanitize_buffer_dimension(new_bounds.width * internal.hint_factor),
+                    text::sanitize_buffer_dimension(new_bounds.height * internal.hint_factor),
                 );
 
                 internal.bounds = new_bounds;

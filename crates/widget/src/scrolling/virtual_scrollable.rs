@@ -2574,9 +2574,18 @@ where
             }
 
             if self.horizontal {
+                let is_rtl = crate::core::layout_direction().is_rtl();
+
+                // In RTL, swap left/right arrow positions and icons
+                let (left_icon, right_icon) = if is_rtl {
+                    (Renderer::SCROLL_RIGHT_ICON, Renderer::SCROLL_LEFT_ICON)
+                } else {
+                    (Renderer::SCROLL_LEFT_ICON, Renderer::SCROLL_RIGHT_ICON)
+                };
+
                 renderer.fill_text(
                     crate::core::Text {
-                        content: Renderer::SCROLL_LEFT_ICON.to_string(),
+                        content: left_icon.to_string(),
                         align_x: text::Alignment::Left,
                         ..arrow
                     },
@@ -2587,7 +2596,7 @@ where
 
                 renderer.fill_text(
                     crate::core::Text {
-                        content: Renderer::SCROLL_RIGHT_ICON.to_string(),
+                        content: right_icon.to_string(),
                         align_x: text::Alignment::Right,
                         ..arrow
                     },

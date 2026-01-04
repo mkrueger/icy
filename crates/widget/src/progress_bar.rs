@@ -25,7 +25,7 @@ use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::widget::Tree;
 use crate::core::{
-    self, Background, Color, Element, Layout, Length, Rectangle, Size, Theme, Widget,
+    self, Background, Color, Element, Layout, LayoutDirection, Length, Rectangle, Size, Theme, Widget,
 };
 
 use std::ops::RangeInclusive;
@@ -61,6 +61,8 @@ where
     girth: Length,
     is_vertical: bool,
     class: Theme::Class<'a>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Theme> ProgressBar<'a, Theme>
@@ -83,6 +85,7 @@ where
             girth: Length::from(Self::DEFAULT_GIRTH),
             is_vertical: false,
             class: Theme::default(),
+            layout_direction: None,
         }
     }
 
@@ -121,6 +124,15 @@ where
     #[must_use]
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.class = class.into();
+        self
+    }
+
+    /// Sets the layout direction of the [`ProgressBar`].
+    ///
+    /// If `None`, the global style direction will be used.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
         self
     }
 
@@ -167,7 +179,7 @@ where
         _tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        _style: &renderer::Style,
+        defaults: &renderer::Style,
         layout: Layout<'_>,
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
@@ -188,6 +200,7 @@ where
         };
 
         let style = theme.style(&self.class);
+        let is_rtl = self.layout_direction.unwrap_or_else(crate::core::layout_direction).is_rtl();
 
         renderer.fill_quad(
             renderer::Quad {
@@ -203,6 +216,13 @@ where
                 Rectangle {
                     y: bounds.y + bounds.height - active_progress_length,
                     height: active_progress_length,
+                    ..bounds
+                }
+            } else if is_rtl {
+                // In RTL mode, progress bar fills from right
+                Rectangle {
+                    x: bounds.x + bounds.width - active_progress_length,
+                    width: active_progress_length,
                     ..bounds
                 }
             } else {

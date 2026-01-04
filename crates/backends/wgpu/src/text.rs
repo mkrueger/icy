@@ -554,7 +554,8 @@ fn prepare(
 
                     let mut position = bounds.position();
 
-                    position.x = match align_x {
+                    // Use resolved alignment to match buffer alignment (RTL-aware)
+                    position.x = match align_x.resolve() {
                         Alignment::Default | Alignment::Left | Alignment::Justified => position.x,
                         Alignment::Center => position.x - entry.min_bounds.width / 2.0,
                         Alignment::Right => position.x - entry.min_bounds.width,
@@ -616,6 +617,19 @@ fn prepare(
 
                 scale /= hint_factor;
             }
+
+            // Safety: avoid feeding cosmic-text positions outside i32 range.
+            // `cosmic_text::glyph_cache::SubpixelBin::new` will overflow if
+            // `pos as i32` saturates to `i32::MAX` and then it tries `trunc + 1`.
+            const MAX_SAFE_POS: f32 = i32::MAX as f32 - 2.0;
+            const MIN_SAFE_POS: f32 = i32::MIN as f32 + 2.0;
+
+            if !position.x.is_finite() || !position.y.is_finite() || !scale.is_finite() || scale <= 0.0 {
+                return None;
+            }
+
+            position.x = position.x.clamp(MIN_SAFE_POS, MAX_SAFE_POS);
+            position.y = position.y.clamp(MIN_SAFE_POS, MAX_SAFE_POS);
 
             Some(cryoglyph::TextArea {
                 buffer,

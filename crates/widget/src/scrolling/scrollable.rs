@@ -206,12 +206,20 @@ where
 
     /// Anchors the horizontal [`Scrollable`] direction to the left.
     pub fn anchor_left(self) -> Self {
-        self.anchor_x(Anchor::Start)
+        self.anchor_x(if crate::core::layout_direction().is_rtl() {
+            Anchor::End
+        } else {
+            Anchor::Start
+        })
     }
 
     /// Anchors the horizontal [`Scrollable`] direction to the right.
     pub fn anchor_right(self) -> Self {
-        self.anchor_x(Anchor::End)
+        self.anchor_x(if crate::core::layout_direction().is_rtl() {
+            Anchor::Start
+        } else {
+            Anchor::End
+        })
     }
 
     /// Sets the [`Anchor`] of the horizontal direction of the [`Scrollable`], if applicable.
@@ -289,6 +297,17 @@ where
     }
 }
 
+fn resolve_horizontal_anchor(anchor: Anchor) -> Anchor {
+    if crate::core::layout_direction().is_rtl() {
+        match anchor {
+            Anchor::Start => Anchor::End,
+            Anchor::End => Anchor::Start,
+        }
+    } else {
+        anchor
+    }
+}
+
 impl<'a, Message, Renderer> Scrollable<'a, Message, crate::Theme, Renderer>
 where
     Renderer: text::Renderer,
@@ -344,7 +363,10 @@ impl Direction {
 
     /// Aligns a scroll delta according to the anchor configuration.
     pub fn align(&self, delta: Vector) -> Vector {
-        let horizontal_alignment = self.horizontal().map(|p| p.alignment).unwrap_or_default();
+        let horizontal_alignment = self
+            .horizontal()
+            .map(|p| resolve_horizontal_anchor(p.alignment))
+            .unwrap_or_default();
 
         let vertical_alignment = self.vertical().map(|p| p.alignment).unwrap_or_default();
 
@@ -498,12 +520,15 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let mut layout = |right_padding, bottom_padding| {
+        let is_rtl = crate::core::layout_direction().is_rtl();
+
+        let mut layout = |left_padding, right_padding, bottom_padding| {
             layout::padded(
                 limits,
                 self.width,
                 self.height,
                 Padding {
+                    left: left_padding,
                     right: right_padding,
                     bottom: bottom_padding,
                     ..Padding::ZERO
@@ -579,7 +604,7 @@ where
         let x_embedded = x_padding.is_some();
 
         if !y_embedded && !x_embedded {
-            return layout(0.0, 0.0);
+            return layout(0.0, 0.0, 0.0);
         }
 
         let y_padding = y_padding.unwrap_or(0.0);
@@ -606,7 +631,12 @@ where
         }
 
         let mut node = layout(
-            if is_y_scrollbar_visible {
+            if is_y_scrollbar_visible && is_rtl {
+                y_padding
+            } else {
+                0.0
+            },
+            if is_y_scrollbar_visible && !is_rtl {
                 y_padding
             } else {
                 0.0
@@ -646,7 +676,12 @@ where
             is_x_scrollbar_visible = x_needed;
 
             node = layout(
-                if is_y_scrollbar_visible {
+                if is_y_scrollbar_visible && is_rtl {
+                    y_padding
+                } else {
+                    0.0
+                },
+                if is_y_scrollbar_visible && !is_rtl {
                     y_padding
                 } else {
                     0.0
@@ -1721,9 +1756,18 @@ where
             }
 
             if self.horizontal {
+                let is_rtl = crate::core::layout_direction().is_rtl();
+
+                // In RTL, swap left/right arrow positions and icons
+                let (left_icon, right_icon) = if is_rtl {
+                    (Renderer::SCROLL_RIGHT_ICON, Renderer::SCROLL_LEFT_ICON)
+                } else {
+                    (Renderer::SCROLL_LEFT_ICON, Renderer::SCROLL_RIGHT_ICON)
+                };
+
                 renderer.fill_text(
                     core::Text {
-                        content: Renderer::SCROLL_LEFT_ICON.to_string(),
+                        content: left_icon.to_string(),
                         align_x: text::Alignment::Left,
                         ..arrow
                     },
@@ -1734,7 +1778,7 @@ where
 
                 renderer.fill_text(
                     core::Text {
-                        content: Renderer::SCROLL_RIGHT_ICON.to_string(),
+                        content: right_icon.to_string(),
                         align_x: text::Alignment::Right,
                         ..arrow
                     },
@@ -2126,7 +2170,11 @@ impl State {
         Vector::new(
             if let Some(horizontal) = direction.horizontal() {
                 self.offset_x
-                    .translation(bounds.width, content_bounds.width, horizontal.alignment)
+                    .translation(
+                        bounds.width,
+                        content_bounds.width,
+                        resolve_horizontal_anchor(horizontal.alignment),
+                    )
                     .round()
             } else {
                 0.0
@@ -2314,6 +2362,7 @@ impl Scrollbars {
         bounds: Rectangle,
         content_bounds: Rectangle,
     ) -> Self {
+        let is_rtl = crate::core::layout_direction().is_rtl();
         let translation = state.translation(direction, bounds, content_bounds);
 
         let show_scrollbar_x = direction
@@ -2344,7 +2393,11 @@ impl Scrollbars {
 
             // Total bounds of the scrollbar + margin + scroller width
             let total_scrollbar_bounds = Rectangle {
-                x: bounds.x + bounds.width - total_scrollbar_width,
+                x: if is_rtl {
+                    bounds.x
+                } else {
+                    bounds.x + bounds.width - total_scrollbar_width
+                },
                 y: bounds.y,
                 width: total_scrollbar_width,
                 height: (bounds.height - x_scrollbar_height).max(0.0),
@@ -2352,7 +2405,11 @@ impl Scrollbars {
 
             // Bounds of just the scrollbar
             let scrollbar_bounds = Rectangle {
-                x: bounds.x + bounds.width - total_scrollbar_width / 2.0 - width / 2.0,
+                x: if is_rtl {
+                    bounds.x + total_scrollbar_width / 2.0 - width / 2.0
+                } else {
+                    bounds.x + bounds.width - total_scrollbar_width / 2.0 - width / 2.0
+                },
                 y: bounds.y,
                 width,
                 height: (bounds.height - x_scrollbar_height).max(0.0),
@@ -2369,9 +2426,13 @@ impl Scrollbars {
                     translation.y * ratio * scrollbar_bounds.height / bounds.height;
 
                 let scroller_bounds = Rectangle {
-                    x: bounds.x + bounds.width
-                        - total_scrollbar_width / 2.0
-                        - effective_scroller_width / 2.0,
+                    x: if is_rtl {
+                        bounds.x + total_scrollbar_width / 2.0 - effective_scroller_width / 2.0
+                    } else {
+                        bounds.x + bounds.width
+                            - total_scrollbar_width / 2.0
+                            - effective_scroller_width / 2.0
+                    },
                     y: (scrollbar_bounds.y + scroller_offset).max(0.0),
                     width: effective_scroller_width,
                     height: scroller_height,
@@ -2413,7 +2474,11 @@ impl Scrollbars {
 
             // Total bounds of the scrollbar + margin + scroller width
             let total_scrollbar_bounds = Rectangle {
-                x: bounds.x,
+                x: if is_rtl {
+                    bounds.x + scrollbar_y_width
+                } else {
+                    bounds.x
+                },
                 y: bounds.y + bounds.height - total_scrollbar_height,
                 width: (bounds.width - scrollbar_y_width).max(0.0),
                 height: total_scrollbar_height,
@@ -2421,7 +2486,11 @@ impl Scrollbars {
 
             // Bounds of just the scrollbar
             let scrollbar_bounds = Rectangle {
-                x: bounds.x,
+                x: if is_rtl {
+                    bounds.x + scrollbar_y_width
+                } else {
+                    bounds.x
+                },
                 y: bounds.y + bounds.height - total_scrollbar_height / 2.0 - width / 2.0,
                 width: (bounds.width - scrollbar_y_width).max(0.0),
                 height: width,
@@ -2454,7 +2523,7 @@ impl Scrollbars {
                 total_bounds: total_scrollbar_bounds,
                 bounds: scrollbar_bounds,
                 scroller,
-                alignment: horizontal.alignment,
+                alignment: resolve_horizontal_anchor(horizontal.alignment),
                 disabled: content_bounds.width <= bounds.width,
             })
         } else {

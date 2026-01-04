@@ -3,7 +3,7 @@ use crate::core::time::Instant;
 use crate::core::window::{
     Direction, Event, Icon, Id, Level, Mode, Screenshot, Settings, UserAttention,
 };
-use crate::core::{Point, Size};
+use crate::core::{LayoutDirection, Point, Size};
 use crate::futures::Subscription;
 use crate::futures::event;
 use crate::futures::futures::channel::oneshot;
@@ -176,6 +176,9 @@ pub enum Action {
 
     /// Get the logical dimensions of the monitor containing the window with the given [`Id`].
     GetMonitorSize(Id, oneshot::Sender<Option<Size>>),
+
+    /// Set the layout direction for all windows.
+    SetLayoutDirection(LayoutDirection),
 
     /// Set whether the system can automatically organize windows into tabs.
     ///
@@ -478,6 +481,13 @@ pub fn disable_mouse_passthrough<Message>(id: Id) -> Task<Message> {
 /// Gets the logical dimensions of the monitor containing the window with the given [`Id`].
 pub fn monitor_size(id: Id) -> Task<Option<Size>> {
     task::oneshot(move |channel| crate::Action::Window(Action::GetMonitorSize(id, channel)))
+}
+
+/// Sets the layout direction for all windows.
+///
+/// This affects how widgets are laid out (left-to-right or right-to-left).
+pub fn set_layout_direction<T>(direction: LayoutDirection) -> Task<T> {
+    task::effect(crate::Action::Window(Action::SetLayoutDirection(direction)))
 }
 
 /// Sets whether the system can automatically organize windows into tabs.

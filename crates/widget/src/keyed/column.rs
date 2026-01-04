@@ -246,6 +246,9 @@ where
             .width(self.width)
             .height(self.height);
 
+        // `Alignment::Start/End` should follow reading direction.
+        let align_items = Alignment::from(self.align_items.resolve_horizontal());
+
         layout::flex::resolve(
             layout::flex::Axis::Vertical,
             renderer,
@@ -254,7 +257,7 @@ where
             self.height,
             self.padding,
             self.spacing,
-            self.align_items,
+            align_items,
             &mut self.children,
             &mut tree.children,
         )

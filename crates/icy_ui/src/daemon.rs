@@ -296,6 +296,23 @@ impl<P: Program> Daemon<P> {
             ..self
         }
     }
+
+    /// Sets the application menu logic of the [`Daemon`].
+    pub fn application_menu(
+        self,
+        f: impl Fn(
+            &P::State,
+            &program::core::menu::MenuContext,
+        ) -> Option<program::core::menu::AppMenu<P::Message>>,
+    ) -> Daemon<
+        impl Program<State = P::State, Message = P::Message, Theme = P::Theme, Renderer = P::Renderer>,
+    > {
+        Daemon {
+            raw: program::with_application_menu(self.raw, f),
+            settings: self.settings,
+            presets: self.presets,
+        }
+    }
 }
 
 impl<P: Program> Program for Daemon<P> {
@@ -355,6 +372,14 @@ impl<P: Program> Program for Daemon<P> {
 
     fn presets(&self) -> &[Preset<Self::State, Self::Message>] {
         &self.presets
+    }
+
+    fn application_menu(
+        &self,
+        state: &Self::State,
+        context: &program::core::menu::MenuContext,
+    ) -> Option<program::core::menu::AppMenu<Self::Message>> {
+        debug::hot(|| self.raw.application_menu(state, context))
     }
 }
 

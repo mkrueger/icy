@@ -40,7 +40,7 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    self, Background, Clipboard, Color, Element, Event, Layout, Length, Pixels, Point, Rectangle,
+    self, Background, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Pixels, Point, Rectangle,
     Shell, Size, Theme, Widget,
 };
 use crate::focus::FocusRing;
@@ -99,6 +99,8 @@ where
     height: f32,
     class: Theme::Class<'a>,
     status: Option<Status>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, T, Message, Theme> Slider<'a, T, Message, Theme>
@@ -147,6 +149,7 @@ where
             height: Self::DEFAULT_HEIGHT,
             class: Theme::default(),
             status: None,
+            layout_direction: None,
         }
     }
 
@@ -218,6 +221,15 @@ where
         self.class = class.into();
         self
     }
+
+    /// Sets the layout direction of the [`Slider`].
+    ///
+    /// If `None`, the global style direction will be used.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
+        self
+    }
 }
 
 impl<T, Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Slider<'_, T, Message, Theme>
@@ -266,14 +278,25 @@ where
 
         let mut update = || {
             let current_value = self.value;
+            let is_rtl = self
+                .layout_direction
+                .unwrap_or_else(crate::core::layout_direction)
+                .is_rtl();
 
             let locate = |cursor_position: Point, modifiers: keyboard::Modifiers| -> Option<T> {
                 let bounds = layout.bounds();
 
+                // In RTL mode, swap the start/end behavior
+                let (start_value, end_value) = if is_rtl {
+                    (*self.range.end(), *self.range.start())
+                } else {
+                    (*self.range.start(), *self.range.end())
+                };
+
                 if cursor_position.x <= bounds.x {
-                    Some(*self.range.start())
+                    Some(start_value)
                 } else if cursor_position.x >= bounds.x + bounds.width {
-                    Some(*self.range.end())
+                    Some(end_value)
                 } else {
                     let step = if modifiers.shift() {
                         self.shift_step.unwrap_or(self.step)
@@ -286,6 +309,8 @@ where
                     let end = (*self.range.end()).into();
 
                     let percent = f64::from(cursor_position.x - bounds.x) / f64::from(bounds.width);
+                    // In RTL mode, invert the percentage
+                    let percent = if is_rtl { 1.0 - percent } else { percent };
 
                     let steps = (percent * (end - start) / step).round();
                     let value = steps * step + start;
@@ -427,12 +452,30 @@ where
                     // Allow keyboard control when focused or when cursor is over
                     if state.is_focused || cursor.is_over(layout.bounds()) {
                         match key {
-                            Key::Named(key::Named::ArrowUp | key::Named::ArrowRight) => {
+                            Key::Named(key::Named::ArrowUp) => {
                                 let _ = increment(current_value, *modifiers).map(change);
                                 shell.capture_event();
                             }
-                            Key::Named(key::Named::ArrowDown | key::Named::ArrowLeft) => {
+                            Key::Named(key::Named::ArrowDown) => {
                                 let _ = decrement(current_value, *modifiers).map(change);
+                                shell.capture_event();
+                            }
+                            Key::Named(key::Named::ArrowRight) => {
+                                // In RTL mode, right arrow decrements
+                                if is_rtl {
+                                    let _ = decrement(current_value, *modifiers).map(change);
+                                } else {
+                                    let _ = increment(current_value, *modifiers).map(change);
+                                }
+                                shell.capture_event();
+                            }
+                            Key::Named(key::Named::ArrowLeft) => {
+                                // In RTL mode, left arrow increments
+                                if is_rtl {
+                                    let _ = increment(current_value, *modifiers).map(change);
+                                } else {
+                                    let _ = decrement(current_value, *modifiers).map(change);
+                                }
                                 shell.capture_event();
                             }
                             _ => (),
@@ -534,7 +577,7 @@ where
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        _style: &renderer::Style,
+        defaults: &renderer::Style,
         layout: Layout<'_>,
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
@@ -565,14 +608,32 @@ where
             (bounds.width - handle_width) * (value - range_start) / (range_end - range_start)
         };
 
+        let is_rtl = self.layout_direction.unwrap_or_else(crate::core::layout_direction).is_rtl();
         let rail_y = bounds.y + bounds.height / 2.0;
+
+        // In RTL mode, the filled portion is on the right
+        let (filled_x, filled_width, unfilled_x, unfilled_width, handle_x) = if is_rtl {
+            let handle_x = bounds.x + bounds.width - offset - handle_width;
+            let filled_x = handle_x + handle_width / 2.0;
+            let filled_width = bounds.width - (handle_x - bounds.x) - handle_width / 2.0;
+            let unfilled_x = bounds.x;
+            let unfilled_width = handle_x - bounds.x + handle_width / 2.0;
+            (filled_x, filled_width, unfilled_x, unfilled_width, handle_x)
+        } else {
+            let handle_x = bounds.x + offset;
+            let filled_x = bounds.x;
+            let filled_width = offset + handle_width / 2.0;
+            let unfilled_x = bounds.x + offset + handle_width / 2.0;
+            let unfilled_width = bounds.width - offset - handle_width / 2.0;
+            (filled_x, filled_width, unfilled_x, unfilled_width, handle_x)
+        };
 
         renderer.fill_quad(
             renderer::Quad {
                 bounds: Rectangle {
-                    x: bounds.x,
+                    x: filled_x,
                     y: rail_y - style.rail.width / 2.0,
-                    width: offset + handle_width / 2.0,
+                    width: filled_width,
                     height: style.rail.width,
                 },
                 border: style.rail.border,
@@ -584,9 +645,9 @@ where
         renderer.fill_quad(
             renderer::Quad {
                 bounds: Rectangle {
-                    x: bounds.x + offset + handle_width / 2.0,
+                    x: unfilled_x,
                     y: rail_y - style.rail.width / 2.0,
-                    width: bounds.width - offset - handle_width / 2.0,
+                    width: unfilled_width,
                     height: style.rail.width,
                 },
                 border: style.rail.border,
@@ -596,7 +657,7 @@ where
         );
 
         let handle_bounds = Rectangle {
-            x: bounds.x + offset,
+            x: handle_x,
             y: rail_y - handle_height / 2.0,
             width: handle_width,
             height: handle_height,

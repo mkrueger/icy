@@ -30,8 +30,14 @@ use crate::core::widget::tree::{self, Tree};
 use crate::core::widget::{self, Operation};
 use crate::core::{
     self, Background, Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Rectangle,
-    Shadow, Shell, Size, Theme, Vector, Widget, color,
+    Shadow, Shell, Size, Theme, Vector, Widget, color, LayoutDirection,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum HorizontalAlignment {
+    Physical(alignment::Horizontal),
+    Logical(Alignment),
+}
 
 /// A widget that aligns its contents inside of its boundaries.
 ///
@@ -65,11 +71,13 @@ where
     height: Length,
     max_width: f32,
     max_height: f32,
-    horizontal_alignment: alignment::Horizontal,
+    horizontal_alignment: HorizontalAlignment,
     vertical_alignment: alignment::Vertical,
     clip: bool,
     content: Element<'a, Message, Theme, Renderer>,
     class: Theme::Class<'a>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Message, Theme, Renderer> Container<'a, Message, Theme, Renderer>
@@ -89,11 +97,12 @@ where
             height: size.height.fluid(),
             max_width: f32::INFINITY,
             max_height: f32::INFINITY,
-            horizontal_alignment: alignment::Horizontal::Left,
+            horizontal_alignment: HorizontalAlignment::Logical(Alignment::Start),
             vertical_alignment: alignment::Vertical::Top,
             clip: false,
             class: Theme::default(),
             content,
+            layout_direction: None,
         }
     }
 
@@ -178,7 +187,15 @@ where
 
     /// Sets the content alignment for the horizontal axis of the [`Container`].
     pub fn align_x(mut self, alignment: impl Into<alignment::Horizontal>) -> Self {
-        self.horizontal_alignment = alignment.into();
+        self.horizontal_alignment = HorizontalAlignment::Physical(alignment.into());
+        self
+    }
+
+    /// Sets the content alignment for the horizontal axis of the [`Container`], using logical
+    /// alignment (`Start`/`Center`/`End`) that will be resolved according to the layout direction
+    /// at layout time.
+    pub fn align_x_logical(mut self, alignment: Alignment) -> Self {
+        self.horizontal_alignment = HorizontalAlignment::Logical(alignment);
         self
     }
 
@@ -209,6 +226,15 @@ where
     #[must_use]
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.class = class.into();
+        self
+    }
+
+    /// Sets the layout direction of the [`Container`].
+    ///
+    /// If `None`, the global style direction will be used.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
         self
     }
 }
@@ -248,7 +274,11 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        layout(
+        let direction = self
+            .layout_direction
+            .unwrap_or_else(core::layout_direction);
+
+        layout_internal(
             limits,
             self.width,
             self.height,
@@ -257,6 +287,7 @@ where
             self.padding,
             self.horizontal_alignment,
             self.vertical_alignment,
+            direction,
             |limits| self.content.as_widget_mut().layout(tree, renderer, limits),
         )
     }
@@ -386,7 +417,44 @@ where
     }
 }
 
+fn layout_internal(
+    limits: &layout::Limits,
+    width: Length,
+    height: Length,
+    max_width: f32,
+    max_height: f32,
+    padding: Padding,
+    horizontal_alignment: HorizontalAlignment,
+    vertical_alignment: alignment::Vertical,
+    direction: LayoutDirection,
+    layout_content: impl FnOnce(&layout::Limits) -> layout::Node,
+) -> layout::Node {
+    layout::positioned(
+        &limits.max_width(max_width).max_height(max_height),
+        width,
+        height,
+        padding,
+        |limits| layout_content(&limits.loose()),
+        |content, size| {
+            let align_x = match horizontal_alignment {
+                HorizontalAlignment::Physical(horizontal) => Alignment::from(horizontal),
+                HorizontalAlignment::Logical(alignment) => {
+                    alignment.resolve_horizontal_alignment_in(direction)
+                }
+            };
+
+            content.align(
+                align_x,
+                Alignment::from(vertical_alignment),
+                size,
+            )
+        },
+    )
+}
+
 /// Computes the layout of a [`Container`].
+///
+/// This helper uses physical alignments (`Left`/`Center`/`Right`).
 pub fn layout(
     limits: &layout::Limits,
     width: Length,
@@ -398,19 +466,17 @@ pub fn layout(
     vertical_alignment: alignment::Vertical,
     layout_content: impl FnOnce(&layout::Limits) -> layout::Node,
 ) -> layout::Node {
-    layout::positioned(
-        &limits.max_width(max_width).max_height(max_height),
+    layout_internal(
+        limits,
         width,
         height,
+        max_width,
+        max_height,
         padding,
-        |limits| layout_content(&limits.loose()),
-        |content, size| {
-            content.align(
-                Alignment::from(horizontal_alignment),
-                Alignment::from(vertical_alignment),
-                size,
-            )
-        },
+        HorizontalAlignment::Physical(horizontal_alignment),
+        vertical_alignment,
+        core::layout_direction(),
+        layout_content,
     )
 }
 

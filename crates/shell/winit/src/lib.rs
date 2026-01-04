@@ -2823,6 +2823,18 @@ fn run_action<'a, P, C>(
                     .start_send(Control::SetAutomaticWindowTabbing(enabled))
                     .expect("Send control action");
             }
+            window::Action::SetLayoutDirection(direction) => {
+                core::set_layout_direction(direction);
+                for (id, window) in window_manager.iter_mut() {
+                    if let Some(ui) = interfaces.remove(&id) {
+                        let _ = interfaces.insert(
+                            id,
+                            ui.relayout(window.state.logical_size(), &mut window.renderer),
+                        );
+                    }
+                    window.raw.request_redraw();
+                }
+            }
             window::Action::RedrawAll => {
                 for (_id, window) in window_manager.iter_mut() {
                     window.raw.request_redraw();

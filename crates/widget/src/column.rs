@@ -212,6 +212,9 @@ where
     ) -> layout::Node {
         let limits = limits.max_width(self.max_width);
 
+        // `Alignment::Start/End` should follow reading direction.
+        let align = Alignment::from(self.align.resolve_horizontal());
+
         layout::flex::resolve(
             layout::flex::Axis::Vertical,
             renderer,
@@ -220,7 +223,7 @@ where
             self.height,
             self.padding,
             self.spacing,
-            self.align,
+            align,
             &mut self.children,
             &mut tree.children,
         )
@@ -421,7 +424,7 @@ where
         let mut x = 0.0;
         let mut y = 0.0;
 
-        let align_factor = match self.column.align {
+        let align_factor = match Alignment::from(self.column.align.resolve_horizontal()) {
             Alignment::Start => 0.0,
             Alignment::Center => 2.0,
             Alignment::End => 1.0,

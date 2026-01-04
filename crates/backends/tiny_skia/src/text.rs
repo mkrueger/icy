@@ -125,7 +125,8 @@ impl Pipeline {
         let width = entry.min_bounds.width;
         let height = entry.min_bounds.height;
 
-        let x = match align_x {
+        // Use resolved alignment to match buffer alignment (RTL-aware)
+        let x = match align_x.resolve() {
             Alignment::Default | Alignment::Left | Alignment::Justified => bounds.x,
             Alignment::Center => bounds.x - width / 2.0,
             Alignment::Right => bounds.x - width,

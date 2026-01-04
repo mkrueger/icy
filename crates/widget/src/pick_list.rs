@@ -789,6 +789,14 @@ where
 
         if let Some((font, code_point, size, line_height, shaping)) = handle {
             let size = size.unwrap_or_else(|| renderer.default_size());
+            let is_rtl = crate::core::layout_direction().is_rtl();
+
+            // Handle position: right side for LTR, left side for RTL
+            let (handle_x, handle_align) = if is_rtl {
+                (bounds.x + self.padding.left, text::Alignment::Left)
+            } else {
+                (bounds.x + bounds.width - self.padding.right, text::Alignment::Right)
+            };
 
             renderer.fill_text(
                 Text {
@@ -797,14 +805,14 @@ where
                     line_height,
                     font,
                     bounds: Size::new(bounds.width, f32::from(line_height.to_absolute(size))),
-                    align_x: text::Alignment::Right,
+                    align_x: handle_align,
                     align_y: alignment::Vertical::Center,
                     shaping,
                     wrapping: text::Wrapping::default(),
                     hint_factor: None,
                 },
                 Point::new(
-                    bounds.x + bounds.width - self.padding.right,
+                    handle_x,
                     bounds.center_y(),
                 ),
                 style.handle_color,
@@ -816,6 +824,14 @@ where
 
         if let Some(label) = label.or_else(|| self.placeholder.clone()) {
             let text_size = self.text_size.unwrap_or_else(|| renderer.default_size());
+            let is_rtl = crate::core::layout_direction().is_rtl();
+
+            // Label position: left side for LTR, right side for RTL
+            let (label_x, label_align) = if is_rtl {
+                (bounds.x + bounds.width - self.padding.right, text::Alignment::Right)
+            } else {
+                (bounds.x + self.padding.left, text::Alignment::Default)
+            };
 
             renderer.fill_text(
                 Text {
@@ -827,13 +843,13 @@ where
                         bounds.width - self.padding.x(),
                         f32::from(self.text_line_height.to_absolute(text_size)),
                     ),
-                    align_x: text::Alignment::Default,
+                    align_x: label_align,
                     align_y: alignment::Vertical::Center,
                     shaping: self.text_shaping,
                     wrapping: text::Wrapping::default(),
                     hint_factor: renderer.scale_factor(),
                 },
-                Point::new(bounds.x + self.padding.left, bounds.center_y()),
+                Point::new(label_x, bounds.center_y()),
                 if selected.is_some() {
                     style.text_color
                 } else {

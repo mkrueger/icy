@@ -11,9 +11,16 @@ use crate::core::renderer;
 use crate::core::text;
 use crate::core::widget;
 use crate::core::{
-    Alignment, Background, Element, Layout, Length, Pixels, Rectangle, Size, Widget,
+    Alignment, Background, Element, Layout, LayoutDirection, Length, Pixels, Rectangle, Size,
+    Widget,
 };
 use crate::scrolling::virtual_scrollable;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum HorizontalAlignment {
+    Physical(alignment::Horizontal),
+    Logical(Alignment),
+}
 
 /// Creates a new [`Table`] with the given columns and rows.
 ///
@@ -96,7 +103,7 @@ where
         header: header.into(),
         view: Box::new(move |data| view(data).into()),
         width: Length::Shrink,
-        align_x: alignment::Horizontal::Left,
+        align_x: HorizontalAlignment::Logical(Alignment::Start),
         align_y: alignment::Vertical::Top,
     }
 }
@@ -115,11 +122,13 @@ where
     separator_x: f32,
     separator_y: f32,
     class: Theme::Class<'a>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 struct Column_ {
     width: Length,
-    align_x: alignment::Horizontal,
+    align_x: HorizontalAlignment,
     align_y: alignment::Vertical,
 }
 
@@ -191,7 +200,17 @@ where
             separator_x: 1.0,
             separator_y: 1.0,
             class: Theme::default(),
+            layout_direction: None,
         }
+    }
+
+    /// Sets the layout direction of the [`Table`].
+    ///
+    /// If `None`, the global style direction will be used.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
+        self
     }
 
     /// Sets the width of the [`Table`].
@@ -285,6 +304,10 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let direction = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction);
+
         let metrics = tree.state.downcast_mut::<Metrics>();
         let columns = self.columns.len();
         let rows = self.cells.len() / columns;
@@ -474,7 +497,12 @@ where
 
             cell.move_to_mut((x, y));
             cell.align_mut(
-                Alignment::from(*align_x),
+                match *align_x {
+                    HorizontalAlignment::Physical(horizontal) => Alignment::from(horizontal),
+                    HorizontalAlignment::Logical(alignment) => {
+                        alignment.resolve_horizontal_alignment_in(direction)
+                    }
+                },
                 Alignment::from(*align_y),
                 Size::new(metrics.columns[column], metrics.rows[row]),
             );
@@ -665,7 +693,7 @@ pub struct Column<'a, 'b, T, Message, Theme = crate::Theme, Renderer = crate::Re
     header: Element<'a, Message, Theme, Renderer>,
     view: Box<dyn Fn(T) -> Element<'a, Message, Theme, Renderer> + 'b>,
     width: Length,
-    align_x: alignment::Horizontal,
+    align_x: HorizontalAlignment,
     align_y: alignment::Vertical,
 }
 
@@ -678,7 +706,15 @@ impl<'a, 'b, T, Message, Theme, Renderer> Column<'a, 'b, T, Message, Theme, Rend
 
     /// Sets the alignment for the horizontal axis of the [`Column`].
     pub fn align_x(mut self, alignment: impl Into<alignment::Horizontal>) -> Self {
-        self.align_x = alignment.into();
+        self.align_x = HorizontalAlignment::Physical(alignment.into());
+        self
+    }
+
+    /// Sets the alignment for the horizontal axis of the [`Column`], using logical alignment
+    /// (`Start`/`Center`/`End`) that will be resolved according to the table layout direction
+    /// at layout time.
+    pub fn align_x_logical(mut self, alignment: Alignment) -> Self {
+        self.align_x = HorizontalAlignment::Logical(alignment);
         self
     }
 

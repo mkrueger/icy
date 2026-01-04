@@ -13,6 +13,56 @@ pub enum Alignment {
     End,
 }
 
+impl Alignment {
+    /// Resolves the alignment to a horizontal alignment based on the current layout direction.
+    ///
+    /// For LTR: Start → Left, End → Right
+    /// For RTL: Start → Right, End → Left
+    #[must_use]
+    pub fn resolve_horizontal(self) -> Horizontal {
+        self.resolve_horizontal_in(crate::layout_direction())
+    }
+
+    /// Resolves the alignment to a horizontal alignment based on the provided layout direction.
+    #[must_use]
+    pub fn resolve_horizontal_in(self, direction: crate::LayoutDirection) -> Horizontal {
+        match self {
+            Self::Start => {
+                if direction.is_rtl() {
+                    Horizontal::Right
+                } else {
+                    Horizontal::Left
+                }
+            }
+            Self::Center => Horizontal::Center,
+            Self::End => {
+                if direction.is_rtl() {
+                    Horizontal::Left
+                } else {
+                    Horizontal::Right
+                }
+            }
+        }
+    }
+
+    /// Resolves the alignment for a horizontal axis into a physical [`Alignment`], suitable for
+    /// layout-time positioning.
+    ///
+    /// This swaps `Start`/`End` in RTL, leaving `Center` unchanged.
+    #[must_use]
+    pub fn resolve_horizontal_alignment_in(self, direction: crate::LayoutDirection) -> Self {
+        if direction.is_rtl() {
+            match self {
+                Self::Start => Self::End,
+                Self::Center => Self::Center,
+                Self::End => Self::Start,
+            }
+        } else {
+            self
+        }
+    }
+}
+
 impl From<Horizontal> for Alignment {
     fn from(horizontal: Horizontal) -> Self {
         match horizontal {

@@ -18,6 +18,16 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock, RwLock, Weak};
 
+const MAX_BUFFER_DIMENSION: f32 = 1_000_000.0;
+
+pub(crate) fn sanitize_buffer_dimension(value: f32) -> Option<f32> {
+    if value.is_finite() {
+        Some(value.clamp(0.0, MAX_BUFFER_DIMENSION))
+    } else {
+        None
+    }
+}
+
 /// A text primitive.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Text {
@@ -248,7 +258,11 @@ pub fn align(
     if needs_relayout {
         log::trace!("Relayouting paragraph...");
 
-        buffer.set_size(font_system, Some(min_bounds.width), Some(min_bounds.height));
+        buffer.set_size(
+            font_system,
+            sanitize_buffer_dimension(min_bounds.width),
+            sanitize_buffer_dimension(min_bounds.height),
+        );
     }
 
     min_bounds
@@ -311,9 +325,8 @@ fn to_style(style: font::Style) -> cosmic_text::Style {
 }
 
 fn to_align(alignment: Alignment) -> Option<cosmic_text::Align> {
-    match alignment {
-        Alignment::Default => None,
-        Alignment::Left => Some(cosmic_text::Align::Left),
+    match alignment.resolve() {
+        Alignment::Default | Alignment::Left => Some(cosmic_text::Align::Left),
         Alignment::Center => Some(cosmic_text::Align::Center),
         Alignment::Right => Some(cosmic_text::Align::Right),
         Alignment::Justified => Some(cosmic_text::Align::Justified),

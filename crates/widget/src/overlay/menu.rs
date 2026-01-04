@@ -587,6 +587,13 @@ where
                 );
             }
 
+            let is_rtl = crate::core::layout_direction().is_rtl();
+            let text_x = if is_rtl {
+                bounds.x + bounds.width - self.padding.right
+            } else {
+                bounds.x + self.padding.left
+            };
+
             renderer.fill_text(
                 Text {
                     content: option.to_string(),
@@ -600,7 +607,7 @@ where
                     wrapping: text::Wrapping::default(),
                     hint_factor: renderer.scale_factor(),
                 },
-                Point::new(bounds.x + self.padding.left, bounds.center_y()),
+                Point::new(text_x, bounds.center_y()),
                 if is_selected {
                     style.selected_text_color
                 } else {

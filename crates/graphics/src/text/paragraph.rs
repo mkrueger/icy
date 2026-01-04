@@ -86,8 +86,8 @@ impl core::text::Paragraph for Paragraph {
 
         buffer.set_size(
             font_system.raw(),
-            Some(text.bounds.width * hint_factor),
-            Some(text.bounds.height * hint_factor),
+            text::sanitize_buffer_dimension(text.bounds.width * hint_factor),
+            text::sanitize_buffer_dimension(text.bounds.height * hint_factor),
         );
 
         buffer.set_wrap(font_system.raw(), text::to_wrap(text.wrapping));
@@ -100,14 +100,16 @@ impl core::text::Paragraph for Paragraph {
             None,
         );
 
-        let min_bounds = text::align(&mut buffer, font_system.raw(), text.align_x) / hint_factor;
+        // Resolve alignment now and store the resolved value to ensure consistency
+        let resolved_align_x = text.align_x.resolve();
+        let min_bounds = text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
 
         Self(Arc::new(Internal {
             buffer,
             hint,
             hint_factor,
             font: text.font,
-            align_x: text.align_x,
+            align_x: resolved_align_x,
             align_y: text.align_y,
             shaping: text.shaping,
             wrapping: text.wrapping,
@@ -141,8 +143,8 @@ impl core::text::Paragraph for Paragraph {
 
         buffer.set_size(
             font_system.raw(),
-            Some(text.bounds.width * hint_factor),
-            Some(text.bounds.height * hint_factor),
+            text::sanitize_buffer_dimension(text.bounds.width * hint_factor),
+            text::sanitize_buffer_dimension(text.bounds.height * hint_factor),
         );
 
         buffer.set_wrap(font_system.raw(), text::to_wrap(text.wrapping));
@@ -181,14 +183,16 @@ impl core::text::Paragraph for Paragraph {
             None,
         );
 
-        let min_bounds = text::align(&mut buffer, font_system.raw(), text.align_x) / hint_factor;
+        // Resolve alignment now and store the resolved value to ensure consistency
+        let resolved_align_x = text.align_x.resolve();
+        let min_bounds = text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
 
         Self(Arc::new(Internal {
             buffer,
             hint,
             hint_factor,
             font: text.font,
-            align_x: text.align_x,
+            align_x: resolved_align_x,
             align_y: text.align_y,
             shaping: text.shaping,
             wrapping: text.wrapping,
@@ -205,8 +209,8 @@ impl core::text::Paragraph for Paragraph {
 
         paragraph.buffer.set_size(
             font_system.raw(),
-            Some(new_bounds.width * paragraph.hint_factor),
-            Some(new_bounds.height * paragraph.hint_factor),
+            text::sanitize_buffer_dimension(new_bounds.width * paragraph.hint_factor),
+            text::sanitize_buffer_dimension(new_bounds.height * paragraph.hint_factor),
         );
 
         let min_bounds = text::align(&mut paragraph.buffer, font_system.raw(), paragraph.align_x)
@@ -228,7 +232,8 @@ impl core::text::Paragraph for Paragraph {
             || paragraph.font != text.font
             || paragraph.shaping != text.shaping
             || paragraph.wrapping != text.wrapping
-            || paragraph.align_x != text.align_x
+            // paragraph.align_x is already resolved; compare with resolved new alignment
+            || paragraph.align_x != text.align_x.resolve()
             || paragraph.align_y != text.align_y
             || paragraph.hint.then_some(paragraph.hint_factor)
                 != text::hint_factor(text.size, text.hint_factor)
@@ -440,6 +445,7 @@ impl PartialEq for Internal {
     fn eq(&self, other: &Self) -> bool {
         self.font == other.font
             && self.shaping == other.shaping
+            // align_x is already stored as resolved value
             && self.align_x == other.align_x
             && self.align_y == other.align_y
             && self.bounds == other.bounds
@@ -458,7 +464,8 @@ impl Default for Internal {
             font: Font::default(),
             shaping: Shaping::default(),
             wrapping: Wrapping::default(),
-            align_x: Alignment::Default,
+            // Store resolved value for consistency
+            align_x: Alignment::Default.resolve(),
             align_y: alignment::Vertical::Top,
             bounds: Size::ZERO,
             min_bounds: Size::ZERO,

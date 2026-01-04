@@ -674,15 +674,19 @@ where
             state.menu_states.clear();
             state.active_root.clear();
 
-            // Determine direction based on position
+            // Determine direction based on position (only for overlays)
+            // For menu bars, keep the direction set by the parent (based on RTL)
             let view_center = viewport_size.width * 0.5;
             let rb_center = root_bounds.center_x();
 
-            state.horizontal_direction = if is_overlay && rb_center > view_center {
-                Direction::Negative
-            } else {
-                Direction::Positive
-            };
+            if is_overlay {
+                let is_rtl = crate::core::layout_direction().is_rtl();
+                state.horizontal_direction = if is_rtl {
+                    if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                } else {
+                    if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                };
+            }
 
             let aod = Aod {
                 horizontal: true,

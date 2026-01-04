@@ -106,6 +106,26 @@ pub enum Alignment {
     Justified,
 }
 
+impl Alignment {
+    /// Resolves the alignment based on the current layout direction.
+    ///
+    /// `Default` will be resolved to `Left` for LTR and `Right` for RTL.
+    /// Other alignments are returned unchanged.
+    #[must_use]
+    pub fn resolve(self) -> Self {
+        match self {
+            Self::Default => {
+                if crate::layout_direction().is_rtl() {
+                    Self::Right
+                } else {
+                    Self::Left
+                }
+            }
+            other => other,
+        }
+    }
+}
+
 impl From<alignment::Horizontal> for Alignment {
     fn from(alignment: alignment::Horizontal) -> Self {
         match alignment {

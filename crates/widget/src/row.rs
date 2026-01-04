@@ -1,4 +1,5 @@
 //! Distribute content horizontally.
+use crate::core::LayoutDirection;
 use crate::core::alignment::{self, Alignment};
 use crate::core::layout::{self, Layout};
 use crate::core::mouse;
@@ -38,6 +39,7 @@ pub struct Row<'a, Message, Theme = crate::Theme, Renderer = crate::Renderer> {
     height: Length,
     align: Alignment,
     clip: bool,
+    layout_direction: Option<LayoutDirection>,
     children: Vec<Element<'a, Message, Theme, Renderer>>,
 }
 
@@ -79,6 +81,7 @@ where
             height: Length::Shrink,
             align: Alignment::Start,
             clip: false,
+            layout_direction: None,
             children,
         }
     }
@@ -121,6 +124,15 @@ where
     /// overflow.
     pub fn clip(mut self, clip: bool) -> Self {
         self.clip = clip;
+        self
+    }
+
+    /// Sets the layout direction of the [`Row`].
+    ///
+    /// If set to RTL, the children will be laid out from right to left.
+    /// If not set, the global layout direction will be used.
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
         self
     }
 
@@ -226,7 +238,7 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        layout::flex::resolve(
+        let mut node = layout::flex::resolve(
             layout::flex::Axis::Horizontal,
             renderer,
             limits,
@@ -237,7 +249,26 @@ where
             self.align,
             &mut self.children,
             &mut tree.children,
-        )
+        );
+
+        // For RTL, mirror the children positions horizontally
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
+
+        if is_rtl {
+            let width = node.size().width;
+            for child in node.children_mut() {
+                let bounds = child.bounds();
+                child.move_to_mut(crate::core::Point::new(
+                    width - bounds.x - bounds.width,
+                    bounds.y,
+                ));
+            }
+        }
+
+        node
     }
 
     fn operate(
@@ -484,7 +515,18 @@ where
         intrinsic_size.height = y + row_height;
         align_y(row_start..children.len(), row_height, &mut children);
 
-        let align_factor = match self.align_x {
+        let is_rtl = crate::core::layout_direction().is_rtl();
+        let effective_align_x = if is_rtl {
+            match self.align_x {
+                alignment::Horizontal::Left => alignment::Horizontal::Right,
+                alignment::Horizontal::Right => alignment::Horizontal::Left,
+                other => other,
+            }
+        } else {
+            self.align_x
+        };
+
+        let align_factor = match effective_align_x {
             alignment::Horizontal::Left => 0.0,
             alignment::Horizontal::Center => 2.0,
             alignment::Horizontal::Right => 1.0,

@@ -190,6 +190,14 @@ pub fn with_title<P: Program>(
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             self.program.scale_factor(state, window)
         }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
+        }
     }
 
     WithTitle { program, title }
@@ -262,6 +270,14 @@ pub fn with_subscription<P: Program>(
 
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             self.program.scale_factor(state, window)
+        }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
         }
     }
 
@@ -425,6 +441,14 @@ pub fn with_theme<P: Program>(
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             self.program.scale_factor(state, window)
         }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
+        }
     }
 
     WithTheme { program, theme: f }
@@ -498,6 +522,14 @@ pub fn with_style<P: Program>(
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             self.program.scale_factor(state, window)
         }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
+        }
     }
 
     WithStyle { program, style: f }
@@ -570,6 +602,14 @@ pub fn with_scale_factor<P: Program>(
 
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             (self.scale_factor)(state, window)
+        }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
         }
     }
 
@@ -647,6 +687,14 @@ pub fn with_executor<P: Program, E: Executor>(
 
         fn scale_factor(&self, state: &Self::State, window: window::Id) -> f32 {
             self.program.scale_factor(state, window)
+        }
+
+        fn application_menu(
+            &self,
+            state: &Self::State,
+            context: &menu::MenuContext,
+        ) -> Option<menu::AppMenu<Self::Message>> {
+            self.program.application_menu(state, context)
         }
     }
 

@@ -45,8 +45,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    Background, Border, Clipboard, Color, Element, Event, Layout, Length, Pixels, Rectangle, Shell,
-    Size, Theme, Widget,
+    Background, Border, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Pixels,
+    Rectangle, Shell, Size, Theme, Widget,
 };
 use crate::focus::FocusRing;
 
@@ -102,6 +102,8 @@ where
     font: Option<Renderer::Font>,
     class: Theme::Class<'a>,
     last_status: Option<Status>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Message, Theme, Renderer> Toggler<'a, Message, Theme, Renderer>
@@ -137,6 +139,7 @@ where
             font: None,
             class: Theme::default(),
             last_status: None,
+            layout_direction: None,
         }
     }
 
@@ -243,6 +246,17 @@ where
         self.class = class.into();
         self
     }
+
+    /// Sets the layout direction of the [`Toggler`].
+    ///
+    /// In RTL mode, the toggle switch appears on the right side of the label,
+    /// and the toggle animation direction is reversed.
+    /// If not set, uses the global style direction.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
+        self
+    }
 }
 
 /// Internal state of a [`Toggler`].
@@ -309,13 +323,15 @@ where
     ) -> layout::Node {
         let limits = limits.width(self.width);
 
-        layout::next_to_each_other(
+        layout::next_to_each_other_directed(
             &limits,
             if self.label.is_some() {
                 self.spacing
             } else {
                 0.0
             },
+            self.layout_direction
+                .unwrap_or_else(crate::core::layout_direction),
             |_| {
                 let size = if renderer::CRISP {
                     let scale_factor = renderer.scale_factor().unwrap_or(1.0);
@@ -500,7 +516,14 @@ where
         viewport: &Rectangle,
     ) {
         let mut children = layout.children();
-        let toggler_layout = children.next().unwrap();
+        let toggler_layout = children.next().expect("Toggler layout");
+        let label_layout = children.next();
+
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
+
         let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
 
         let style = theme.style(
@@ -511,8 +534,7 @@ where
         );
 
         if self.label.is_some() {
-            let label_layout = children.next().unwrap();
-
+            let label_layout = label_layout.expect("Label layout");
             crate::text::draw(
                 renderer,
                 defaults,
@@ -560,9 +582,16 @@ where
 
             let padding = (style.padding_ratio * bounds.height).round();
 
+            // In RTL mode, flip the toggle direction
+            let toggled_state = if is_rtl {
+                !self.is_toggled
+            } else {
+                self.is_toggled
+            };
+
             Rectangle {
                 x: bounds.x
-                    + if self.is_toggled {
+                    + if toggled_state {
                         bounds.width - bounds.height + padding
                     } else {
                         padding

@@ -60,11 +60,16 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
                     let view_center = viewport_size.width * 0.5;
                     let rb_center = root_bounds.center_x();
 
-                    state.horizontal_direction = if menu.is_overlay && rb_center > view_center {
-                        Direction::Negative
-                    } else {
-                        Direction::Positive
-                    };
+                    // For overlays, adjust direction based on position
+                    // For menu bars, keep the direction set by the parent (based on RTL)
+                    if menu.is_overlay {
+                        let is_rtl = crate::core::layout_direction().is_rtl();
+                        state.horizontal_direction = if is_rtl {
+                            if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                        } else {
+                            if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                        };
+                    }
 
                     let aod = Aod {
                         horizontal: true,
@@ -128,11 +133,16 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
                 let view_center = viewport_size.width * 0.5;
                 let rb_center = root_bounds.center_x();
 
-                state.horizontal_direction = if menu.is_overlay && rb_center > view_center {
-                    Direction::Negative
-                } else {
-                    Direction::Positive
-                };
+                // For overlays, adjust direction based on position
+                // For menu bars, keep the direction set by the parent (based on RTL)
+                if menu.is_overlay {
+                    let is_rtl = crate::core::layout_direction().is_rtl();
+                    state.horizontal_direction = if is_rtl {
+                        if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                    } else {
+                        if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                    };
+                }
 
                 let aod = Aod {
                     horizontal: true,

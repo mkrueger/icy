@@ -8,7 +8,7 @@ mod widget;
 
 pub(crate) use state::MenuBarState;
 
-use crate::core::{Element, Length, Padding, renderer, widget::Tree};
+use crate::core::{Element, LayoutDirection, Length, Padding, renderer, widget::Tree};
 
 use super::{
     menu_inner::{CloseCondition, ItemHeight, ItemWidth, PathHighlight},
@@ -105,6 +105,8 @@ where
     pub(crate) menu_roots: Vec<MenuTree<'a, Message, Theme, Renderer>>,
     pub(crate) style: Theme::Style,
     pub(crate) mnemonic_display: MnemonicDisplay,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    pub(crate) layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Message, Theme, Renderer> MenuBar<'a, Message, Theme, Renderer>
@@ -138,6 +140,7 @@ where
             menu_roots,
             style: Theme::Style::default(),
             mnemonic_display: MnemonicDisplay::default(),
+            layout_direction: None,
         }
     }
 
@@ -240,6 +243,16 @@ where
     #[must_use]
     pub fn mnemonic_display(mut self, display: MnemonicDisplay) -> Self {
         self.mnemonic_display = display;
+        self
+    }
+
+    /// Sets the layout direction of the [`MenuBar`].
+    ///
+    /// In RTL mode, submenus open to the left instead of the right.
+    /// If not set, uses the global style direction.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
         self
     }
 }

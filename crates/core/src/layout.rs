@@ -107,6 +107,51 @@ pub fn next_to_each_other(
     )
 }
 
+/// Produces a [`Node`] with two children nodes one right next to each other,
+/// respecting the layout direction (LTR or RTL).
+///
+/// In RTL mode, the positions of the start and end nodes are swapped.
+pub fn next_to_each_other_directed(
+    limits: &Limits,
+    spacing: f32,
+    direction: crate::LayoutDirection,
+    start: impl FnOnce(&Limits) -> Node,
+    end: impl FnOnce(&Limits) -> Node,
+) -> Node {
+    let start_node = start(limits);
+    let start_size = start_node.size();
+
+    let end_limits = limits.shrink(Size::new(start_size.width + spacing, 0.0));
+
+    let end_node = end(&end_limits);
+    let end_size = end_node.size();
+
+    let (start_y, end_y) = if start_size.height > end_size.height {
+        (0.0, (start_size.height - end_size.height) / 2.0)
+    } else {
+        ((end_size.height - start_size.height) / 2.0, 0.0)
+    };
+
+    let total_width = start_size.width + spacing + end_size.width;
+    let total_height = start_size.height.max(end_size.height);
+
+    // Preserve child order (start first, end second) regardless of direction.
+    // Only the positions are swapped in RTL.
+    let (start_x, end_x) = if direction.is_rtl() {
+        (end_size.width + spacing, 0.0)
+    } else {
+        (0.0, start_size.width + spacing)
+    };
+
+    let start_node = start_node.move_to(Point::new(start_x, start_y));
+    let end_node = end_node.move_to(Point::new(end_x, end_y));
+
+    Node::with_children(
+        Size::new(total_width, total_height),
+        vec![start_node, end_node],
+    )
+}
+
 /// Computes the resulting [`Node`] that fits the [`Limits`] given
 /// some width and height requirements and no intrinsic size.
 pub fn atomic(limits: &Limits, width: impl Into<Length>, height: impl Into<Length>) -> Node {

@@ -57,8 +57,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    Alignment, Background, Border, Color, Element, Event, InputMethod, Layout, Length, Padding,
-    Pixels, Point, Rectangle, Shell, Size, Theme, Vector, Widget,
+    Alignment, Background, Border, Color, Element, Event, InputMethod, Layout, LayoutDirection,
+    Length, Padding, Pixels, Point, Rectangle, Shell, Size, Theme, Vector, Widget,
 };
 
 /// A field that can be filled with text.
@@ -124,6 +124,8 @@ where
     /// Whether this field is required.
     /// VoiceOver announces "required" for required fields.
     is_required: bool,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 /// The default [`Padding`] of a [`TextInput`].
@@ -158,6 +160,7 @@ where
             a11y_label: None,
             a11y_description: None,
             is_required: false,
+            layout_direction: None,
         }
     }
 
@@ -315,6 +318,15 @@ where
         self
     }
 
+    /// Sets the layout direction of the [`TextInput`].
+    ///
+    /// If `None`, the global style direction will be used.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
+        self
+    }
+
     /// Lays out the [`TextInput`], overriding its [`Value`] if provided.
     ///
     /// [`Renderer`]: text::Renderer
@@ -379,7 +391,21 @@ where
 
             let icon_width = state.icon.min_width();
 
-            let (text_position, icon_position) = match icon.side {
+            // In RTL mode, flip the icon side
+            let is_rtl = self
+                .layout_direction
+                .unwrap_or_else(crate::core::layout_direction)
+                .is_rtl();
+            let effective_side = if is_rtl {
+                match icon.side {
+                    Side::Left => Side::Right,
+                    Side::Right => Side::Left,
+                }
+            } else {
+                icon.side.clone()
+            };
+
+            let (text_position, icon_position) = match effective_side {
                 Side::Left => (
                     Point::new(padding.left + icon_width + icon.spacing, padding.top),
                     Point::new(padding.left, padding.top),
@@ -434,8 +460,12 @@ where
         let (cursor_x, scroll_offset) =
             measure_cursor_and_scroll_offset(text, text_bounds, caret_index);
 
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
         let alignment_offset =
-            alignment_offset(text_bounds.width, text.min_width(), self.alignment);
+            alignment_offset(text_bounds.width, text.min_width(), self.alignment, is_rtl);
 
         let x = (text_bounds.x + cursor_x).floor() - scroll_offset + alignment_offset;
 
@@ -585,6 +615,11 @@ where
             (None, 0.0, false)
         };
 
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
+
         let draw = |renderer: &mut Renderer, viewport| {
             let paragraph = if text.is_empty()
                 && state
@@ -599,7 +634,7 @@ where
             };
 
             let alignment_offset =
-                alignment_offset(text_bounds.width, paragraph.min_width(), self.alignment);
+                alignment_offset(text_bounds.width, paragraph.min_width(), self.alignment, is_rtl);
 
             if let Some((cursor, color)) = cursor {
                 renderer.with_translation(
@@ -746,6 +781,10 @@ where
 
                 if let Some(cursor_position) = click_position {
                     let text_layout = layout.children().next().unwrap();
+                    let is_rtl = self
+                        .layout_direction
+                        .unwrap_or_else(crate::core::layout_direction)
+                        .is_rtl();
 
                     let target = {
                         let text_bounds = text_layout.bounds();
@@ -754,6 +793,7 @@ where
                             text_bounds.width,
                             state.value.raw().min_width(),
                             self.alignment,
+                            is_rtl,
                         );
 
                         cursor_position.x - text_bounds.x - alignment_offset
@@ -838,6 +878,10 @@ where
 
                 if let Some(is_dragging) = &state.is_dragging {
                     let text_layout = layout.children().next().unwrap();
+                    let is_rtl = self
+                        .layout_direction
+                        .unwrap_or_else(crate::core::layout_direction)
+                        .is_rtl();
 
                     let target = {
                         let text_bounds = text_layout.bounds();
@@ -846,6 +890,7 @@ where
                             text_bounds.width,
                             state.value.raw().min_width(),
                             self.alignment,
+                            is_rtl,
                         );
 
                         position.x - text_bounds.x - alignment_offset
@@ -1916,11 +1961,23 @@ fn alignment_offset(
     text_bounds_width: f32,
     text_min_width: f32,
     alignment: alignment::Horizontal,
+    is_rtl: bool,
 ) -> f32 {
     if text_min_width > text_bounds_width {
         0.0
     } else {
-        match alignment {
+        // In RTL mode, flip left and right alignment
+        let effective_alignment = if is_rtl {
+            match alignment {
+                alignment::Horizontal::Left => alignment::Horizontal::Right,
+                alignment::Horizontal::Right => alignment::Horizontal::Left,
+                other => other,
+            }
+        } else {
+            alignment
+        };
+
+        match effective_alignment {
             alignment::Horizontal::Left => 0.0,
             alignment::Horizontal::Center => (text_bounds_width - text_min_width) / 2.0,
             alignment::Horizontal::Right => text_bounds_width - text_min_width,

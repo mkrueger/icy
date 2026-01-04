@@ -45,8 +45,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    Background, Border, Clipboard, Color, Element, Event, Layout, Length, Pixels, Rectangle, Shell,
-    Size, Theme, Widget,
+    Background, Border, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Pixels,
+    Rectangle, Shell, Size, Theme, Widget,
 };
 use crate::focus::FocusRing;
 
@@ -103,6 +103,8 @@ where
     icon: Icon<Renderer::Font>,
     class: Theme::Class<'a>,
     last_status: Option<Status>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Message, Theme, Renderer> Checkbox<'a, Message, Theme, Renderer>
@@ -138,6 +140,7 @@ where
             },
             class: Theme::default(),
             last_status: None,
+            layout_direction: None,
         }
     }
 
@@ -251,6 +254,16 @@ where
         self.class = class.into();
         self
     }
+
+    /// Sets the layout direction of the [`Checkbox`].
+    ///
+    /// In RTL mode, the checkbox box appears on the right side of the label.
+    /// If not set, uses the global style direction.
+    #[must_use]
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
+        self
+    }
 }
 
 /// Internal state of a [`Checkbox`].
@@ -315,13 +328,15 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        layout::next_to_each_other(
+        layout::next_to_each_other_directed(
             &limits.width(self.width),
             if self.label.is_some() {
                 self.spacing
             } else {
                 0.0
             },
+            self.layout_direction
+                .unwrap_or_else(crate::core::layout_direction),
             |_| layout::Node::new(Size::new(self.size, self.size)),
             |limits| {
                 if let Some(label) = self.label.as_deref() {
@@ -492,6 +507,8 @@ where
         viewport: &Rectangle,
     ) {
         let mut children = layout.children();
+        let box_layout = children.next().expect("Box layout");
+        let label_layout = children.next();
         let state = tree.state.downcast_ref::<State<Renderer::Paragraph>>();
 
         let style = theme.style(
@@ -502,8 +519,7 @@ where
         );
 
         {
-            let layout = children.next().unwrap();
-            let bounds = layout.bounds();
+            let bounds = box_layout.bounds();
 
             renderer.fill_quad(
                 renderer::Quad {
@@ -554,7 +570,7 @@ where
         }
 
         {
-            let label_layout = children.next().unwrap();
+            let label_layout = label_layout.expect("Label layout");
 
             crate::text::draw(
                 renderer,

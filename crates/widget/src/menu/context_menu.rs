@@ -6,15 +6,15 @@
 
 use super::app_menu::convert_children;
 use super::menu_bar::{MenuBarState, menu_roots_diff};
-use super::menu_inner::{CloseCondition, ItemHeight, ItemWidth, Menu, PathHighlight};
+use super::menu_inner::{CloseCondition, Direction, ItemHeight, ItemWidth, Menu, PathHighlight};
 use super::menu_tree::MenuTree;
 use super::style::StyleSheet;
 
 use crate::core::menu::{MenuId, MenuKind, MenuNode};
 use crate::core::renderer;
 use crate::core::{
-    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Size, Vector, Widget,
-    keyboard, mouse, overlay, touch,
+    Clipboard, Element, Event, Layout, LayoutDirection, Length, Point, Rectangle, Shell, Size,
+    Vector, Widget, keyboard, mouse, overlay, touch,
     widget::{Tree, tree},
 };
 
@@ -77,6 +77,7 @@ where
         #[cfg(target_os = "macos")]
         native_items: None, // context_menu_from doesn't have native items
         menu_nodes: None, // context_menu_from doesn't have menu nodes
+        layout_direction: None,
     };
 
     if let Some(ref mut context_menu) = this.context_menu {
@@ -148,6 +149,7 @@ where
         } else {
             Some(menu_nodes)
         },
+        layout_direction: None,
     };
 
     if let Some(ref mut context_menu) = this.context_menu {
@@ -178,6 +180,8 @@ where
     native_items: Option<Vec<crate::core::menu::ContextMenuItem>>,
     /// The original menu nodes, used to look up messages when a native menu item is selected.
     menu_nodes: Option<Vec<MenuNode<Message>>>,
+    /// Override for layout direction. If `None`, uses the global style direction.
+    layout_direction: Option<LayoutDirection>,
 }
 
 impl<'a, Message, Theme, Renderer> ContextMenu<'a, Message, Theme, Renderer>
@@ -206,6 +210,15 @@ where
     /// ```
     pub fn on_right_click(mut self, callback: impl Fn(Point) -> Message + 'a) -> Self {
         self.on_right_click = Some(Box::new(callback));
+        self
+    }
+
+    /// Sets the layout direction for this context menu.
+    ///
+    /// When set to RTL, submenus will open to the left instead of the right.
+    /// If not set, uses the global style direction.
+    pub fn layout_direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = Some(direction);
         self
     }
 }
@@ -293,6 +306,17 @@ where
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
+        // Set horizontal direction based on widget override or global
+        let local_state = tree.state.downcast_ref::<LocalState>();
+        let direction = self.layout_direction.unwrap_or_else(crate::core::layout_direction);
+        local_state.menu_bar_state.inner.with_data_mut(|state| {
+            state.horizontal_direction = if direction.is_rtl() {
+                Direction::Negative
+            } else {
+                Direction::Positive
+            };
+        });
+
         self.content.as_widget().draw(
             &tree.children[0],
             renderer,

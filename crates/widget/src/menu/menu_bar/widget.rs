@@ -14,7 +14,7 @@ use crate::core::{
 };
 
 use super::super::{
-    menu_inner::Menu,
+    menu_inner::{Direction, Menu},
     menu_tree::MenuTree,
     mnemonic::{MnemonicDisplay, mnemonics_enabled, set_show_underlines},
     style::StyleSheet,
@@ -69,16 +69,23 @@ where
         let available_width = max_size.width - padding.x();
         let available_height = max_size.height - padding.y();
 
+        // Use widget override, or global layout direction
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
+
         let mut children_nodes = Vec::with_capacity(self.menu_roots.len());
-        let mut x = padding.left;
         let mut max_height: f32 = 0.0;
 
+        // First pass: layout all children to get their sizes
+        let mut node_sizes = Vec::with_capacity(self.menu_roots.len());
         for (i, root) in self.menu_roots.iter_mut().enumerate() {
             if let Some(child_tree) = tree.children.get_mut(i) {
                 let child_limits =
-                    Limits::new(Size::ZERO, Size::new(available_width - x, available_height));
+                    Limits::new(Size::ZERO, Size::new(available_width, available_height));
 
-                let mut node = root.item.as_widget_mut().layout(
+                let node = root.item.as_widget_mut().layout(
                     &mut child_tree.children[root.index],
                     renderer,
                     &child_limits,
@@ -86,10 +93,27 @@ where
 
                 let node_size = node.size();
                 max_height = max_height.max(node_size.height);
-                node = node.move_to(Point::new(x, padding.top));
+                node_sizes.push((node, node_size));
+            }
+        }
 
+        // Second pass: position children based on direction
+        if is_rtl {
+            // RTL: start from right edge
+            let mut x = max_size.width - padding.right;
+            for (node, node_size) in node_sizes {
+                x -= node_size.width;
+                let positioned_node = node.move_to(Point::new(x, padding.top));
+                x -= spacing;
+                children_nodes.push(positioned_node);
+            }
+        } else {
+            // LTR: start from left edge
+            let mut x = padding.left;
+            for (node, node_size) in node_sizes {
+                let positioned_node = node.move_to(Point::new(x, padding.top));
                 x += node_size.width + spacing;
-                children_nodes.push(node);
+                children_nodes.push(positioned_node);
             }
         }
 
@@ -102,14 +126,13 @@ where
                 .move_to(Point::new(node.bounds().x, padding.top + y_offset));
         }
 
-        let total_width = x - spacing + padding.right;
         let total_height = max_height + padding.y();
 
         Node::with_children(
             limits.resolve(
                 self.width,
                 self.height,
-                Size::new(total_width, total_height),
+                Size::new(max_size.width, total_height),
             ),
             children_nodes,
         )
@@ -517,9 +540,19 @@ where
             }
         }
 
-        state.inner.with_data_mut(|state| {
-            let position = if state.open && (cursor_pos.x < 0.0 || cursor_pos.y < 0.0) {
-                state.view_cursor
+        state.inner.with_data_mut(|inner_state| {
+            // Set horizontal direction: use widget override or fallback to global
+            let direction = self
+                .layout_direction
+                .unwrap_or_else(crate::core::layout_direction);
+            inner_state.horizontal_direction = if direction.is_rtl() {
+                Direction::Negative
+            } else {
+                Direction::Positive
+            };
+
+            let position = if inner_state.open && (cursor_pos.x < 0.0 || cursor_pos.y < 0.0) {
+                inner_state.view_cursor
             } else {
                 view_cursor
             };
@@ -529,7 +562,7 @@ where
                 let styling = theme.appearance(&self.style);
 
                 // Determine which item to highlight: either active (menu open) or hovered
-                let highlight_index = if let Some(active) = state.active_root.first() {
+                let highlight_index = if let Some(active) = inner_state.active_root.first() {
                     Some(*active)
                 } else {
                     // Check if cursor is hovering over any menu item
