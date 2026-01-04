@@ -263,6 +263,31 @@ impl Default for MacContextMenu {
     }
 }
 
+/// Strips mnemonic markers ('&') from a label for display on macOS.
+///
+/// On Windows/Linux, '&' is used to mark keyboard mnemonics (e.g., "&File" shows as "File"
+/// with 'F' underlined). macOS doesn't use this convention, so we strip the markers.
+fn strip_mnemonic(label: &str) -> String {
+    let mut result = String::with_capacity(label.len());
+    let mut chars = label.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '&' {
+            // '&&' becomes a single '&', otherwise skip the '&'
+            if chars.peek() == Some(&'&') {
+                result.push('&');
+                let _ = chars.next();
+            }
+            // If next char exists and is not '&', we just skip this '&'
+            // and include the next char normally (handled by the loop)
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 /// Builds a context menu from menu nodes.
 fn build_context_menu<Message>(
     mtm: MainThreadMarker,
@@ -283,7 +308,7 @@ fn build_context_menu<Message>(
                 children,
             } => {
                 let item = NSMenuItem::new(mtm);
-                item.setTitle(&NSString::from_str(label));
+                item.setTitle(&NSString::from_str(&strip_mnemonic(label)));
                 item.setEnabled(*enabled);
 
                 let sub = build_context_menu(mtm, target, children);
@@ -351,7 +376,7 @@ fn build_context_menu_from_items(
             }
             ContextMenuItemKind::Submenu { label, children } => {
                 let ns_item = NSMenuItem::new(mtm);
-                ns_item.setTitle(&NSString::from_str(label));
+                ns_item.setTitle(&NSString::from_str(&strip_mnemonic(label)));
                 ns_item.setEnabled(true);
 
                 let sub = build_context_menu_from_items(mtm, target, children);
@@ -581,7 +606,7 @@ fn build_main_menu<Message>(
             }
 
             let item = NSMenuItem::new(mtm);
-            item.setTitle(&NSString::from_str(label));
+            item.setTitle(&NSString::from_str(&strip_mnemonic(label)));
 
             let submenu = build_submenu_filtered(mtm, target, &filtered);
             item.setSubmenu(Some(&submenu));
@@ -653,7 +678,7 @@ fn build_submenu_filtered<Message>(
                 children,
             } => {
                 let item = NSMenuItem::new(mtm);
-                item.setTitle(&NSString::from_str(label));
+                item.setTitle(&NSString::from_str(&strip_mnemonic(label)));
                 item.setEnabled(*enabled);
 
                 let sub = build_submenu(mtm, target, children);
@@ -713,7 +738,7 @@ fn build_leaf_item(
 ) -> Retained<NSMenuItem> {
     let item = NSMenuItem::new(mtm);
 
-    item.setTitle(&NSString::from_str(label));
+    item.setTitle(&NSString::from_str(&strip_mnemonic(label)));
     item.setEnabled(enabled);
 
     // Hook activation.
