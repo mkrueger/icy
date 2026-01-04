@@ -700,6 +700,12 @@ where
                 .with_enabled(self.on_press.is_some()),
         )
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility_label(&self) -> Option<std::borrow::Cow<'_, str>> {
+        // Delegate to child content for label aggregation
+        self.content.as_widget().accessibility_label()
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<Button<'a, Message, Theme, Renderer>>

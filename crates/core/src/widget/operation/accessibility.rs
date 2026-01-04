@@ -9,6 +9,7 @@ use crate::widget::Id;
 use crate::widget::operation::{Operation, Outcome, Scrollable};
 
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -43,6 +44,11 @@ pub fn collect() -> impl Operation<AccessibilityTree> {
         child_counter: Vec<usize>,
         /// The collected accessibility tree.
         tree: AccessibilityTree,
+
+        /// NodeIds referenced as children by any collected node.
+        ///
+        /// These should NOT appear as direct children of the root.
+        referenced_children: HashSet<NodeId>,
         /// Stack of accumulated scroll translations.
         /// Each entry is the cumulative translation up to that scrollable container.
         translation_stack: Vec<Vector>,
@@ -219,6 +225,11 @@ pub fn collect() -> impl Operation<AccessibilityTree> {
             let mut combined_children = info.children.clone();
             combined_children.extend(extra_child_ids.iter().copied());
 
+            // Track all referenced children so we can compute a valid root children list.
+            for child in &combined_children {
+                let _ = self.referenced_children.insert(*child);
+            }
+
             let main_node = info.build_with_context(selection_node, combined_children);
             self.tree.nodes.push((node_id, main_node));
 
@@ -233,7 +244,18 @@ pub fn collect() -> impl Operation<AccessibilityTree> {
         }
 
         fn finish(&self) -> Outcome<AccessibilityTree> {
-            Outcome::Some(self.tree.clone())
+            let mut tree = self.tree.clone();
+
+            // Only keep nodes that are not referenced as children.
+            // This produces a structurally valid root children list.
+            tree.top_level_ids = tree
+                .top_level_ids
+                .iter()
+                .copied()
+                .filter(|id| !self.referenced_children.contains(id))
+                .collect();
+
+            Outcome::Some(tree)
         }
     }
 
@@ -241,6 +263,7 @@ pub fn collect() -> impl Operation<AccessibilityTree> {
         path: Vec::new(),
         child_counter: vec![0], // Start with a counter for the root level
         tree: AccessibilityTree::default(),
+        referenced_children: HashSet::new(),
         translation_stack: Vec::new(),
         pending_scroll_pops: 0,
     }

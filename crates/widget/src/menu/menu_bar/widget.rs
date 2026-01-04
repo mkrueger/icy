@@ -115,6 +115,82 @@ where
         )
     }
 
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        operation: &mut dyn crate::core::widget::Operation,
+    ) {
+        operation.container(None, layout.bounds());
+
+        // Report MenuBar as a MenuBar role for accessibility
+        #[cfg(feature = "accessibility")]
+        {
+            // Collect root IDs for the menubar children
+            let root_ids: Vec<_> = (0..self.menu_roots.len())
+                .map(|idx| {
+                    let root_id =
+                        crate::core::widget::Id::from(format!("icy_ui.menubar/root/{}", idx));
+                    crate::core::accessibility::node_id_from_widget_id(&root_id)
+                })
+                .collect();
+
+            let info = crate::core::accessibility::WidgetInfo::new(
+                crate::core::accessibility::Role::MenuBar,
+            )
+            .with_bounds(layout.bounds())
+            .with_children(root_ids);
+            operation.accessibility(None, layout.bounds(), info);
+        }
+
+        // Operate on each menu root item - emit explicit accessibility nodes
+        for (idx, ((root, child_tree), child_layout)) in self
+            .menu_roots
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(layout.children())
+            .enumerate()
+        {
+            #[cfg(feature = "accessibility")]
+            {
+                // Emit an explicit accessibility node for the menu root
+                let root_id = crate::core::widget::Id::from(format!("icy_ui.menubar/root/{}", idx));
+                let label = root
+                    .item
+                    .as_widget()
+                    .accessibility_label()
+                    .map(|s| s.into_owned())
+                    .unwrap_or_default();
+
+                let bounds = child_layout.bounds();
+                let has_children = !root.children.is_empty();
+
+                // Use menu_item() to get focusable=true and proper actions
+                let mut info =
+                    crate::core::accessibility::WidgetInfo::menu_item(label).with_bounds(bounds);
+
+                if has_children {
+                    info = info.with_expanded(Some(false));
+                }
+
+                operation.accessibility(Some(&root_id), bounds, info);
+            }
+
+            // Always run the normal widget operations (keyboard, mouse, etc.)
+            operation.traverse(&mut |op| {
+                root.item.as_widget_mut().operate(
+                    &mut child_tree.children[root.index],
+                    child_layout,
+                    renderer,
+                    op,
+                );
+            });
+        }
+
+        operation.leave_container();
+    }
+
     #[allow(clippy::too_many_lines)]
     fn update(
         &mut self,
@@ -132,6 +208,73 @@ where
         use mouse::Event::ButtonReleased;
         use touch::Event::{FingerLifted, FingerLost};
 
+        // Handle accessibility events for menu bar roots (VoiceOver navigation)
+        #[cfg(feature = "accessibility")]
+        if let event::Event::Accessibility(accessibility_event) = event {
+            use crate::core::accessibility::node_id_from_widget_id;
+
+            // Check if the event targets a menu bar root
+            for idx in 0..self.menu_roots.len() {
+                let root_id = crate::core::widget::Id::from(format!("icy_ui.menubar/root/{}", idx));
+                let node_id = node_id_from_widget_id(&root_id);
+
+                if node_id == accessibility_event.target {
+                    let my_state = tree.state.downcast_mut::<MenuBarState>();
+
+                    if accessibility_event.is_focus() {
+                        // VoiceOver cursor focus: open this menu and focus first item
+                        my_state.inner.with_data_mut(|state| {
+                            state.a11y_focused_root = Some(idx);
+                            state.menu_states.clear();
+                            state.active_root = vec![idx];
+                            state.open = true;
+                            state.view_cursor = view_cursor;
+                        });
+
+                        // Request focus on the first item in the menu
+                        if !self.menu_roots[idx].children.is_empty() {
+                            let first_item_id = crate::core::widget::Id::from(format!(
+                                "icy_ui.menu/{}/panel/0/item/0",
+                                idx
+                            ));
+                            let first_item_node_id = node_id_from_widget_id(&first_item_id);
+                            shell.request_a11y_focus(first_item_node_id);
+                        }
+
+                        shell.invalidate_layout();
+                        shell.request_redraw();
+                        shell.capture_event();
+                        return;
+                    }
+
+                    if accessibility_event.is_click() {
+                        // Open this menu and select first item
+                        my_state.inner.with_data_mut(|state| {
+                            state.menu_states.clear();
+                            state.active_root = vec![idx];
+                            state.open = true;
+                            state.view_cursor = view_cursor;
+                        });
+
+                        // Request focus on the first item in the menu
+                        if !self.menu_roots[idx].children.is_empty() {
+                            let first_item_id = crate::core::widget::Id::from(format!(
+                                "icy_ui.menu/{}/panel/0/item/0",
+                                idx
+                            ));
+                            let first_item_node_id = node_id_from_widget_id(&first_item_id);
+                            shell.request_a11y_focus(first_item_node_id);
+                        }
+
+                        shell.invalidate_layout();
+                        shell.request_redraw();
+                        shell.capture_event();
+                    }
+                    return;
+                }
+            }
+        }
+
         process_root_events(
             &mut self.menu_roots,
             view_cursor,
@@ -145,6 +288,47 @@ where
         );
 
         let my_state = tree.state.downcast_mut::<MenuBarState>();
+
+        let was_open = my_state.inner.with_data(|state| state.open);
+
+        // Handle Space/Enter when a menu root has accessibility focus (VoiceOver)
+        #[cfg(feature = "accessibility")]
+        if let Keyboard(keyboard::Event::KeyPressed {
+            key: keyboard::Key::Named(named_key),
+            ..
+        }) = event
+        {
+            if matches!(named_key, Named::Space | Named::Enter) {
+                let maybe_idx = my_state.inner.with_data(|state| state.a11y_focused_root);
+                if let Some(idx) = maybe_idx {
+                    if idx < self.menu_roots.len() {
+                        // Open this menu
+                        my_state.inner.with_data_mut(|state| {
+                            state.menu_states.clear();
+                            state.active_root = vec![idx];
+                            state.open = true;
+                            state.view_cursor = view_cursor;
+                        });
+
+                        // Request focus on the first item in the menu
+                        if !self.menu_roots[idx].children.is_empty() {
+                            use crate::core::accessibility::node_id_from_widget_id;
+                            let first_item_id = crate::core::widget::Id::from(format!(
+                                "icy_ui.menu/{}/panel/0/item/0",
+                                idx
+                            ));
+                            let first_item_node_id = node_id_from_widget_id(&first_item_id);
+                            shell.request_a11y_focus(first_item_node_id);
+                        }
+
+                        shell.invalidate_layout();
+                        shell.request_redraw();
+                        shell.capture_event();
+                        return;
+                    }
+                }
+            }
+        }
 
         match event {
             // Alt key pressed - update mnemonic display state
@@ -278,6 +462,35 @@ where
                 shell.request_redraw();
             }
             _ => (),
+        }
+
+        // If the menu has just opened, move accessibility focus to the first item.
+        //
+        // This is a key fallback for VoiceOver-style interaction where we may not
+        // receive an AccessKit ActionRequested(Focus) for the menubar root.
+        #[cfg(feature = "accessibility")]
+        {
+            let is_open = my_state.inner.with_data(|state| state.open);
+            if !was_open && is_open {
+                let active_root = my_state
+                    .inner
+                    .with_data(|state| state.active_root.first().copied());
+
+                if let Some(idx) = active_root {
+                    if idx < self.menu_roots.len() && !self.menu_roots[idx].children.is_empty() {
+                        use crate::core::accessibility::node_id_from_widget_id;
+
+                        let first_item_id = crate::core::widget::Id::from(format!(
+                            "icy_ui.menu/{}/panel/0/item/0",
+                            idx
+                        ));
+                        let first_item_node_id = node_id_from_widget_id(&first_item_id);
+
+                        shell.request_a11y_focus(first_item_node_id);
+                        shell.request_redraw();
+                    }
+                }
+            }
         }
     }
 

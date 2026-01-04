@@ -28,6 +28,8 @@ pub struct Shell<'a, Message> {
     is_layout_invalid: bool,
     are_widgets_invalid: bool,
     context_menu_request: Option<ContextMenuRequest>,
+    #[cfg(feature = "accessibility")]
+    a11y_focus_request: Option<crate::accessibility::NodeId>,
 }
 
 impl<'a, Message> Shell<'a, Message> {
@@ -41,6 +43,8 @@ impl<'a, Message> Shell<'a, Message> {
             are_widgets_invalid: false,
             input_method: InputMethod::Disabled,
             context_menu_request: None,
+            #[cfg(feature = "accessibility")]
+            a11y_focus_request: None,
         }
     }
 
@@ -184,6 +188,14 @@ impl<'a, Message> Shell<'a, Message> {
         if other.context_menu_request.is_some() {
             self.context_menu_request = other.context_menu_request;
         }
+
+        #[cfg(feature = "accessibility")]
+        {
+            // Merge a11y focus request (last one wins)
+            if other.a11y_focus_request.is_some() {
+                self.a11y_focus_request = other.a11y_focus_request;
+            }
+        }
     }
 
     /// Requests a native context menu to be shown at the given position.
@@ -203,6 +215,21 @@ impl<'a, Message> Shell<'a, Message> {
     /// This is called by the runtime to process context menu requests from widgets.
     pub fn take_context_menu_request(&mut self) -> Option<ContextMenuRequest> {
         self.context_menu_request.take()
+    }
+
+    /// Requests programmatic accessibility focus (VoiceOver cursor) to move to the given NodeId.
+    ///
+    /// This is used by widgets that implement internal cursor navigation (e.g. menus) so that
+    /// arrow-key navigation also moves the screen reader focus.
+    #[cfg(feature = "accessibility")]
+    pub fn request_a11y_focus(&mut self, target: crate::accessibility::NodeId) {
+        self.a11y_focus_request = Some(target);
+    }
+
+    /// Takes the pending accessibility focus request, if any.
+    #[cfg(feature = "accessibility")]
+    pub fn take_a11y_focus_request(&mut self) -> Option<crate::accessibility::NodeId> {
+        self.a11y_focus_request.take()
     }
 
     /// Returns whether there is a pending context menu request.

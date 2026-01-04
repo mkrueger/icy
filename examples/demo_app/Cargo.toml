@@ -16,6 +16,8 @@ icy_ui.features = [
     "wgpu",
     "markdown",
     "highlighter",
+    "accessibility", 
+    "advanced"
 ]
 icy_ui_core.workspace = true
 chrono = "0.4"

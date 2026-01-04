@@ -188,6 +188,31 @@ where
         tree.diff_children(&self.children);
     }
 
+    #[cfg(feature = "accessibility")]
+    fn accessibility_label(&self) -> Option<std::borrow::Cow<'_, str>> {
+        let mut combined = String::new();
+
+        for child in &self.children {
+            if let Some(label) = child.as_widget().accessibility_label() {
+                let label = label.trim();
+                if label.is_empty() {
+                    continue;
+                }
+
+                if !combined.is_empty() {
+                    combined.push(' ');
+                }
+                combined.push_str(label);
+            }
+        }
+
+        if combined.trim().is_empty() {
+            None
+        } else {
+            Some(std::borrow::Cow::Owned(combined))
+        }
+    }
+
     fn size(&self) -> Size<Length> {
         Size {
             width: self.width,

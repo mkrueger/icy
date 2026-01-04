@@ -61,6 +61,9 @@ pub(crate) struct MenuBarStateInner {
     pub(crate) alt_pressed: bool,
     /// Whether to show mnemonic underlines (based on Alt state and display mode)
     pub(crate) show_mnemonics: bool,
+    /// Index of the menu root that has accessibility focus (for VoiceOver)
+    #[cfg(feature = "accessibility")]
+    pub(crate) a11y_focused_root: Option<usize>,
 }
 
 impl MenuBarStateInner {
@@ -95,6 +98,8 @@ impl Default for MenuBarStateInner {
             menu_states: Vec::new(),
             alt_pressed: false,
             show_mnemonics: false,
+            #[cfg(feature = "accessibility")]
+            a11y_focused_root: None,
         }
     }
 }

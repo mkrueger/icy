@@ -194,6 +194,8 @@ where
         let mut input_method = InputMethod::Disabled;
         let mut has_layout_changed = false;
         let mut context_menu_request = None;
+        #[cfg(feature = "accessibility")]
+        let mut a11y_focus_request = None;
         let viewport = Rectangle::with_size(self.bounds);
 
         let mut maybe_overlay = self
@@ -234,6 +236,11 @@ where
                 // Collect context menu request (last one wins)
                 if let Some(req) = shell.take_context_menu_request() {
                     context_menu_request = Some(req);
+                }
+
+                #[cfg(feature = "accessibility")]
+                if let Some(req) = shell.take_a11y_focus_request() {
+                    a11y_focus_request = Some(req);
                 }
 
                 if shell.is_layout_invalid() {
@@ -406,6 +413,8 @@ where
                     input_method,
                     has_layout_changed,
                     context_menu_request,
+                    #[cfg(feature = "accessibility")]
+                    a11y_focus_request,
                 }
             },
             event_statuses,
@@ -635,6 +644,10 @@ pub enum State {
         has_layout_changed: bool,
         /// A pending context menu request from a widget.
         context_menu_request: Option<ContextMenuRequest>,
+
+        /// A pending programmatic accessibility focus request from a widget.
+        #[cfg(feature = "accessibility")]
+        a11y_focus_request: Option<crate::core::accessibility::NodeId>,
     },
 }
 

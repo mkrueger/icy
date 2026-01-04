@@ -134,6 +134,163 @@ where
         })
     }
 
+    pub(crate) fn operate_inner(
+        &mut self,
+        layout: Layout<'_>,
+        _renderer: &Renderer,
+        operation: &mut dyn crate::core::widget::Operation,
+    ) {
+        let viewport = layout.bounds();
+        let viewport_size = viewport.size();
+        let overlay_offset = Point::ORIGIN - viewport.position();
+
+        operation.container(None, viewport);
+
+        #[cfg(feature = "accessibility")]
+        {
+            let is_overlay = self.is_overlay;
+            let menu_roots: &mut [MenuTree<'a, Message, Theme, Renderer>] = &mut self.menu_roots;
+            let item_height = self.item_height;
+
+            self.tree.inner.with_data(|state| {
+                if !state.open || state.active_root.is_empty() {
+                    return;
+                }
+
+                let Some(first_root) = state.active_root.first().copied() else {
+                    return;
+                };
+                let Some(root_entry) = menu_roots.get(first_root) else {
+                    return;
+                };
+
+                for (panel_index, (ms, panel_layout)) in
+                    state.menu_states.iter().zip(layout.children()).enumerate()
+                {
+                    if !is_overlay && panel_index > 0 {
+                        continue;
+                    }
+
+                    let menu_items: &[_] = state.active_root.iter().skip(1).take(panel_index).fold(
+                        &root_entry.children[..],
+                        |mt, &next_active_root| {
+                            mt.get(next_active_root)
+                                .map(|m| &m.children[..])
+                                .unwrap_or(mt)
+                        },
+                    );
+
+                    let slice = ms.slice(viewport_size, overlay_offset, item_height);
+                    let start_index = slice.start_index;
+                    let end_index = slice.end_index;
+
+                    let panel_id = crate::core::widget::Id::from(format!(
+                        "icy_ui.menu/{}/panel/{}",
+                        first_root, panel_index
+                    ));
+
+                    // Report ALL menu items as children (not just visible slice) for accessibility
+                    // This ensures arrow-key navigation can always find the focused item.
+                    let child_ids = (0..menu_items.len())
+                        .map(|item_index| {
+                            let item_id = crate::core::widget::Id::from(format!(
+                                "icy_ui.menu/{}/panel/{}/item/{}",
+                                first_root, panel_index, item_index
+                            ));
+                            crate::core::accessibility::node_id_from_widget_id(&item_id)
+                        })
+                        .collect::<Vec<_>>();
+
+                    let panel_bounds = panel_layout.bounds();
+                    let panel_info = crate::core::accessibility::WidgetInfo::menu()
+                        .with_bounds(panel_bounds)
+                        .with_expanded(Some(true))
+                        .with_children(child_ids);
+                    operation.accessibility(Some(&panel_id), panel_bounds, panel_info);
+
+                    // Emit ALL menu items for accessibility (not just visible ones).
+                    // For visible items, use actual layout bounds. For off-screen items, use stored positions/sizes.
+                    let base_y = panel_bounds.y;
+                    let child_positions = &ms.menu_bounds.child_positions;
+                    let child_sizes = &ms.menu_bounds.child_sizes;
+
+                    for (item_index, mt) in menu_items.iter().enumerate() {
+                        let item_id = crate::core::widget::Id::from(format!(
+                            "icy_ui.menu/{}/panel/{}/item/{}",
+                            first_root, panel_index, item_index
+                        ));
+
+                        // Calculate bounds - use actual layout for visible items, stored data for others
+                        let bounds = if item_index >= start_index && item_index <= end_index {
+                            // Visible item - get from layout
+                            let visible_idx = item_index - start_index;
+                            panel_layout
+                                .children()
+                                .nth(visible_idx)
+                                .map(|l| l.bounds())
+                                .unwrap_or_else(|| {
+                                    // Fallback to stored position/size
+                                    let y_offset =
+                                        child_positions.get(item_index).copied().unwrap_or(0.0);
+                                    let height = child_sizes
+                                        .get(item_index)
+                                        .map(|s| s.height)
+                                        .unwrap_or(36.0);
+                                    crate::core::Rectangle {
+                                        x: panel_bounds.x,
+                                        y: base_y + y_offset,
+                                        width: panel_bounds.width,
+                                        height,
+                                    }
+                                })
+                        } else {
+                            // Off-screen item - use stored position/size
+                            let y_offset = child_positions.get(item_index).copied().unwrap_or(0.0);
+                            let height = child_sizes
+                                .get(item_index)
+                                .map(|s| s.height)
+                                .unwrap_or(36.0);
+                            crate::core::Rectangle {
+                                x: panel_bounds.x,
+                                y: base_y + y_offset,
+                                width: panel_bounds.width,
+                                height,
+                            }
+                        };
+
+                        let info = if mt.is_separator {
+                            crate::core::accessibility::WidgetInfo::new(
+                                crate::core::accessibility::Role::Splitter,
+                            )
+                            .with_bounds(bounds)
+                        } else {
+                            let label = mt
+                                .item
+                                .as_widget()
+                                .accessibility_label()
+                                .map(|s| s.into_owned())
+                                .unwrap_or_default();
+
+                            let mut wi = crate::core::accessibility::WidgetInfo::menu_item(label)
+                                .with_bounds(bounds);
+
+                            if !mt.children.is_empty() {
+                                wi = wi.with_expanded(Some(
+                                    state.active_root.get(panel_index + 1) == Some(&item_index),
+                                ));
+                            }
+
+                            wi
+                        };
+
+                        operation.accessibility(Some(&item_id), bounds, info);
+                    }
+                }
+            });
+        }
+
+        operation.leave_container();
+    }
     #[allow(clippy::too_many_lines)]
     pub(super) fn on_event_inner(
         &mut self,
@@ -162,6 +319,81 @@ where
         let viewport = layout.bounds();
         let viewport_size = viewport.size();
         let overlay_offset = Point::ORIGIN - viewport.position();
+
+        #[cfg(feature = "accessibility")]
+        if let event::Event::Accessibility(accessibility_event) = event {
+            use crate::core::accessibility::node_id_from_widget_id;
+
+            // Update highlight based on accessibility focus/click/blur.
+            // Keep this strictly state-local to avoid borrow conflicts.
+            let Menu {
+                tree, menu_roots, ..
+            } = self;
+
+            let mut needs_redraw = false;
+            let status = tree.inner.with_data_mut(|state| {
+                if !state.open || state.active_root.is_empty() {
+                    return Ignored;
+                }
+
+                let Some(first_root) = state.active_root.first().copied() else {
+                    return Ignored;
+                };
+                let Some(root_entry) = menu_roots.get(first_root) else {
+                    return Ignored;
+                };
+
+                for panel_index in 0..state.menu_states.len() {
+                    let menu_items: &[_] = state.active_root.iter().skip(1).take(panel_index).fold(
+                        &root_entry.children[..],
+                        |mt, &next_active_root| {
+                            mt.get(next_active_root)
+                                .map(|m| &m.children[..])
+                                .unwrap_or(mt)
+                        },
+                    );
+
+                    for item_index in 0..menu_items.len() {
+                        let item_id = crate::core::widget::Id::from(format!(
+                            "icy_ui.menu/{}/panel/{}/item/{}",
+                            first_root, panel_index, item_index
+                        ));
+                        let node_id = node_id_from_widget_id(&item_id);
+
+                        if node_id != accessibility_event.target {
+                            continue;
+                        }
+
+                        // Ignore separators
+                        if menu_items.get(item_index).is_some_and(|m| m.is_separator) {
+                            return Ignored;
+                        }
+
+                        // Close any deeper menus first.
+                        state.menu_states.truncate(panel_index + 1);
+                        state.active_root.truncate(panel_index + 1);
+
+                        let ms = &mut state.menu_states[panel_index];
+                        if accessibility_event.is_blur() {
+                            ms.index = None;
+                        } else if accessibility_event.is_focus() || accessibility_event.is_click() {
+                            ms.index = Some(item_index);
+                        }
+
+                        needs_redraw = true;
+                        return Captured;
+                    }
+                }
+
+                Ignored
+            });
+
+            if needs_redraw {
+                shell.request_redraw();
+            }
+
+            return status;
+        }
 
         // Handle keyboard events first
         if let Keyboard(_) = event {
@@ -420,6 +652,9 @@ where
         let is_overlay = self.is_overlay;
         let main_offset = self.main_offset as f32;
 
+        #[cfg(feature = "accessibility")]
+        let mut a11y_focus_request: Option<crate::core::accessibility::NodeId> = None;
+
         self.tree.inner.with_data_mut(|state| {
             // Check if the index is valid
             if index >= menu_roots.len() || index >= root_bounds_list.len() {
@@ -477,14 +712,31 @@ where
                 is_overlay,
             );
 
+            let selected_index = mt.children.iter().position(|m| !m.is_separator);
+
             state.active_root.push(index);
             let ms = MenuState {
-                index: Some(0), // Start with first item selected
+                index: selected_index,
                 scroll_offset: 0.0,
                 menu_bounds,
             };
             state.menu_states.push(ms);
+
+            #[cfg(feature = "accessibility")]
+            if let Some(item_index) = selected_index {
+                let item_id = crate::core::widget::Id::from(format!(
+                    "icy_ui.menu/{}/panel/{}/item/{}",
+                    index, 0, item_index
+                ));
+                a11y_focus_request =
+                    Some(crate::core::accessibility::node_id_from_widget_id(&item_id));
+            }
         });
+
+        #[cfg(feature = "accessibility")]
+        if let Some(target) = a11y_focus_request {
+            shell.request_a11y_focus(target);
+        }
 
         shell.invalidate_layout();
         shell.request_redraw();
@@ -557,6 +809,12 @@ where
             keyboard::Key::Named(Named::ArrowUp) => {
                 // Get the active menu items to check for separators
                 let menu_roots = &self.menu_roots;
+
+                #[cfg(feature = "accessibility")]
+                let mut a11y_focus_request: Option<
+                    crate::core::accessibility::NodeId,
+                > = None;
+
                 self.tree.inner.with_data_mut(|state| {
                     if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
                     {
@@ -605,11 +863,31 @@ where
                                 // Only update if we found a non-separator
                                 if iterations < count {
                                     ms.index = Some(new_index);
+
+                                    #[cfg(feature = "accessibility")]
+                                    {
+                                        let panel_index = state.menu_states.len() - 1;
+                                        let item_id = crate::core::widget::Id::from(format!(
+                                            "icy_ui.menu/{}/panel/{}/item/{}",
+                                            first_root, panel_index, new_index
+                                        ));
+                                        a11y_focus_request = Some(
+                                            crate::core::accessibility::node_id_from_widget_id(
+                                                &item_id,
+                                            ),
+                                        );
+                                    }
                                 }
                             }
                         }
                     }
                 });
+
+                #[cfg(feature = "accessibility")]
+                if let Some(target) = a11y_focus_request {
+                    shell.request_a11y_focus(target);
+                }
+
                 shell.request_redraw();
                 Captured
             }
@@ -617,6 +895,12 @@ where
             keyboard::Key::Named(Named::ArrowDown) => {
                 // Get the active menu items to check for separators
                 let menu_roots = &self.menu_roots;
+
+                #[cfg(feature = "accessibility")]
+                let mut a11y_focus_request: Option<
+                    crate::core::accessibility::NodeId,
+                > = None;
+
                 self.tree.inner.with_data_mut(|state| {
                     if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
                     {
@@ -665,11 +949,31 @@ where
                                 // Only update if we found a non-separator
                                 if iterations < count {
                                     ms.index = Some(new_index);
+
+                                    #[cfg(feature = "accessibility")]
+                                    {
+                                        let panel_index = state.menu_states.len() - 1;
+                                        let item_id = crate::core::widget::Id::from(format!(
+                                            "icy_ui.menu/{}/panel/{}/item/{}",
+                                            first_root, panel_index, new_index
+                                        ));
+                                        a11y_focus_request = Some(
+                                            crate::core::accessibility::node_id_from_widget_id(
+                                                &item_id,
+                                            ),
+                                        );
+                                    }
                                 }
                             }
                         }
                     }
                 });
+
+                #[cfg(feature = "accessibility")]
+                if let Some(target) = a11y_focus_request {
+                    shell.request_a11y_focus(target);
+                }
+
                 shell.request_redraw();
                 Captured
             }
@@ -682,10 +986,42 @@ where
                     .with_data(|state| state.open && state.menu_states.len() > 1);
 
                 if in_submenu {
+                    #[cfg(feature = "accessibility")]
+                    let mut a11y_focus_request: Option<
+                        crate::core::accessibility::NodeId,
+                    > = None;
+
                     self.tree.inner.with_data_mut(|state| {
                         let _ = state.menu_states.pop();
                         let _ = state.active_root.pop();
+
+                        #[cfg(feature = "accessibility")]
+                        {
+                            let Some(first_root) = state.active_root.first().copied() else {
+                                return;
+                            };
+                            let Some(panel_index) = state.menu_states.len().checked_sub(1) else {
+                                return;
+                            };
+                            let Some(item_index) = state.menu_states.last().and_then(|ms| ms.index)
+                            else {
+                                return;
+                            };
+
+                            let item_id = crate::core::widget::Id::from(format!(
+                                "icy_ui.menu/{}/panel/{}/item/{}",
+                                first_root, panel_index, item_index
+                            ));
+                            a11y_focus_request =
+                                Some(crate::core::accessibility::node_id_from_widget_id(&item_id));
+                        }
                     });
+
+                    #[cfg(feature = "accessibility")]
+                    if let Some(target) = a11y_focus_request {
+                        shell.request_a11y_focus(target);
+                    }
+
                     shell.request_redraw();
                     Captured
                 } else {
@@ -833,6 +1169,12 @@ where
             keyboard::Key::Named(Named::Home) => {
                 // Select the first non-separator item
                 let menu_roots = &self.menu_roots;
+
+                #[cfg(feature = "accessibility")]
+                let mut a11y_focus_request: Option<
+                    crate::core::accessibility::NodeId,
+                > = None;
+
                 self.tree.inner.with_data_mut(|state| {
                     if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
                     {
@@ -856,12 +1198,32 @@ where
                             for i in 0..count {
                                 if i < active_menu.len() && !active_menu[i].is_separator {
                                     ms.index = Some(i);
+
+                                    #[cfg(feature = "accessibility")]
+                                    {
+                                        let panel_index = state.menu_states.len() - 1;
+                                        let item_id = crate::core::widget::Id::from(format!(
+                                            "icy_ui.menu/{}/panel/{}/item/{}",
+                                            first_root, panel_index, i
+                                        ));
+                                        a11y_focus_request = Some(
+                                            crate::core::accessibility::node_id_from_widget_id(
+                                                &item_id,
+                                            ),
+                                        );
+                                    }
                                     break;
                                 }
                             }
                         }
                     }
                 });
+
+                #[cfg(feature = "accessibility")]
+                if let Some(target) = a11y_focus_request {
+                    shell.request_a11y_focus(target);
+                }
+
                 shell.request_redraw();
                 Captured
             }
@@ -869,6 +1231,12 @@ where
             keyboard::Key::Named(Named::End) => {
                 // Select the last non-separator item
                 let menu_roots = &self.menu_roots;
+
+                #[cfg(feature = "accessibility")]
+                let mut a11y_focus_request: Option<
+                    crate::core::accessibility::NodeId,
+                > = None;
+
                 self.tree.inner.with_data_mut(|state| {
                     if state.open && !state.menu_states.is_empty() && !state.active_root.is_empty()
                     {
@@ -892,12 +1260,32 @@ where
                             for i in (0..count).rev() {
                                 if i < active_menu.len() && !active_menu[i].is_separator {
                                     ms.index = Some(i);
+
+                                    #[cfg(feature = "accessibility")]
+                                    {
+                                        let panel_index = state.menu_states.len() - 1;
+                                        let item_id = crate::core::widget::Id::from(format!(
+                                            "icy_ui.menu/{}/panel/{}/item/{}",
+                                            first_root, panel_index, i
+                                        ));
+                                        a11y_focus_request = Some(
+                                            crate::core::accessibility::node_id_from_widget_id(
+                                                &item_id,
+                                            ),
+                                        );
+                                    }
                                     break;
                                 }
                             }
                         }
                     }
                 });
+
+                #[cfg(feature = "accessibility")]
+                if let Some(target) = a11y_focus_request {
+                    shell.request_a11y_focus(target);
+                }
+
                 shell.request_redraw();
                 Captured
             }

@@ -6,6 +6,7 @@
 use super::menu::Menu;
 use crate::core::layout::{Layout, Limits, Node};
 use crate::core::mouse::Cursor;
+use crate::core::widget::Operation;
 use crate::core::{Clipboard, Shell, Size, event, overlay, renderer};
 use crate::menu::style::StyleSheet;
 
@@ -26,6 +27,10 @@ where
                 .min_height(bounds.height)
                 .max_height(bounds.height),
         )
+    }
+
+    fn operate(&mut self, layout: Layout<'_>, renderer: &Renderer, operation: &mut dyn Operation) {
+        self.operate_inner(layout, renderer, operation);
     }
 
     fn update(

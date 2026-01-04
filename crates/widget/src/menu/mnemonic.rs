@@ -266,6 +266,19 @@ impl<Message> Widget<Message, crate::Theme, crate::Renderer> for MnemonicLabel<M
         let _ = (tree, layout, renderer, viewport, translation);
         None
     }
+
+    #[cfg(feature = "accessibility")]
+    fn accessibility_label(&self) -> Option<std::borrow::Cow<'_, str>> {
+        // Return the full display text (before + mnemonic + after)
+        let mut full_text = self.before.clone();
+        full_text.push_str(&self.mnemonic);
+        full_text.push_str(&self.after);
+        if full_text.is_empty() {
+            None
+        } else {
+            Some(std::borrow::Cow::Owned(full_text))
+        }
+    }
 }
 
 impl<'a, Message> From<MnemonicLabel<Message>>

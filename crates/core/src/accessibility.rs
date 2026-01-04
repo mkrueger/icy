@@ -556,6 +556,12 @@ impl WidgetInfo {
         self
     }
 
+    /// Sets the expanded state (for combo boxes, menus, tree items).
+    pub fn with_expanded(mut self, expanded: Option<bool>) -> Self {
+        self.expanded = expanded;
+        self
+    }
+
     /// Adds a child node ID.
     pub fn with_child(mut self, child: NodeId) -> Self {
         self.children.push(child);

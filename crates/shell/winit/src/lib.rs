@@ -1037,6 +1037,17 @@ async fn run_instance<P>(
                         };
                         interact_span.finish();
 
+                        #[cfg(feature = "accessibility")]
+                        if let user_interface::State::Updated {
+                            a11y_focus_request: Some(target),
+                            ..
+                        } = state
+                            && let Some(acc) = accessibility.get_mut(&id)
+                        {
+                            // Move accessibility focus (VoiceOver cursor) programmatically.
+                            acc.state.set_a11y_focus(target);
+                        }
+
                         let draw_span = debug::draw(id);
                         interface.draw(
                             &mut window.renderer,
@@ -1533,6 +1544,52 @@ async fn run_instance<P>(
                                                         update_accessibility_tree(
                                                             id, window, ui, state,
                                                         );
+
+                                                        // Deliver a focus event to widgets.
+                                                        //
+                                                        // In accessibility mode, Tab navigation updates focus
+                                                        // programmatically (not via ActionRequested), so widgets
+                                                        // won't receive an Accessibility(Focus) event unless we
+                                                        // explicitly dispatch it.
+                                                        let focus_event =
+                                                            core::Event::Accessibility(
+                                                                crate::core::accessibility::Event {
+                                                                    action:
+                                                                        accesskit::Action::Focus,
+                                                                    target: new_focus,
+                                                                    data: None,
+                                                                },
+                                                            );
+
+                                                        let focus_events = [focus_event];
+                                                        let (focus_ui_state, _focus_statuses) = ui
+                                                            .update(
+                                                                &focus_events,
+                                                                window.state.cursor(),
+                                                                &mut window.renderer,
+                                                                &mut clipboard,
+                                                                &mut messages,
+                                                            );
+
+                                                        if let user_interface::State::Updated {
+                                                            redraw_request,
+                                                            #[cfg(feature = "accessibility")]
+                                                            a11y_focus_request,
+                                                            ..
+                                                        } = focus_ui_state
+                                                        {
+                                                            // Allow widgets to request a11y focus (e.g. MenuBar opens -> focus first item)
+                                                            #[cfg(feature = "accessibility")]
+                                                            if let Some(target) = a11y_focus_request
+                                                            {
+                                                                state.state.set_a11y_focus(target);
+                                                                update_accessibility_tree(
+                                                                    id, window, ui, state,
+                                                                );
+                                                            }
+
+                                                            window.request_redraw(redraw_request);
+                                                        }
                                                         handled_tab = true;
                                                     }
                                                 }
@@ -1619,8 +1676,24 @@ async fn run_instance<P>(
                                     mouse_interaction,
                                     #[cfg(target_os = "macos")]
                                     context_menu_request,
+                                    #[cfg(feature = "accessibility")]
+                                    a11y_focus_request,
                                     ..
                                 } => {
+                                    // Handle programmatic accessibility focus request from widgets
+                                    #[cfg(feature = "accessibility")]
+                                    if let Some(target) = a11y_focus_request {
+                                        if let Some(acc_state) = accessibility.get_mut(&id) {
+                                            acc_state.state.set_a11y_focus(target);
+                                            // Update the accessibility tree immediately to reflect the new focus
+                                            if let Some(ui) = user_interfaces.get_mut(&id) {
+                                                update_accessibility_tree(
+                                                    id, window, ui, acc_state,
+                                                );
+                                            }
+                                        }
+                                    }
+
                                     window.update_mouse(mouse_interaction);
 
                                     #[cfg(not(feature = "unconditional-rendering"))]
@@ -2063,7 +2136,27 @@ fn update_accessibility_tree<'a, P, C>(
         }
     }
 
-    state.adapter.update_tree(nodes, focus);
+    // Validate that focus exists in the node list - AccessKit will panic if it doesn't
+    let node_id_set: std::collections::HashSet<_> = nodes.iter().map(|(id, _)| *id).collect();
+    let validated_focus = if let Some(focus_id) = focus {
+        if node_id_set.contains(&focus_id) {
+            Some(focus_id)
+        } else {
+            if crate::accessibility::trace_enabled() {
+                eprintln!(
+                    "[a11y] WARNING: focus {:?} not in node list, falling back to root",
+                    focus_id
+                );
+            }
+            // Clear the invalid a11y focus to prevent repeated warnings
+            state.state.a11y_focus.clear();
+            None
+        }
+    } else {
+        None
+    };
+
+    state.adapter.update_tree(nodes, validated_focus);
 
     if crate::accessibility::trace_enabled() {
         eprintln!("[a11y] update_accessibility_tree done");

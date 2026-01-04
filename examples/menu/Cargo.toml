@@ -9,3 +9,4 @@ publish = false
 icy_ui.workspace = true
 icy_ui_core.workspace = true
 icy_ui_runtime.workspace = true
+icy_ui.features = ["accessibility", "advanced"]
