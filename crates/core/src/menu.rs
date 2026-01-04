@@ -660,6 +660,7 @@ impl<Message> MenuNode<Message> {
     /// Creates a "Quit" menu item with [`MenuRole::Quit`].
     ///
     /// On macOS this will be relocated to the application menu with ⌘Q.
+    /// On other platforms, Ctrl+Q is used as the default shortcut.
     #[must_use]
     pub fn quit(on_activate: Message) -> Self {
         Self {
@@ -668,7 +669,7 @@ impl<Message> MenuNode<Message> {
             kind: MenuKind::Item {
                 label: "Quit".into(),
                 enabled: true,
-                shortcut: None,
+                shortcut: Some(MenuShortcut::cmd(keyboard::Key::Character("q".into()))),
                 on_activate,
             },
         }

@@ -88,27 +88,28 @@ impl App {
         _context: &menu::MenuContext,
     ) -> Option<menu::AppMenu<Message>> {
         // File menu - using macro syntax for stable IDs with keyboard shortcuts
+        // Use & before a letter to mark it as mnemonic (Alt+letter to activate)
         let file_menu = menu::submenu!(
-            "File",
+            "&File",
             [
                 menu::item!(
-                    "New",
+                    "&New",
                     Message::MenuAction(MenuAction::New),
                     MenuShortcut::cmd(Key::Character("n".into()))
                 ),
                 menu::item!(
-                    "Open",
+                    "&Open",
                     Message::MenuAction(MenuAction::Open),
                     MenuShortcut::cmd(Key::Character("o".into()))
                 ),
                 menu::separator!(),
                 menu::item!(
-                    "Save",
+                    "&Save",
                     Message::MenuAction(MenuAction::Save),
                     MenuShortcut::cmd(Key::Character("s".into()))
                 ),
                 menu::item!(
-                    "Save As…",
+                    "Save &As…",
                     Message::MenuAction(MenuAction::SaveAs),
                     MenuShortcut::cmd_shift(Key::Character("s".into()))
                 ),
@@ -120,52 +121,55 @@ impl App {
 
         // Edit menu
         let edit_menu = menu::submenu!(
-            "Edit",
+            "&Edit",
             [
                 menu::item!(
-                    "Undo",
+                    "&Undo",
                     Message::MenuAction(MenuAction::Undo),
                     MenuShortcut::cmd(Key::Character("z".into()))
                 ),
                 menu::item!(
-                    "Redo",
+                    "&Redo",
                     Message::MenuAction(MenuAction::Redo),
                     MenuShortcut::cmd_shift(Key::Character("z".into()))
                 ),
                 menu::separator!(),
                 menu::item!(
-                    "Cut",
+                    "Cu&t",
                     Message::MenuAction(MenuAction::Cut),
                     MenuShortcut::cmd(Key::Character("x".into()))
                 ),
                 menu::item!(
-                    "Copy",
+                    "&Copy",
                     Message::MenuAction(MenuAction::Copy),
                     MenuShortcut::cmd(Key::Character("c".into()))
                 ),
                 menu::item!(
-                    "Paste",
+                    "&Paste",
                     Message::MenuAction(MenuAction::Paste),
                     MenuShortcut::cmd(Key::Character("v".into()))
                 ),
                 menu::separator!(),
                 // Preferences uses MenuRole::Preferences - on macOS moves to app menu with ⌘,
-                menu::preferences!("Preferences…", Message::MenuAction(MenuAction::Preferences)),
+                menu::preferences!(
+                    "&Preferences…",
+                    Message::MenuAction(MenuAction::Preferences)
+                ),
             ]
         );
 
         // View menu - using check_item! macro for checkboxes
         let view_menu = menu::submenu!(
-            "View",
+            "&View",
             [
                 menu::check_item!(
-                    "Dark Mode",
+                    "&Dark Mode",
                     state.dark_mode,
                     Message::MenuAction(MenuAction::ToggleDarkMode),
                     MenuShortcut::cmd(Key::Character("d".into()))
                 ),
                 menu::check_item!(
-                    "Show Toolbar",
+                    "Show &Toolbar",
                     state.show_toolbar,
                     Message::MenuAction(MenuAction::ToggleToolbar),
                     MenuShortcut::cmd(Key::Character("t".into()))
@@ -175,7 +179,7 @@ impl App {
 
         // Help menu
         let help_menu = menu::submenu!(
-            "Help",
+            "&Help",
             [
                 // About uses MenuRole::About - on macOS moves to app menu
                 menu::about!("About Menu Example", Message::MenuAction(MenuAction::About)),

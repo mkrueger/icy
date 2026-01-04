@@ -587,18 +587,22 @@ impl DemoApp {
         };
 
         let file_menu = menu::submenu!(
-            "File",
+            "&File",
             [
-                menu::MenuNode::submenu_with_id(RECENT_SUBMENU_ID, "Recent Files", recent_children),
+                menu::MenuNode::submenu_with_id(
+                    RECENT_SUBMENU_ID,
+                    "&Recent Files",
+                    recent_children
+                ),
                 menu::separator!(),
                 file_exit,
             ]
         );
 
         let view_menu = menu::submenu!(
-            "View",
+            "&View",
             [menu::check_item!(
-                "Dark Mode",
+                "&Dark Mode",
                 state.dark_mode,
                 Message::MenuAction(MenuAction::ToggleDarkMode)
             ),]
@@ -620,13 +624,14 @@ impl DemoApp {
             })
             .collect();
 
-        let pages_menu = menu::MenuNode::submenu_with_id(PAGES_SUBMENU_ID, "Pages", pages_children);
+        let pages_menu =
+            menu::MenuNode::submenu_with_id(PAGES_SUBMENU_ID, "&Pages", pages_children);
 
         // Use role-based about item - on macOS this moves to the app menu.
         let help_menu = menu::submenu!(
-            "Help",
+            "&Help",
             [menu::about!(
-                "About Demo App",
+                "&About Demo App",
                 Message::MenuAction(MenuAction::About)
             ),]
         );
@@ -669,7 +674,7 @@ impl DemoApp {
         }
 
         let window_menu =
-            menu::MenuNode::submenu_with_id(WINDOW_SUBMENU_ID, "Window", window_children);
+            menu::MenuNode::submenu_with_id(WINDOW_SUBMENU_ID, "&Window", window_children);
 
         Some(menu::AppMenu::new(vec![
             file_menu,
