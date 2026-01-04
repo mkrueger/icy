@@ -25,6 +25,15 @@ pub enum ItemWidth {
     /// the default value will be used instead,
     /// which is the value of the Static variant
     Static(u16),
+    /// Dynamic calculates the intrinsic width of each menu item.
+    /// The value specifies the minimum width.
+    /// Text will not wrap - items use single-line layout.
+    Dynamic {
+        /// Minimum width for menu items
+        min: u16,
+        /// Maximum width for menu items (text will be ellipsized if exceeded)
+        max: u16,
+    },
 }
 
 /// The height of an item

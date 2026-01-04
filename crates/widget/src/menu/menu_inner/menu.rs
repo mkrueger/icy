@@ -682,9 +682,17 @@ where
             if is_overlay {
                 let is_rtl = crate::core::layout_direction().is_rtl();
                 state.horizontal_direction = if is_rtl {
-                    if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                    if rb_center < view_center {
+                        Direction::Positive
+                    } else {
+                        Direction::Negative
+                    }
                 } else {
-                    if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                    if rb_center > view_center {
+                        Direction::Negative
+                    } else {
+                        Direction::Positive
+                    }
                 };
             }
 

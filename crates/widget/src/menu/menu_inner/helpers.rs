@@ -65,9 +65,17 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
                     if menu.is_overlay {
                         let is_rtl = crate::core::layout_direction().is_rtl();
                         state.horizontal_direction = if is_rtl {
-                            if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                            if rb_center < view_center {
+                                Direction::Positive
+                            } else {
+                                Direction::Negative
+                            }
                         } else {
-                            if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                            if rb_center > view_center {
+                                Direction::Negative
+                            } else {
+                                Direction::Positive
+                            }
                         };
                     }
 
@@ -138,9 +146,17 @@ pub(super) fn init_root_menu<'a, 'b, Message, Theme, Renderer>(
                 if menu.is_overlay {
                     let is_rtl = crate::core::layout_direction().is_rtl();
                     state.horizontal_direction = if is_rtl {
-                        if rb_center < view_center { Direction::Positive } else { Direction::Negative }
+                        if rb_center < view_center {
+                            Direction::Positive
+                        } else {
+                            Direction::Negative
+                        }
                     } else {
-                        if rb_center > view_center { Direction::Negative } else { Direction::Positive }
+                        if rb_center > view_center {
+                            Direction::Negative
+                        } else {
+                            Direction::Positive
+                        }
                     };
                 }
 
@@ -604,11 +620,117 @@ where
     Message: Clone,
     Renderer: renderer::Renderer,
 {
+    use super::super::menu_item_line::{MenuItemLineColumns, MenuItemLineState, MenuItemLineTag};
     use crate::core::layout::Limits;
+    use crate::core::widget::tree::Tag;
 
+    fn find_menu_item_line_state<'t>(tree: &'t Tree) -> Option<&'t MenuItemLineState> {
+        if tree.tag == Tag::of::<MenuItemLineTag>() {
+            return Some(tree.state.downcast_ref::<MenuItemLineState>());
+        }
+
+        tree.children.iter().find_map(find_menu_item_line_state)
+    }
+
+    fn find_menu_item_line_state_mut<'t>(tree: &'t mut Tree) -> Option<&'t mut MenuItemLineState> {
+        if tree.tag == Tag::of::<MenuItemLineTag>() {
+            return Some(tree.state.downcast_mut::<MenuItemLineState>());
+        }
+
+        tree.children
+            .iter_mut()
+            .find_map(find_menu_item_line_state_mut)
+    }
+
+    // For Dynamic width, we need to measure all items first to find the max width
     let width = match item_width {
         ItemWidth::Uniform(u) => f32::from(u),
         ItemWidth::Static(s) => f32::from(menu_tree.width.unwrap_or(s)),
+        ItemWidth::Dynamic { min, max } => {
+            // PASS 1: Measure intrinsic columns of each item.
+            let mut max_label_column_w: f32 = f32::from(min);
+            let mut max_shortcut_w: f32 = 0.0;
+            let mut max_suffix_w: f32 = 0.0;
+            let mut gap: Option<f32> = None;
+            let max_allowed = f32::from(max);
+
+            let mut line_item_indices: Vec<usize> = Vec::with_capacity(menu_tree.children.len());
+
+            for mt in menu_tree.children.iter_mut() {
+                let w = mt.item.as_widget_mut();
+                // Layout with unbounded width to get intrinsic metrics
+                let _ = w.layout(
+                    &mut tree[mt.index],
+                    renderer,
+                    &Limits::new(Size::ZERO, Size::new(max_allowed, f32::MAX))
+                        .width(Length::Shrink),
+                );
+
+                if let Some(state) = find_menu_item_line_state(&tree[mt.index]) {
+                    let metrics = state.metrics;
+                    max_label_column_w = max_label_column_w.max(metrics.label_column_w);
+                    max_shortcut_w = max_shortcut_w.max(metrics.shortcut_w);
+                    max_suffix_w = max_suffix_w.max(metrics.suffix_w);
+                    if gap.is_none() {
+                        gap = Some(metrics.gap);
+                    }
+                    line_item_indices.push(mt.index);
+                }
+            }
+
+            // Compute final menu width
+            let gap = gap.unwrap_or(24.0);
+            // Shortcut and suffix share the same trailing column (an item has one or the other, not both)
+            let trailing_col_w = max_shortcut_w.max(max_suffix_w);
+            let computed = max_label_column_w
+                + if trailing_col_w > 0.0 {
+                    gap + trailing_col_w
+                } else {
+                    0.0
+                };
+            let menu_width = computed.min(max_allowed);
+
+            let columns = MenuItemLineColumns {
+                menu_width,
+                // Store the shared trailing column width
+                shortcut_w: trailing_col_w,
+                suffix_w: trailing_col_w,
+                gap,
+            };
+
+            #[cfg(debug_assertions)]
+            if matches!(
+                std::env::var("ICY_MENU_DEBUG").as_deref(),
+                Ok("1") | Ok("true") | Ok("TRUE")
+            ) {
+                eprintln!(
+                    "[menu] get_children_layout: menu_width={:.1} trailing_col_w={:.1} line_item_count={}",
+                    menu_width,
+                    trailing_col_w,
+                    line_item_indices.len()
+                );
+            }
+
+            // Store columns in each item's state BEFORE the second layout pass
+            for idx in &line_item_indices {
+                if let Some(state) = find_menu_item_line_state_mut(&mut tree[*idx]) {
+                    state.columns = Some(columns);
+                }
+            }
+
+            // PASS 2: Re-layout items with column info now available
+            // This ensures positions are computed with correct right-alignment
+            for mt in menu_tree.children.iter_mut() {
+                let w = mt.item.as_widget_mut();
+                let _ = w.layout(
+                    &mut tree[mt.index],
+                    renderer,
+                    &Limits::new(Size::ZERO, Size::new(menu_width, f32::MAX)).width(Length::Shrink),
+                );
+            }
+
+            menu_width
+        }
     };
 
     let child_sizes: Vec<Size> = match item_height {
@@ -663,6 +785,20 @@ where
         .collect();
 
     let height = child_sizes.iter().fold(0.0, |acc, x| acc + x.height);
+
+    #[cfg(debug_assertions)]
+    if matches!(
+        std::env::var("ICY_MENU_DEBUG").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE")
+    ) {
+        eprintln!(
+            "[menu] get_children_layout: final_width={:.1} height={:.1} item_count={} item_width={:?}",
+            width,
+            height,
+            menu_tree.children.len(),
+            item_width
+        );
+    }
 
     (Size::new(width, height), child_positions, child_sizes)
 }

@@ -25,7 +25,8 @@ use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::widget::Tree;
 use crate::core::{
-    self, Background, Color, Element, Layout, LayoutDirection, Length, Rectangle, Size, Theme, Widget,
+    self, Background, Color, Element, Layout, LayoutDirection, Length, Rectangle, Size, Theme,
+    Widget,
 };
 
 use std::ops::RangeInclusive;
@@ -200,7 +201,10 @@ where
         };
 
         let style = theme.style(&self.class);
-        let is_rtl = self.layout_direction.unwrap_or_else(crate::core::layout_direction).is_rtl();
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
 
         renderer.fill_quad(
             renderer::Quad {

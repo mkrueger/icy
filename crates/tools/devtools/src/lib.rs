@@ -108,7 +108,9 @@ where
         state: &Self::State,
         context: &icy_ui_program::core::menu::MenuContext,
     ) -> Option<icy_ui_program::core::menu::AppMenu<Self::Message>> {
-        self.program.application_menu(&state.state, context).map(|menu| menu.map(Event::Program))
+        self.program
+            .application_menu(&state.state, context)
+            .map(|menu| menu.map(Event::Program))
     }
 }
 

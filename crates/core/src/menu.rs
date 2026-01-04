@@ -562,7 +562,11 @@ impl<Message> AppMenu<Message> {
     /// Maps the message type of this menu using the provided function.
     pub fn map<B>(self, f: impl Fn(Message) -> B + Clone) -> AppMenu<B> {
         AppMenu {
-            roots: self.roots.into_iter().map(|node| node.map(f.clone())).collect(),
+            roots: self
+                .roots
+                .into_iter()
+                .map(|node| node.map(f.clone()))
+                .collect(),
         }
     }
 }
@@ -647,11 +651,14 @@ impl<Message> MenuNode<Message> {
     /// Creates a checkbox menu item [`MenuNode`] with the given ID.
     ///
     /// For automatic stable IDs, prefer using [`check_item!`].
+    ///
+    /// # Arguments
+    /// - `checked`: `None` = no indicator (space only), `Some(true)` = checked, `Some(false)` = unchecked box
     #[must_use]
     pub fn check_item_with_id(
         id: MenuId,
         label: impl Into<String>,
-        checked: bool,
+        checked: Option<bool>,
         on_activate: Message,
     ) -> Self {
         Self::new_with_id(
@@ -799,8 +806,11 @@ pub enum MenuKind<Message> {
         label: String,
         /// Whether the item is enabled.
         enabled: bool,
-        /// Whether the item is checked.
-        checked: bool,
+        /// Check state:
+        /// - `None`: No indicator (space reserved for alignment)
+        /// - `Some(true)`: Checked (checkmark icon)
+        /// - `Some(false)`: Unchecked (empty box)
+        checked: Option<bool>,
         /// Optional keyboard shortcut.
         shortcut: Option<MenuShortcut>,
         /// Message produced when the item is activated.
@@ -825,23 +835,41 @@ impl<Message> MenuKind<Message> {
     /// Maps the message type of this menu kind using the provided function.
     pub fn map<B>(self, f: impl Fn(Message) -> B + Clone) -> MenuKind<B> {
         match self {
-            MenuKind::Item { label, enabled, shortcut, on_activate } => MenuKind::Item {
+            MenuKind::Item {
+                label,
+                enabled,
+                shortcut,
+                on_activate,
+            } => MenuKind::Item {
                 label,
                 enabled,
                 shortcut,
                 on_activate: f(on_activate),
             },
-            MenuKind::CheckItem { label, enabled, checked, shortcut, on_activate } => MenuKind::CheckItem {
+            MenuKind::CheckItem {
+                label,
+                enabled,
+                checked,
+                shortcut,
+                on_activate,
+            } => MenuKind::CheckItem {
                 label,
                 enabled,
                 checked,
                 shortcut,
                 on_activate: f(on_activate),
             },
-            MenuKind::Submenu { label, enabled, children } => MenuKind::Submenu {
+            MenuKind::Submenu {
                 label,
                 enabled,
-                children: children.into_iter().map(|node| node.map(f.clone())).collect(),
+                children,
+            } => MenuKind::Submenu {
+                label,
+                enabled,
+                children: children
+                    .into_iter()
+                    .map(|node| node.map(f.clone()))
+                    .collect(),
             },
             MenuKind::Separator => MenuKind::Separator,
         }
@@ -917,16 +945,19 @@ macro_rules! menu_item {
 
 /// Creates a checkbox menu item with a stable ID based on source location hash.
 ///
+/// # Arguments
+/// - `checked`: `None` = no indicator (space only), `Some(true)` = checked, `Some(false)` = unchecked box
+///
 /// # Examples
 /// ```ignore
 /// use icy_ui_core::menu::{self, MenuShortcut};
 /// use icy_ui_core::keyboard::Key;
 ///
 /// // Without shortcut
-/// let item = menu::check_item!("Dark Mode", state.dark_mode, Message::ToggleDarkMode);
+/// let item = menu::check_item!("Dark Mode", Some(state.dark_mode), Message::ToggleDarkMode);
 ///
 /// // With shortcut
-/// let item = menu::check_item!("Dark Mode", state.dark_mode, Message::ToggleDarkMode,
+/// let item = menu::check_item!("Dark Mode", Some(state.dark_mode), Message::ToggleDarkMode,
 ///     MenuShortcut::cmd(Key::Character("d".into())));
 /// ```
 #[macro_export]
@@ -1109,8 +1140,11 @@ pub enum ContextMenuItemKind {
         label: String,
         /// Whether the item is enabled.
         enabled: bool,
-        /// Whether the item is currently checked.
-        checked: bool,
+        /// Check state:
+        /// - `None`: No indicator (space reserved for alignment)
+        /// - `Some(true)`: Checked (checkmark icon)
+        /// - `Some(false)`: Unchecked (empty box)
+        checked: Option<bool>,
     },
 }
 
@@ -1146,7 +1180,15 @@ impl ContextMenuItem {
     }
 
     /// Creates a checkable item.
-    pub fn check_item(id: MenuId, label: impl Into<String>, enabled: bool, checked: bool) -> Self {
+    ///
+    /// # Arguments
+    /// - `checked`: `None` = no indicator, `Some(true)` = checked, `Some(false)` = unchecked box
+    pub fn check_item(
+        id: MenuId,
+        label: impl Into<String>,
+        enabled: bool,
+        checked: Option<bool>,
+    ) -> Self {
         Self {
             id,
             kind: ContextMenuItemKind::CheckItem {

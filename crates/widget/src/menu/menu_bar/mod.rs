@@ -134,7 +134,7 @@ where
                 click_outside: true,
                 click_inside: true,
             },
-            item_width: ItemWidth::Uniform(240),
+            item_width: ItemWidth::Dynamic { min: 180, max: 600 },
             item_height: ItemHeight::Dynamic(36),
             path_highlight: Some(PathHighlight::MenuActive),
             menu_roots,

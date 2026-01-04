@@ -1,13 +1,4 @@
-use icy_ui::widget::{
-    button,
-    column,
-    container,
-    row,
-    rule,
-    space,
-    text,
-    overlay::modal::Modal,
-};
+use icy_ui::widget::{button, column, container, overlay::modal::Modal, row, rule, space, text};
 use icy_ui::{Element, Length};
 
 use super::Message;

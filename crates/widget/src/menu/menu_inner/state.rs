@@ -156,7 +156,8 @@ impl MenuState {
             .get(index)
             .copied()
             .unwrap_or(Size::ZERO);
-        let limits = Limits::new(Size::ZERO, child_size);
+        // Use min=max to force items to the computed menu width (items use Shrink for measurement)
+        let limits = Limits::new(child_size, child_size);
         let parent_offset = children_bounds.position() - Point::ORIGIN;
         let node = menu_tree
             .item

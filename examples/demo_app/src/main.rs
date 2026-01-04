@@ -610,7 +610,7 @@ impl DemoApp {
             "&View",
             [menu::check_item!(
                 "&Dark Mode",
-                state.dark_mode,
+                Some(state.dark_mode),
                 Message::MenuAction(MenuAction::ToggleDarkMode)
             ),]
         );
@@ -662,7 +662,7 @@ impl DemoApp {
                 menu::MenuNode::check_item_with_id(
                     menu::MenuId::from_u64(WINDOW_BASE_ID.as_u64().wrapping_add(idx as u64)),
                     label,
-                    info.focused,
+                    Some(info.focused),
                     Message::MenuActivateWindow(info.id),
                 )
             })

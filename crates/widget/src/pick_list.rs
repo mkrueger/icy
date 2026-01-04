@@ -795,7 +795,10 @@ where
             let (handle_x, handle_align) = if is_rtl {
                 (bounds.x + self.padding.left, text::Alignment::Left)
             } else {
-                (bounds.x + bounds.width - self.padding.right, text::Alignment::Right)
+                (
+                    bounds.x + bounds.width - self.padding.right,
+                    text::Alignment::Right,
+                )
             };
 
             renderer.fill_text(
@@ -811,10 +814,7 @@ where
                     wrapping: text::Wrapping::default(),
                     hint_factor: None,
                 },
-                Point::new(
-                    handle_x,
-                    bounds.center_y(),
-                ),
+                Point::new(handle_x, bounds.center_y()),
                 style.handle_color,
                 *viewport,
             );
@@ -828,7 +828,10 @@ where
 
             // Label position: left side for LTR, right side for RTL
             let (label_x, label_align) = if is_rtl {
-                (bounds.x + bounds.width - self.padding.right, text::Alignment::Right)
+                (
+                    bounds.x + bounds.width - self.padding.right,
+                    text::Alignment::Right,
+                )
             } else {
                 (bounds.x + self.padding.left, text::Alignment::Default)
             };

@@ -1296,7 +1296,10 @@ async fn run_instance<P>(
                             }
 
                             let focused_window = windows.iter().find(|w| w.focused).map(|w| w.id);
-                            let menu_context = core::menu::MenuContext { current_window: focused_window, windows };
+                            let menu_context = core::menu::MenuContext {
+                                current_window: focused_window,
+                                windows,
+                            };
 
                             if let Some(menu) = program.application_menu(&menu_context) {
                                 let (menu_for_platform, actions, signature) =
@@ -2955,7 +2958,10 @@ fn run_action<'a, P, C>(
                 }
 
                 let focused_window = windows.iter().find(|w| w.focused).map(|w| w.id);
-                core::menu::MenuContext { current_window: focused_window, windows }
+                core::menu::MenuContext {
+                    current_window: focused_window,
+                    windows,
+                }
             };
 
             for (id, window) in window_manager.iter_mut() {

@@ -48,11 +48,7 @@ impl Cache {
             let height_opt =
                 text::sanitize_buffer_dimension(key.bounds.height.max(key.line_height));
 
-            buffer.set_size(
-                font_system,
-                width_opt,
-                height_opt,
-            );
+            buffer.set_size(font_system, width_opt, height_opt);
             buffer.set_text(
                 font_system,
                 key.content,

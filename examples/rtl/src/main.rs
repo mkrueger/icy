@@ -250,11 +250,17 @@ impl RtlDemo {
             ))
             .size(16);
 
-            let toggle_btn = button(lang.toggle_rtl()).on_press(Message::SetDirection(self.direction.flip()));
+            let toggle_btn =
+                button(lang.toggle_rtl()).on_press(Message::SetDirection(self.direction.flip()));
 
-            row![lang_picker, Space::new().width(Fill), direction_label, toggle_btn,]
-                .spacing(15)
-                .align_y(Center)
+            row![
+                lang_picker,
+                Space::new().width(Fill),
+                direction_label,
+                toggle_btn,
+            ]
+            .spacing(15)
+            .align_y(Center)
         };
 
         // Welcome text
@@ -285,9 +291,11 @@ impl RtlDemo {
         // Slider with label
         let slider_row = {
             let label = text(lang.volume()).size(16);
-            let slider_widget = slider(0.0..=100.0, self.slider_value, Message::SliderChanged)
-                .width(250);
-            let value_text = text(format!("{:.0}%", self.slider_value)).size(14).width(50);
+            let slider_widget =
+                slider(0.0..=100.0, self.slider_value, Message::SliderChanged).width(250);
+            let value_text = text(format!("{:.0}%", self.slider_value))
+                .size(14)
+                .width(50);
 
             // `Row` mirrors automatically in RTL
             row![label, slider_widget, value_text]
@@ -298,9 +306,10 @@ impl RtlDemo {
         // Progress bar with label
         let progress_row = {
             let label = text(lang.progress()).size(16);
-            let progress = progress_bar(0.0..=100.0, self.progress_value)
-                .length(250);
-            let value_text = text(format!("{:.0}%", self.progress_value)).size(14).width(50);
+            let progress = progress_bar(0.0..=100.0, self.progress_value).length(250);
+            let value_text = text(format!("{:.0}%", self.progress_value))
+                .size(14)
+                .width(50);
 
             // `Row` mirrors automatically in RTL
             row![label, progress, value_text]

@@ -633,8 +633,12 @@ where
                 state.value.raw()
             };
 
-            let alignment_offset =
-                alignment_offset(text_bounds.width, paragraph.min_width(), self.alignment, is_rtl);
+            let alignment_offset = alignment_offset(
+                text_bounds.width,
+                paragraph.min_width(),
+                self.alignment,
+                is_rtl,
+            );
 
             if let Some((cursor, color)) = cursor {
                 renderer.with_translation(

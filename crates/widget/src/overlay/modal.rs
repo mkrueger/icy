@@ -12,9 +12,7 @@ use crate::core::overlay;
 use crate::core::renderer;
 use crate::core::widget::tree::{self, Tree};
 use crate::core::widget::{Operation, Widget};
-use crate::core::{
-    Alignment, Clipboard, Element, Event, Layout, Rectangle, Shell, Size, Vector,
-};
+use crate::core::{Alignment, Clipboard, Element, Event, Layout, Rectangle, Shell, Size, Vector};
 
 use std::borrow::Borrow;
 use std::rc::Rc;
@@ -111,7 +109,8 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Modal<'a, Message, Theme, Renderer>
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Modal<'a, Message, Theme, Renderer>
 where
     Theme: Borrow<crate::Theme>,
     Renderer: crate::core::Renderer,
@@ -333,8 +332,8 @@ where
         shell: &mut Shell<'_, Message>,
     ) {
         use crate::core::keyboard;
-        use crate::core::keyboard::key::Named;
         use crate::core::keyboard::Key;
+        use crate::core::keyboard::key::Named;
         use crate::core::mouse::Button;
 
         let child_layout = layout.children().next().unwrap();

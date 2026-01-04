@@ -75,7 +75,7 @@ pub use gradient::Gradient;
 pub use image::Image;
 pub use input_method::InputMethod;
 pub use layout::Layout;
-pub use layout_direction::{layout_direction, set_layout_direction, LayoutDirection};
+pub use layout_direction::{LayoutDirection, layout_direction, set_layout_direction};
 pub use length::Length;
 pub use overlay::Overlay;
 pub use padding::Padding;

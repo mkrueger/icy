@@ -308,7 +308,9 @@ where
     ) {
         // Set horizontal direction based on widget override or global
         let local_state = tree.state.downcast_ref::<LocalState>();
-        let direction = self.layout_direction.unwrap_or_else(crate::core::layout_direction);
+        let direction = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction);
         local_state.menu_bar_state.inner.with_data_mut(|state| {
             state.horizontal_direction = if direction.is_rtl() {
                 Direction::Negative
@@ -516,7 +518,7 @@ where
                     click_outside: true,
                     click_inside: true,
                 },
-                item_width: ItemWidth::Uniform(240),
+                item_width: ItemWidth::Dynamic { min: 180, max: 600 },
                 item_height: ItemHeight::Dynamic(40),
                 bar_bounds: bounds,
                 main_offset: 0,

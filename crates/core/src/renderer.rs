@@ -4,8 +4,7 @@ mod null;
 
 use crate::image;
 use crate::{
-    Background, Border, Color, Font, Pixels, Rectangle, Shadow, Size,
-    Transformation, Vector,
+    Background, Border, Color, Font, Pixels, Rectangle, Shadow, Size, Transformation, Vector,
 };
 
 /// Whether anti-aliasing should be avoided by snapping primitive coordinates to the

@@ -5,10 +5,11 @@ use std::borrow::Cow;
 use crate::core::menu as app_menu;
 use crate::core::{Alignment, Element, Length};
 
+use super::menu_item_line::{MenuItemIcon, menu_item_line, menu_item_line_with_icon};
 use super::mnemonic::{mnemonic_text, parse_mnemonic};
 use super::style::menu_folder;
 use super::{MenuBar, Tree, menu_button, menu_root_style};
-use crate::{Row, Space, button, text};
+use crate::{Row, button};
 
 fn shortcut_text_style(theme: &crate::Theme) -> crate::text::Style {
     let mut color = theme.on_background();
@@ -27,11 +28,11 @@ where
         Row::from_vec(children)
             .align_y(Alignment::Center)
             .height(Length::Fill)
-            .width(Length::Fill),
+            .width(Length::Shrink),
     )
     .height(36.0)
     .padding([4, 16])
-    .width(Length::Fill)
+    .width(Length::Shrink)
     .style(menu_folder)
 }
 
@@ -121,13 +122,14 @@ where
 
             let shortcut = shortcut.as_ref().map(format_shortcut).unwrap_or_default();
 
-            let items = vec![
-                mnemonic_text(&l),
-                Space::new().width(Length::Fill).into(),
-                text(shortcut).style(shortcut_text_style).into(),
-            ];
-
-            let menu_button = menu_button(items).on_press_maybe(if *enabled {
+            let menu_button = menu_button(vec![menu_item_line(
+                "",
+                l.to_string(),
+                shortcut,
+                "",
+                shortcut_text_style,
+            )])
+            .on_press_maybe(if *enabled {
                 Some(on_activate.clone())
             } else {
                 None
@@ -149,16 +151,21 @@ where
             let parsed = parse_mnemonic(&l);
 
             let shortcut = shortcut.as_ref().map(format_shortcut).unwrap_or_default();
-            let check_mark = if *checked { "✓ " } else { "   " };
 
-            let items = vec![
-                text(check_mark).into(),
-                mnemonic_text(&l),
-                Space::new().width(Length::Fill).into(),
-                text(shortcut).style(shortcut_text_style).into(),
-            ];
+            let prefix_icon = match *checked {
+                Some(true) => Some(MenuItemIcon::Checkmark),
+                Some(false) => Some(MenuItemIcon::CheckboxBox),
+                None => Some(MenuItemIcon::None),
+            };
 
-            let menu_button = menu_button(items).on_press_maybe(if *enabled {
+            let menu_button = menu_button(vec![menu_item_line_with_icon(
+                prefix_icon,
+                l.to_string(),
+                shortcut,
+                "",
+                shortcut_text_style,
+            )])
+            .on_press_maybe(if *enabled {
                 Some(on_activate.clone())
             } else {
                 None
@@ -178,27 +185,31 @@ where
             let parsed = parse_mnemonic(&l);
 
             if !*enabled {
-                let items = vec![
-                    mnemonic_text(&l),
-                    Space::new().width(Length::Fill).into(),
-                    text("▶").into(),
-                ];
-
                 // Disabled submenu uses regular menu_button (will appear disabled)
-                let mut tree = Tree::new(menu_button(items));
+                let mut tree = Tree::new(menu_button(vec![menu_item_line(
+                    "",
+                    l.to_string(),
+                    "",
+                    "▶",
+                    shortcut_text_style,
+                )]));
                 tree.mnemonic = parsed.mnemonic_char;
                 return Some(tree);
             }
 
             let child_trees = convert_children(children);
-            let items = vec![
-                mnemonic_text(&l),
-                Space::new().width(Length::Fill).into(),
-                text("▶").into(),
-            ];
 
             // Enabled submenu uses submenu_button (never appears disabled)
-            let mut tree = Tree::with_children(submenu_button(items), child_trees);
+            let mut tree = Tree::with_children(
+                submenu_button(vec![menu_item_line(
+                    "",
+                    l.to_string(),
+                    "",
+                    "▶",
+                    shortcut_text_style,
+                )]),
+                child_trees,
+            );
             tree.mnemonic = parsed.mnemonic_char;
             Some(tree)
         }

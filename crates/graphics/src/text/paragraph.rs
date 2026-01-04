@@ -102,7 +102,8 @@ impl core::text::Paragraph for Paragraph {
 
         // Resolve alignment now and store the resolved value to ensure consistency
         let resolved_align_x = text.align_x.resolve();
-        let min_bounds = text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
+        let min_bounds =
+            text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
 
         Self(Arc::new(Internal {
             buffer,
@@ -185,7 +186,8 @@ impl core::text::Paragraph for Paragraph {
 
         // Resolve alignment now and store the resolved value to ensure consistency
         let resolved_align_x = text.align_x.resolve();
-        let min_bounds = text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
+        let min_bounds =
+            text::align(&mut buffer, font_system.raw(), resolved_align_x) / hint_factor;
 
         Self(Arc::new(Internal {
             buffer,

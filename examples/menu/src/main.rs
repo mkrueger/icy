@@ -164,13 +164,13 @@ impl App {
             [
                 menu::check_item!(
                     "&Dark Mode",
-                    state.dark_mode,
+                    Some(state.dark_mode),
                     Message::MenuAction(MenuAction::ToggleDarkMode),
                     MenuShortcut::cmd(Key::Character("d".into()))
                 ),
                 menu::check_item!(
                     "Show &Toolbar",
-                    state.show_toolbar,
+                    Some(state.show_toolbar),
                     Message::MenuAction(MenuAction::ToggleToolbar),
                     MenuShortcut::cmd(Key::Character("t".into()))
                 ),

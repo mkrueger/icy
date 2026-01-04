@@ -40,8 +40,8 @@ use crate::core::widget::operation::{self, Operation};
 use crate::core::widget::tree::{self, Tree};
 use crate::core::window;
 use crate::core::{
-    self, Background, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Pixels, Point, Rectangle,
-    Shell, Size, Theme, Widget,
+    self, Background, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Pixels,
+    Point, Rectangle, Shell, Size, Theme, Widget,
 };
 use crate::focus::FocusRing;
 
@@ -608,7 +608,10 @@ where
             (bounds.width - handle_width) * (value - range_start) / (range_end - range_start)
         };
 
-        let is_rtl = self.layout_direction.unwrap_or_else(crate::core::layout_direction).is_rtl();
+        let is_rtl = self
+            .layout_direction
+            .unwrap_or_else(crate::core::layout_direction)
+            .is_rtl();
         let rail_y = bounds.y + bounds.height / 2.0;
 
         // In RTL mode, the filled portion is on the right

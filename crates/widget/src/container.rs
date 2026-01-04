@@ -29,8 +29,8 @@ use crate::core::renderer;
 use crate::core::widget::tree::{self, Tree};
 use crate::core::widget::{self, Operation};
 use crate::core::{
-    self, Background, Clipboard, Color, Element, Event, Layout, Length, Padding, Pixels, Rectangle,
-    Shadow, Shell, Size, Theme, Vector, Widget, color, LayoutDirection,
+    self, Background, Clipboard, Color, Element, Event, Layout, LayoutDirection, Length, Padding,
+    Pixels, Rectangle, Shadow, Shell, Size, Theme, Vector, Widget, color,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -274,9 +274,7 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let direction = self
-            .layout_direction
-            .unwrap_or_else(core::layout_direction);
+        let direction = self.layout_direction.unwrap_or_else(core::layout_direction);
 
         layout_internal(
             limits,
@@ -443,11 +441,7 @@ fn layout_internal(
                 }
             };
 
-            content.align(
-                align_x,
-                Alignment::from(vertical_alignment),
-                size,
-            )
+            content.align(align_x, Alignment::from(vertical_alignment), size)
         },
     )
 }

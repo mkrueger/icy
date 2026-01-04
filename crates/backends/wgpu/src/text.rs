@@ -624,7 +624,11 @@ fn prepare(
             const MAX_SAFE_POS: f32 = i32::MAX as f32 - 2.0;
             const MIN_SAFE_POS: f32 = i32::MIN as f32 + 2.0;
 
-            if !position.x.is_finite() || !position.y.is_finite() || !scale.is_finite() || scale <= 0.0 {
+            if !position.x.is_finite()
+                || !position.y.is_finite()
+                || !scale.is_finite()
+                || scale <= 0.0
+            {
                 return None;
             }
 
