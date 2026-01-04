@@ -3,6 +3,7 @@
 //! This application demonstrates all the major widgets available in icy,
 //! organized into pages accessible via a sidebar navigation.
 
+mod about;
 mod pages;
 
 use std::path::PathBuf;
@@ -241,6 +242,7 @@ pub enum ToastKind {
 struct DemoApp {
     current_page: Page,
     dark_mode: bool,
+    about_open: bool,
     status_message: String,
     recent_files: Vec<String>,
 
@@ -269,6 +271,7 @@ impl Default for DemoApp {
         Self {
             current_page: Page::default(),
             dark_mode: true,
+            about_open: false,
             status_message: "Welcome to Demo App!".into(),
             recent_files: vec![
                 "README.md".to_string(),
@@ -305,6 +308,7 @@ pub enum Message {
     // Navigation
     GoToPage(Page),
     MenuAction(MenuAction),
+    SetAboutOpen(bool),
     NoOp,
 
     // Buttons
@@ -447,6 +451,10 @@ impl DemoApp {
                 self.status_message = format!("Switched to {} page", page.name());
                 return Task::none();
             }
+            Message::SetAboutOpen(open) => {
+                self.about_open = *open;
+                return Task::none();
+            }
             Message::MenuAction(action) => {
                 match action {
                     MenuAction::ToggleDarkMode => {
@@ -455,8 +463,7 @@ impl DemoApp {
                             format!("Theme: {}", if self.dark_mode { "Dark" } else { "Light" });
                     }
                     MenuAction::About => {
-                        self.status_message =
-                            "Demo App v1.0 - A comprehensive icy widget showcase".into();
+                        self.about_open = true;
                     }
                     MenuAction::Exit => {
                         std::process::exit(0);
@@ -737,7 +744,9 @@ impl DemoApp {
 
         let main_area = row![content, rule::vertical(1), sidebar,].height(Fill);
 
-        column![main_area, rule::horizontal(1), status_bar].into()
+        let base: Element<'_, Message> = column![main_area, rule::horizontal(1), status_bar].into();
+
+        about::wrap(self.about_open, base)
     }
 
     fn view_sidebar(&self) -> Element<'_, Message> {

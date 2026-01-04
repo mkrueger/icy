@@ -1,41 +1,58 @@
 # Icy UI
 
-Just a fork of https://github.com/iced-rs/iced
+Icy UI is a fork of https://github.com/iced-rs/iced.
 
-Which is IMHO a very good UI library. My tools have very specific needs that maybe no other APP has. 
-Which are:
+Iced is a great UI library. This fork exists because some of my applications have fairly specific “desktop app” requirements that were hard to achieve cleanly without changes upstream.
 
-+ Running on linux, osx and windows natively
-+ Empowering apps to have good platform integration while providing own UIs
-   + Working clipboard handling of multiple formats
-   + DND 
-   + Native UI pradigms should work (like osx main menu or mnemonics)
-+ And custom controls should be easier to implement (event system needs more data)
+## Goals
 
-So I started that and added:
+- Native apps on Linux, macOS, and Windows
+- Better platform integration while still allowing fully custom UIs
+   - Clipboard handling (including multiple formats; especially important on Wayland)
+   - Drag & drop
+   - Native UI paradigms where applicable (e.g. macOS main menu, mnemonics on Windows/Linux)
+- Easier custom controls (more complete event data)
 
-+ Mouse event handling with modifiers 
-+ Clipboard handling that works and isn't just a lackluster
-+ Scrollbar that's not from 1998 and works on large areas as well
-+ Menus 
-+ Extended theming (libcosmic <3)
-+ Support for focus/keyboard input for all controls
-+ Drag & drop support
-+ Accessiblity
+## What’s different from upstream
 
-I was forced to fork it. I don't intend to break much away from iced to be able to port/take upstream changes.
-Icy UI is just ment to be used by my own tool suite for now.
+- Mouse event handling with modifiers
+- Improved clipboard handling
+- Scrollbar behavior that works on large scroll areas
+- Menus (including mnemonics)
+- Extended theming (inspired by libcosmic)
+- Better focus / keyboard input support across controls
+- Drag & drop support
+- Accessibility
 
-Which has very specific needs - see above. Best is to stay with iced or libcosmic for now. I don't have an idea
-where this is going to but I need more out of an UI lib than what the existing ones deliver.
+## Status / scope
 
-However you can take a look and if you have similiar needs feel free to use this fork instead.
+This is primarily used by my own tool suite right now.
 
-I try to keep doc up 2 date. I take PRs and ideas and try to listen to my users instead of dictating things. 
+I try to stay close to upstream iced to make it easier to pick up changes over time. If you do not need the features above, you probably want to use upstream iced (or libcosmic) instead.
 
-I can't promise to take/implement all feature request because of my time limits. 
+If you have similar requirements, feel free to try this fork.
 
-But the goal is to make a more community friendly project. I hope that my contribution to the rust ecosystem is useful and that as many as possible ui libraries take stuff from icy_ui - rust needs way better desktop UI libraries.
+## Quick start
+
+Build the workspace:
+
+```sh
+cargo build
+```
+
+Run some examples:
+
+```sh
+cd examples/demo_app && cargo run
+```
+
+```sh
+cd examples/menu && cargo run
+```
+
+```sh
+cd examples/focus && cargo run
+```
 
 ## License
 

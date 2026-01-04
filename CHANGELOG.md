@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **DnD Initiation**: Start native drag-and-drop operations using OLE `IDropSource`/`IDataObject`
   - Supports text, file lists, and custom MIME types via COM interfaces
 - Event Log page in demo app for debugging platform events
+- New `overlay::modal::Modal` helper to present blocking modal dialogs via the overlay system (includes an About dialog in `demo_app` showcasing it)
 
 ### Changed
 - Switched from iced-rs/winit fork to vanilla winit 0.30.12 from crates.io
