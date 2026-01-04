@@ -1476,23 +1476,11 @@ where
                 },
                 |renderer| {
                     if let Some(scrollbar) = scrollbars.y {
-                        draw_scrollbar(
-                            renderer,
-                            &scrollbar,
-                            true,
-                            is_v_hovered,
-                            is_v_dragged,
-                        );
+                        draw_scrollbar(renderer, &scrollbar, true, is_v_hovered, is_v_dragged);
                     }
 
                     if let Some(scrollbar) = scrollbars.x {
-                        draw_scrollbar(
-                            renderer,
-                            &scrollbar,
-                            false,
-                            is_h_hovered,
-                            is_h_dragged,
-                        );
+                        draw_scrollbar(renderer, &scrollbar, false, is_h_hovered, is_h_dragged);
                     }
 
                     if let (Some(x), Some(y)) = (scrollbars.x, scrollbars.y) {
@@ -2849,11 +2837,7 @@ impl<'a> From<Preset> for StyleFn<'a, Theme> {
 }
 
 /// Helper function to apply theme colors and status-based styling to a ScrollStyle.
-fn apply_theme_and_status(
-    mut scroll_style: ScrollStyle,
-    theme: &Theme,
-    status: Status,
-) -> Style {
+fn apply_theme_and_status(mut scroll_style: ScrollStyle, theme: &Theme, status: Status) -> Style {
     // Get the hover factor from any status variant
     let hover_factor = match status {
         Status::Active { hover_factor, .. }

@@ -224,7 +224,10 @@ pub fn ensure_visible<T>(target: Id, target_rect: Rectangle) -> impl Operation<T
         }
     }
 
-    EnsureVisible { target, target_rect }
+    EnsureVisible {
+        target,
+        target_rect,
+    }
 }
 
 /// Produces an [`Operation`] that scrolls the widget with the given [`Id`] the
@@ -261,7 +264,10 @@ pub fn ensure_visible_animated<T>(target: Id, target_rect: Rectangle) -> impl Op
         }
     }
 
-    EnsureVisibleAnimated { target, target_rect }
+    EnsureVisibleAnimated {
+        target,
+        target_rect,
+    }
 }
 
 /// Computes the scroll delta needed to make `target_rect` visible within the viewport.

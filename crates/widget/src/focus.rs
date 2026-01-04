@@ -92,6 +92,7 @@ impl FocusRing {
     {
         // Skip drawing when accessibility mode is active - screen readers
         // like VoiceOver provide their own focus highlighting
+        #[cfg(not(target_os = "linux"))]
         #[cfg(feature = "accessibility")]
         if crate::core::accessibility::is_accessibility_active() {
             return;

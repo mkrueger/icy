@@ -243,6 +243,7 @@ where
 struct State {
     is_pressed: bool,
     is_focused: bool,
+    last_is_focused: bool,
 }
 
 impl operation::Focusable for State {
@@ -518,12 +519,16 @@ where
             Status::Active
         };
 
-        // Keep the cached status in sync and request a redraw on changes.
-        // Relying on RedrawRequested to update `self.status` can leave stale visuals.
-        if self.status.is_some_and(|status| status != current_status) {
+        let state = tree.state.downcast_ref::<State>();
+        if let Event::Window(crate::core::window::Event::RedrawRequested(_)) = event {
+            let state = tree.state.downcast_mut::<State>();
+            self.status = Some(current_status);
+            state.last_is_focused = state.is_focused;
+        } else if self.status.is_some_and(|status| status != current_status)
+            || state.last_is_focused != state.is_focused
+        {
             shell.request_redraw();
         }
-        self.status = Some(current_status);
     }
 
     fn draw(

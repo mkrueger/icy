@@ -1,7 +1,7 @@
 //! Change internal widget state.
+use crate::core::Rectangle;
 use crate::core::widget::Id;
 use crate::core::widget::operation;
-use crate::core::Rectangle;
 use crate::task;
 use crate::{Action, Task};
 

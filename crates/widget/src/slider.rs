@@ -517,9 +517,14 @@ where
             Status::Active
         };
 
+        let state = tree.state.downcast_ref::<State>();
         if let Event::Window(window::Event::RedrawRequested(_now)) = event {
+            let state = tree.state.downcast_mut::<State>();
             self.status = Some(current_status);
-        } else if self.status.is_some_and(|status| status != current_status) {
+            state.last_is_focused = state.is_focused;
+        } else if self.status.is_some_and(|status| status != current_status)
+            || state.last_is_focused != state.is_focused
+        {
             shell.request_redraw();
         }
     }
@@ -699,6 +704,7 @@ where
 struct State {
     is_dragging: bool,
     is_focused: bool,
+    last_is_focused: bool,
 }
 
 impl operation::Focusable for State {
