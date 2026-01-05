@@ -67,6 +67,10 @@ struct State {
 struct State {
     /// The drag source for initiating drags
     drag_source: Option<icy_ui_macos::DragSource>,
+    /// The drop target for receiving drops from other apps
+    drop_target: Option<icy_ui_macos::DropTarget>,
+    /// Receiver for drop target events
+    drop_receiver: Option<std::sync::mpsc::Receiver<icy_ui_macos::dnd::DropEvent>>,
     /// Active drag channel (if we initiated a drag)
     active_drag: Option<ActiveDrag>,
 }
@@ -262,10 +266,30 @@ impl DndManager {
                 None
             };
 
-            let _ = wakeup; // Not needed for macOS (yet)
+            let (drop_target, drop_receiver) = if let Ok(window_handle) = window.window_handle() {
+                if let RawWindowHandle::AppKit(appkit) = window_handle.as_raw() {
+                    match icy_ui_macos::DropTarget::register(appkit.ns_view, wakeup) {
+                        Ok((target, receiver)) => {
+                            log::debug!("DnD: Registered macOS drop target");
+                            (Some(target), Some(receiver))
+                        }
+                        Err(e) => {
+                            log::warn!("DnD: Failed to register macOS drop target: {}", e);
+                            (None, None)
+                        }
+                    }
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
             DndManager {
                 state: State {
                     drag_source,
+                    drop_target,
+                    drop_receiver,
                     active_drag: None,
                 },
             }
@@ -372,6 +396,8 @@ impl DndManager {
             DndManager {
                 state: State {
                     drag_source: None,
+                    drop_target: None,
+                    drop_receiver: None,
                     active_drag: None,
                 },
             }
@@ -410,7 +436,7 @@ impl DndManager {
 
         #[cfg(target_os = "macos")]
         {
-            self.state.drag_source.is_some()
+            self.state.drag_source.is_some() || self.state.drop_target.is_some()
         }
 
         #[cfg(target_os = "windows")]
@@ -462,6 +488,12 @@ impl DndManager {
 
         #[cfg(target_os = "macos")]
         {
+            use crate::core::Event;
+            use crate::core::dnd::DndAction;
+            use crate::core::window::Event as WindowEvent;
+
+            let mut events = Vec::new();
+
             // On macOS, check for completed drag operations
             if let Some(ref drag_source) = self.state.drag_source {
                 if let Some(result) = drag_source.try_recv_result() {
@@ -486,9 +518,58 @@ impl DndManager {
                 }
             }
 
-            // macOS receives drops via winit's native events (DroppedFile, HoveredFile)
-            // No additional polling needed here
-            Vec::new()
+            // Poll for drop target events
+            if let Some(receiver) = self.state.drop_receiver.as_ref() {
+                while let Ok(evt) = receiver.try_recv() {
+                    match evt {
+                        icy_ui_macos::dnd::DropEvent::DragEntered { position, formats } => {
+                            events.push(Event::Window(WindowEvent::DragEntered {
+                                position: crate::core::Point::new(position.0, position.1),
+                                formats,
+                            }));
+                        }
+                        icy_ui_macos::dnd::DropEvent::DragMoved { position } => {
+                            events.push(Event::Window(WindowEvent::DragMoved {
+                                position: crate::core::Point::new(position.0, position.1),
+                            }));
+                        }
+                        icy_ui_macos::dnd::DropEvent::DragLeft => {
+                            events.push(Event::Window(WindowEvent::DragLeft));
+                        }
+                        icy_ui_macos::dnd::DropEvent::DragDropped {
+                            position,
+                            data,
+                            format,
+                            action,
+                        } => {
+                            let action = match action {
+                                icy_ui_macos::dnd::DropAction::Copy => DndAction::Copy,
+                                icy_ui_macos::dnd::DropAction::Move => DndAction::Move,
+                                icy_ui_macos::dnd::DropAction::Link => DndAction::Link,
+                                icy_ui_macos::dnd::DropAction::None => DndAction::None,
+                            };
+
+                            events.push(Event::Window(WindowEvent::DragDropped {
+                                position: crate::core::Point::new(position.0, position.1),
+                                data,
+                                format,
+                                action,
+                            }));
+                        }
+                        icy_ui_macos::dnd::DropEvent::FileHovered(path) => {
+                            events.push(Event::Window(WindowEvent::FileHovered(path)));
+                        }
+                        icy_ui_macos::dnd::DropEvent::FileDropped(path) => {
+                            events.push(Event::Window(WindowEvent::FileDropped(path)));
+                        }
+                        icy_ui_macos::dnd::DropEvent::FilesHoveredLeft => {
+                            events.push(Event::Window(WindowEvent::FilesHoveredLeft));
+                        }
+                    }
+                }
+            }
+
+            events
         }
 
         #[cfg(not(any(

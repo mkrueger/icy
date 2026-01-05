@@ -3,8 +3,8 @@
 //! These provide the same API as the Windows implementations but return errors
 //! or no-ops, allowing the crate to compile on all platforms.
 
-use std::ptr::NonNull;
 use std::path::PathBuf;
+use std::ptr::NonNull;
 
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]

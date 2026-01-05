@@ -43,7 +43,9 @@ pub mod menu;
 pub use url_handler::UrlHandler;
 
 #[cfg(all(target_os = "macos", feature = "dnd"))]
-pub use dnd::{DragError, DragOperation, DragResult, DragSource};
+pub use dnd::{
+    DragError, DragOperation, DragResult, DragSource, DropAction, DropEvent, DropTarget,
+};
 
 // Provide stub implementations for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
