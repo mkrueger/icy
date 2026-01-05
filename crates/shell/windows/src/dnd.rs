@@ -30,6 +30,7 @@
 //! ```
 
 use std::ptr::NonNull;
+use std::sync::Once;
 
 use windows::Win32::Foundation::{BOOL, E_UNEXPECTED, HWND, S_OK};
 use windows::Win32::System::Com::{
@@ -41,7 +42,7 @@ use windows::Win32::System::Memory::{
 };
 use windows::Win32::System::Ole::{
     DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop,
-    IDropSource, IDropSource_Impl,
+    IDropSource, IDropSource_Impl, OleInitialize,
 };
 use windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS;
 use windows::core::{HRESULT, PCWSTR, implement};
@@ -173,12 +174,22 @@ impl DragSource {
     ///
     /// Returns an error if COM initialization fails.
     pub fn new(hwnd: NonNull<std::ffi::c_void>) -> Result<Self, DragError> {
-        // Initialize COM for this thread (STA mode required for OLE DnD)
-        // It's OK if it's already initialized
+        // Initialize COM/OLE for this thread (STA mode required for OLE DnD).
+        // It's OK if it's already initialized.
         #[allow(unsafe_code)]
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         }
+
+        // Some OLE APIs (including DoDragDrop/DragDrop targets) expect OLE
+        // initialization (OleInitialize) instead of just COM.
+        static OLE_ONCE: Once = Once::new();
+        OLE_ONCE.call_once(|| {
+            #[allow(unsafe_code)]
+            unsafe {
+                let _ = OleInitialize(None);
+            }
+        });
 
         let hwnd = HWND(hwnd.as_ptr() as *mut _);
 

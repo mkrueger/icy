@@ -76,6 +76,10 @@ struct State {
 struct State {
     /// The drag source for initiating drags
     drag_source: Option<icy_ui_windows::DragSource>,
+    /// The drop target for receiving drops from other apps
+    drop_target: Option<icy_ui_windows::DropTarget>,
+    /// Receiver for drop target events
+    drop_receiver: Option<std::sync::mpsc::Receiver<icy_ui_windows::DropEvent>>,
     /// Active drag channel (if we initiated a drag)
     #[allow(dead_code)]
     active_drag: Option<ActiveDrag>,
@@ -296,10 +300,34 @@ impl DndManager {
                 None
             };
 
-            let _ = wakeup; // Not needed for Windows (yet)
+            let (drop_target, drop_receiver) = if let Ok(window_handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(win32) = window_handle.as_raw() {
+                    let hwnd_ptr = win32.hwnd.get() as *mut std::ffi::c_void;
+                    #[allow(unsafe_code)]
+                    let hwnd_non_null = unsafe { NonNull::new_unchecked(hwnd_ptr) };
+
+                    match icy_ui_windows::DropTarget::register(hwnd_non_null, wakeup) {
+                        Ok((target, receiver)) => {
+                            log::debug!("DnD: Registered Windows OLE drop target");
+                            (Some(target), Some(receiver))
+                        }
+                        Err(e) => {
+                            log::warn!("DnD: Failed to register Windows drop target: {:?}", e);
+                            (None, None)
+                        }
+                    }
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
             DndManager {
                 state: State {
                     drag_source,
+                    drop_target,
+                    drop_receiver,
                     active_drag: None,
                 },
             }
@@ -354,6 +382,8 @@ impl DndManager {
             DndManager {
                 state: State {
                     drag_source: None,
+                    drop_target: None,
+                    drop_receiver: None,
                     active_drag: None,
                 },
             }
@@ -385,7 +415,7 @@ impl DndManager {
 
         #[cfg(target_os = "windows")]
         {
-            self.state.drag_source.is_some()
+            self.state.drag_source.is_some() || self.state.drop_target.is_some()
         }
 
         #[cfg(not(any(
@@ -463,10 +493,72 @@ impl DndManager {
 
         #[cfg(not(any(
             all(feature = "wayland", unix, not(target_os = "macos")),
-            target_os = "macos"
+            target_os = "macos",
+            target_os = "windows"
         )))]
         {
             Vec::new()
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            use crate::core::Event;
+            use crate::core::dnd::DndAction;
+            use crate::core::window::Event as WindowEvent;
+
+            let mut events = Vec::new();
+
+            if let Some(receiver) = self.state.drop_receiver.as_ref() {
+                while let Ok(evt) = receiver.try_recv() {
+                    match evt {
+                        icy_ui_windows::DropEvent::DragEntered { position, formats } => {
+                            events.push(Event::Window(WindowEvent::DragEntered {
+                                position: crate::core::Point::new(position.0, position.1),
+                                formats,
+                            }));
+                        }
+                        icy_ui_windows::DropEvent::DragMoved { position } => {
+                            events.push(Event::Window(WindowEvent::DragMoved {
+                                position: crate::core::Point::new(position.0, position.1),
+                            }));
+                        }
+                        icy_ui_windows::DropEvent::DragLeft => {
+                            events.push(Event::Window(WindowEvent::DragLeft));
+                        }
+                        icy_ui_windows::DropEvent::DragDropped {
+                            position,
+                            data,
+                            format,
+                            action,
+                        } => {
+                            let action = match action {
+                                icy_ui_windows::DropAction::Copy => DndAction::Copy,
+                                icy_ui_windows::DropAction::Move => DndAction::Move,
+                                icy_ui_windows::DropAction::Link => DndAction::Link,
+                                icy_ui_windows::DropAction::None => DndAction::None,
+                            };
+
+                            events.push(Event::Window(WindowEvent::DragDropped {
+                                position: crate::core::Point::new(position.0, position.1),
+                                data,
+                                format,
+                                action,
+                            }));
+                        }
+                        icy_ui_windows::DropEvent::FileHovered(path) => {
+                            events.push(Event::Window(WindowEvent::FileHovered(path)));
+                        }
+                        icy_ui_windows::DropEvent::FileDropped(path) => {
+                            events.push(Event::Window(WindowEvent::FileDropped(path)));
+                        }
+                        icy_ui_windows::DropEvent::FilesHoveredLeft => {
+                            events.push(Event::Window(WindowEvent::FilesHoveredLeft));
+                        }
+                    }
+                }
+            }
+
+            events
         }
     }
 
@@ -588,7 +680,18 @@ impl DndManager {
 
                 match drag_source.start_drag(&data.data, format, operations) {
                     Ok(result) => {
-                        // Windows DnD is synchronous, convert the result and send it
+                        // Windows DnD is synchronous - the drag has completed at this point.
+                        // Drain any drop events that accumulated during our own drag operation.
+                        // These events came from our window's drop target receiving our own drag,
+                        // which we should ignore to prevent the drop target from reacting to
+                        // outgoing drags.
+                        if let Some(ref receiver) = self.state.drop_receiver {
+                            while receiver.try_recv().is_ok() {
+                                // Discard events from our own drag
+                            }
+                        }
+
+                        // Convert the result and send it
                         let drop_result = match result {
                             icy_ui_windows::dnd::DragResult::Copied => {
                                 DropResult::Dropped(DndAction::Copy)

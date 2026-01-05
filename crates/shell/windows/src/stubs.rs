@@ -4,6 +4,7 @@
 //! or no-ops, allowing the crate to compile on all platforms.
 
 use std::ptr::NonNull;
+use std::path::PathBuf;
 
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +105,51 @@ impl DragSource {
         _mime_type: &str,
         _allowed_operations: DragOperation,
     ) -> Result<DragResult, DragError> {
+        Err(DragError::NotSupported)
+    }
+}
+
+/// Events produced by a Windows drop target.
+#[derive(Debug, Clone)]
+pub enum DropEvent {
+    DragEntered {
+        position: (f32, f32),
+        formats: Vec<String>,
+    },
+    DragMoved {
+        position: (f32, f32),
+    },
+    DragLeft,
+    DragDropped {
+        position: (f32, f32),
+        data: Vec<u8>,
+        format: String,
+        action: DropAction,
+    },
+    FileHovered(PathBuf),
+    FileDropped(PathBuf),
+    FilesHoveredLeft,
+}
+
+/// The selected drop action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DropAction {
+    None,
+    Copy,
+    Move,
+    Link,
+}
+
+/// Stub drop target for non-Windows platforms.
+pub struct DropTarget {
+    _private: (),
+}
+
+impl DropTarget {
+    pub fn register(
+        _hwnd: NonNull<std::ffi::c_void>,
+        _wakeup: Arc<dyn Fn() + Send + Sync>,
+    ) -> Result<(Self, mpsc::Receiver<DropEvent>), DragError> {
         Err(DragError::NotSupported)
     }
 }

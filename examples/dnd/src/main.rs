@@ -222,7 +222,15 @@ impl DndDemo {
             }
 
             Message::FilesHoveredLeft => {
-                self.incoming_drag = None;
+                // On Windows, file drops are followed by `FilesHoveredLeft`.
+                // Keep the last drop visible; only clear hover state if nothing was dropped.
+                let should_clear = self.incoming_drag.as_ref().is_none_or(|drag| {
+                    drag.dropped_data.is_none() && drag.dropped_files.is_empty()
+                });
+
+                if should_clear {
+                    self.incoming_drag = None;
+                }
             }
         }
         Task::none()

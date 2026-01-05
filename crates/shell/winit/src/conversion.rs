@@ -92,7 +92,19 @@ pub fn window_attributes(
         use window::settings::platform;
         use winit::platform::windows::{CornerPreference, WindowAttributesExtWindows};
 
-        attributes = attributes.with_drag_and_drop(settings.platform_specific.drag_and_drop);
+        // We use a custom OLE `IDropTarget` on Windows (see `DndManager`)
+        // to support generic payloads like text/HTML/images, not just files.
+        // winit's built-in DnD registers its own `IDropTarget`, and Windows
+        // only allows one drop target per `HWND`.
+        //
+        // Therefore, when DnD is enabled in icy_ui settings, disable winit's
+        // built-in drop target registration.
+        let winit_drag_and_drop = false;
+        if settings.platform_specific.drag_and_drop {
+            attributes = attributes.with_drag_and_drop(winit_drag_and_drop);
+        } else {
+            attributes = attributes.with_drag_and_drop(false);
+        }
 
         attributes = attributes.with_skip_taskbar(settings.platform_specific.skip_taskbar);
 

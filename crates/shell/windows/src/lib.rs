@@ -30,7 +30,13 @@
 pub mod dnd;
 
 #[cfg(all(target_os = "windows", feature = "dnd"))]
+pub mod drop_target;
+
+#[cfg(all(target_os = "windows", feature = "dnd"))]
 pub use dnd::{DragError, DragOperation, DragResult, DragSource};
+
+#[cfg(all(target_os = "windows", feature = "dnd"))]
+pub use drop_target::{DropAction, DropEvent, DropTarget};
 
 // Provide stub implementations for non-Windows platforms
 #[cfg(not(target_os = "windows"))]
@@ -40,8 +46,12 @@ mod stubs;
 #[cfg(all(not(target_os = "windows"), feature = "dnd"))]
 pub mod dnd {
     //! Stub dnd module for non-Windows platforms.
-    pub use super::stubs::{DragError, DragOperation, DragResult, DragSource};
+    pub use super::stubs::{
+        DragError, DragOperation, DragResult, DragSource, DropAction, DropEvent, DropTarget,
+    };
 }
 
 #[cfg(all(not(target_os = "windows"), feature = "dnd"))]
-pub use stubs::{DragError, DragOperation, DragResult, DragSource};
+pub use stubs::{
+    DragError, DragOperation, DragResult, DragSource, DropAction, DropEvent, DropTarget,
+};

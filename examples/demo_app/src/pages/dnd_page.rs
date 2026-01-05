@@ -3,7 +3,7 @@
 use icy_ui::dnd::{self, DragData, DropResult};
 use icy_ui::event::{self, Event};
 use icy_ui::mouse;
-use icy_ui::widget::{column, container, row, text, text_input, Space};
+use icy_ui::widget::{column, container, dnd::DropTarget, row, text, text_input, Space};
 use icy_ui::window;
 use icy_ui::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
 
@@ -57,22 +57,6 @@ struct DroppedData {
 pub fn subscription_dnd() -> Subscription<Message> {
     event::listen_with(|event, _status, _id| match event {
         Event::Window(window_event) => match window_event {
-            window::Event::DragEntered { position, formats } => Some(Message::DndDragEntered {
-                position,
-                mime_types: formats,
-            }),
-            window::Event::DragMoved { position } => Some(Message::DndDragMoved(position)),
-            window::Event::DragLeft => Some(Message::DndDragLeft),
-            window::Event::DragDropped {
-                position,
-                data,
-                format,
-                ..
-            } => Some(Message::DndDragDropped {
-                position,
-                data,
-                mime_type: format,
-            }),
             window::Event::FileHovered(path) => Some(Message::DndFileHovered(path)),
             window::Event::FileDropped(path) => Some(Message::DndFileDropped(path)),
             window::Event::FilesHoveredLeft => Some(Message::DndFilesHoveredLeft),
@@ -187,7 +171,16 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
             None
         }
         Message::DndFilesHoveredLeft => {
-            state.incoming_drag = None;
+            // On Windows, file drops are followed by `FilesHoveredLeft`.
+            // Keep the last drop visible; only clear hover state if nothing was dropped.
+            let should_clear = state
+                .incoming_drag
+                .as_ref()
+                .is_none_or(|drag| drag.dropped_data.is_none() && drag.dropped_files.is_empty());
+
+            if should_clear {
+                state.incoming_drag = None;
+            }
             None
         }
         _ => None,
@@ -199,11 +192,25 @@ pub fn view_dnd(state: &DndPageState) -> Element<'_, Message> {
 
     let drag_source = view_drag_source(state);
 
-    let drop_target: Element<'_, Message> = if let Some(ref drag) = state.incoming_drag {
+    let drop_target_content: Element<'_, Message> = if let Some(ref drag) = state.incoming_drag {
         view_drag_active(drag)
     } else {
         view_drop_zone()
     };
+
+    let drop_target: Element<'_, Message> = DropTarget::new(drop_target_content)
+        .on_enter(|position, mime_types| Message::DndDragEntered {
+            position,
+            mime_types,
+        })
+        .on_move(Message::DndDragMoved)
+        .on_leave(Message::DndDragLeft)
+        .on_drop(|position, data, mime_type| Message::DndDragDropped {
+            position,
+            data,
+            mime_type,
+        })
+        .into();
 
     let main_row = row![drag_source, Space::new().width(40), drop_target,].align_y(Center);
 
