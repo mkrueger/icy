@@ -509,6 +509,8 @@ impl DropAction {
 /// When dropped, the drop target is unregistered.
 pub struct DropTarget {
     view: Retained<NSView>,
+    /// Kept alive to ensure the delegate remains valid while the view is registered.
+    #[allow(dead_code)]
     delegate: Retained<DropTargetDelegate>,
 }
 
@@ -634,6 +636,7 @@ impl Drop for DropTarget {
 
 #[allow(unsafe_code)]
 #[allow(improper_ctypes)]
+#[allow(deprecated)]
 unsafe extern "C" {
     fn objc_getAssociatedObject(
         object: *const objc2::runtime::AnyObject,
@@ -663,10 +666,13 @@ unsafe extern "C" {
 unsafe fn get_drop_delegate(
     this: *mut objc2::runtime::AnyObject,
 ) -> Option<Retained<DropTargetDelegate>> {
-    let key_ptr = DROP_TARGET_DELEGATE_KEY.as_ptr().cast::<c_void>();
-    let obj = objc_getAssociatedObject(this.cast_const(), key_ptr);
-    // SAFETY: We stored a retained DropTargetDelegate under this key.
-    Retained::retain(obj.cast())
+    // SAFETY: All operations here are valid unsafe calls within this unsafe fn.
+    unsafe {
+        let key_ptr = DROP_TARGET_DELEGATE_KEY.as_ptr().cast::<c_void>();
+        let obj = objc_getAssociatedObject(this.cast_const(), key_ptr);
+        // SAFETY: We stored a retained DropTargetDelegate under this key.
+        Retained::retain(obj.cast())
+    }
 }
 
 #[allow(unsafe_code)]
@@ -675,10 +681,13 @@ unsafe extern "C" fn view_dragging_entered(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) -> NSDragOperation {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_dragging_entered_raw(sender)
-    } else {
-        NSDragOperation::empty()
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_dragging_entered_raw(sender)
+        } else {
+            NSDragOperation::empty()
+        }
     }
 }
 
@@ -688,10 +697,13 @@ unsafe extern "C" fn view_dragging_updated(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) -> NSDragOperation {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_dragging_updated_raw(sender)
-    } else {
-        NSDragOperation::empty()
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_dragging_updated_raw(sender)
+        } else {
+            NSDragOperation::empty()
+        }
     }
 }
 
@@ -701,8 +713,11 @@ unsafe extern "C" fn view_dragging_exited(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_dragging_exited_raw(sender);
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_dragging_exited_raw(sender);
+        }
     }
 }
 
@@ -712,10 +727,13 @@ unsafe extern "C" fn view_prepare_for_drag_operation(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) -> objc2::runtime::Bool {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_prepare_for_drag_operation_raw(sender)
-    } else {
-        objc2::runtime::Bool::NO
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_prepare_for_drag_operation_raw(sender)
+        } else {
+            objc2::runtime::Bool::NO
+        }
     }
 }
 
@@ -725,10 +743,13 @@ unsafe extern "C" fn view_perform_drag_operation(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) -> objc2::runtime::Bool {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_perform_drag_operation_raw(sender)
-    } else {
-        objc2::runtime::Bool::NO
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_perform_drag_operation_raw(sender)
+        } else {
+            objc2::runtime::Bool::NO
+        }
     }
 }
 
@@ -738,86 +759,93 @@ unsafe extern "C" fn view_conclude_drag_operation(
     _cmd: objc2::runtime::Sel,
     sender: *mut objc2::runtime::AnyObject,
 ) {
-    if let Some(delegate) = get_drop_delegate(this) {
-        delegate.handle_conclude_drag_operation_raw(sender);
+    // SAFETY: Called from Objective-C runtime with valid pointers.
+    unsafe {
+        if let Some(delegate) = get_drop_delegate(this) {
+            delegate.handle_conclude_drag_operation_raw(sender);
+        }
     }
 }
 
 #[allow(unsafe_code)]
+#[allow(deprecated)]
 unsafe fn install_dragging_destination_hooks(view: &NSView) {
-    let view_obj: *mut objc2::runtime::AnyObject =
-        view as *const NSView as *mut objc2::runtime::AnyObject;
-    let superclass = object_getClass(view_obj);
+    // SAFETY: All operations here are valid unsafe calls within this unsafe fn.
+    unsafe {
+        let view_obj: *mut objc2::runtime::AnyObject =
+            view as *const NSView as *mut objc2::runtime::AnyObject;
+        let superclass = object_getClass(view_obj);
 
-    if superclass.is_null() {
-        return;
+        if superclass.is_null() {
+            return;
+        }
+
+        let superclass_ref: &objc2::runtime::Class = &*superclass;
+
+        // Create a unique subclass name per superclass.
+        // This avoids mutating winit's view class globally.
+        let superclass_name = superclass_ref.name().to_string_lossy();
+        let subclass_name_str = format!("IcyUiDropTargetView_{}", superclass_name);
+        let subclass_name = CString::new(subclass_name_str).expect("valid objc class name");
+
+        let subclass: *const objc2::runtime::Class =
+            if let Some(existing) = objc2::runtime::Class::get(subclass_name.as_c_str()) {
+                existing as *const objc2::runtime::Class
+            } else {
+                let cls = objc_allocateClassPair(superclass, subclass_name.as_ptr(), 0);
+                if cls.is_null() {
+                    return;
+                }
+
+                // NSDragOperation return: NSUInteger (Q on 64-bit)
+                // BOOL return: signed char (c)
+                const ENC_DRAG_OP: &[u8] = b"Q@:@\0";
+                const ENC_VOID: &[u8] = b"v@:@\0";
+                const ENC_BOOL: &[u8] = b"c@:@\0";
+
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(draggingEntered:),
+                    view_dragging_entered as *const c_void,
+                    ENC_DRAG_OP.as_ptr().cast(),
+                );
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(draggingUpdated:),
+                    view_dragging_updated as *const c_void,
+                    ENC_DRAG_OP.as_ptr().cast(),
+                );
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(draggingExited:),
+                    view_dragging_exited as *const c_void,
+                    ENC_VOID.as_ptr().cast(),
+                );
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(prepareForDragOperation:),
+                    view_prepare_for_drag_operation as *const c_void,
+                    ENC_BOOL.as_ptr().cast(),
+                );
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(performDragOperation:),
+                    view_perform_drag_operation as *const c_void,
+                    ENC_BOOL.as_ptr().cast(),
+                );
+                let _ = class_addMethod(
+                    cls,
+                    objc2::sel!(concludeDragOperation:),
+                    view_conclude_drag_operation as *const c_void,
+                    ENC_VOID.as_ptr().cast(),
+                );
+
+                objc_registerClassPair(cls);
+                cls
+            };
+
+        let _ = object_setClass(view_obj, subclass);
     }
-
-    let superclass_ref: &objc2::runtime::Class = &*superclass;
-
-    // Create a unique subclass name per superclass.
-    // This avoids mutating winit's view class globally.
-    let superclass_name = superclass_ref.name().to_string_lossy();
-    let subclass_name_str = format!("IcyUiDropTargetView_{}", superclass_name);
-    let subclass_name = CString::new(subclass_name_str).expect("valid objc class name");
-
-    let subclass: *const objc2::runtime::Class =
-        if let Some(existing) = objc2::runtime::Class::get(subclass_name.as_c_str()) {
-            existing as *const objc2::runtime::Class
-        } else {
-            let cls = objc_allocateClassPair(superclass, subclass_name.as_ptr(), 0);
-            if cls.is_null() {
-                return;
-            }
-
-            // NSDragOperation return: NSUInteger (Q on 64-bit)
-            // BOOL return: signed char (c)
-            const ENC_DRAG_OP: &[u8] = b"Q@:@\0";
-            const ENC_VOID: &[u8] = b"v@:@\0";
-            const ENC_BOOL: &[u8] = b"c@:@\0";
-
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(draggingEntered:),
-                view_dragging_entered as *const c_void,
-                ENC_DRAG_OP.as_ptr().cast(),
-            );
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(draggingUpdated:),
-                view_dragging_updated as *const c_void,
-                ENC_DRAG_OP.as_ptr().cast(),
-            );
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(draggingExited:),
-                view_dragging_exited as *const c_void,
-                ENC_VOID.as_ptr().cast(),
-            );
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(prepareForDragOperation:),
-                view_prepare_for_drag_operation as *const c_void,
-                ENC_BOOL.as_ptr().cast(),
-            );
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(performDragOperation:),
-                view_perform_drag_operation as *const c_void,
-                ENC_BOOL.as_ptr().cast(),
-            );
-            let _ = class_addMethod(
-                cls,
-                objc2::sel!(concludeDragOperation:),
-                view_conclude_drag_operation as *const c_void,
-                ENC_VOID.as_ptr().cast(),
-            );
-
-            objc_registerClassPair(cls);
-            cls
-        };
-
-    let _ = object_setClass(view_obj, subclass);
 }
 
 // === Drop Target Delegate Implementation ===

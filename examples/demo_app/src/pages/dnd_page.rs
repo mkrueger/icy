@@ -3,7 +3,7 @@
 use icy_ui::dnd::{self, DragData, DropResult};
 use icy_ui::event::{self, Event};
 use icy_ui::mouse;
-use icy_ui::widget::{column, container, dnd::DropTarget, row, text, text_input, Space};
+use icy_ui::widget::{column, container, row, text, text_input, DropTarget, Space};
 use icy_ui::window;
 use icy_ui::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
 

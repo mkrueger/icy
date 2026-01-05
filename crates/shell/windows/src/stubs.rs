@@ -5,6 +5,8 @@
 
 use std::path::PathBuf;
 use std::ptr::NonNull;
+use std::sync::Arc;
+use std::sync::mpsc;
 
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,31 +114,49 @@ impl DragSource {
 /// Events produced by a Windows drop target.
 #[derive(Debug, Clone)]
 pub enum DropEvent {
+    /// A drag entered the window.
     DragEntered {
+        /// Cursor position relative to the window.
         position: (f32, f32),
+        /// List of detected content formats.
         formats: Vec<String>,
     },
+    /// The cursor moved while a drag is over the window.
     DragMoved {
+        /// Cursor position relative to the window.
         position: (f32, f32),
     },
+    /// The drag left the window without dropping.
     DragLeft,
+    /// Data was dropped on the window.
     DragDropped {
+        /// Cursor position at drop time.
         position: (f32, f32),
+        /// Dropped payload bytes.
         data: Vec<u8>,
+        /// Format identifier (e.g. "text/plain").
         format: String,
+        /// Selected drop action.
         action: DropAction,
     },
+    /// A file is being hovered over the window.
     FileHovered(PathBuf),
+    /// A file was dropped into the window.
     FileDropped(PathBuf),
+    /// Hovered files have left the window.
     FilesHoveredLeft,
 }
 
 /// The selected drop action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropAction {
+    /// No action.
     None,
+    /// Copy.
     Copy,
+    /// Move.
     Move,
+    /// Link.
     Link,
 }
 
@@ -146,6 +166,11 @@ pub struct DropTarget {
 }
 
 impl DropTarget {
+    /// Registers a drop target for the given window handle.
+    ///
+    /// # Errors
+    ///
+    /// Always returns `DragError::NotSupported` on non-Windows platforms.
     pub fn register(
         _hwnd: NonNull<std::ffi::c_void>,
         _wakeup: Arc<dyn Fn() + Send + Sync>,

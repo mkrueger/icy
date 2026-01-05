@@ -536,7 +536,7 @@ where
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        defaults: &renderer::Style,
+        _defaults: &renderer::Style,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         viewport: &Rectangle,
