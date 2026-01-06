@@ -46,6 +46,8 @@ use objc2_foundation::{
     NSString,
 };
 
+use icy_ui_core::keyboard::Modifiers;
+
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DragError {
@@ -453,6 +455,8 @@ pub enum DropEvent {
     DragMoved {
         /// Cursor position, relative to the window (top-left origin).
         position: (f32, f32),
+        /// Current keyboard modifiers while dragging (best-effort).
+        modifiers: Modifiers,
     },
     /// The drag left the window without dropping.
     DragLeft,
@@ -467,12 +471,6 @@ pub enum DropEvent {
         /// Selected drop action.
         action: DropAction,
     },
-    /// A file is being hovered over the window.
-    FileHovered(PathBuf),
-    /// A file was dropped into the window.
-    FileDropped(PathBuf),
-    /// Hovered files have left the window.
-    FilesHoveredLeft,
 }
 
 /// The selected drop action.
@@ -878,13 +876,6 @@ define_class!(
             let position = self.get_position(sender);
             let formats = self.get_formats(sender);
 
-            // Check for file URLs and emit FileHovered events
-            if let Some(paths) = self.get_file_paths(sender) {
-                for path in paths {
-                    self.send(DropEvent::FileHovered(path));
-                }
-            }
-
             self.send(DropEvent::DragEntered { position, formats });
 
             // Accept copy by default
@@ -895,7 +886,10 @@ define_class!(
         #[unsafe(method(draggingUpdated:))]
         fn draggingUpdated(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
             let position = self.get_position(sender);
-            self.send(DropEvent::DragMoved { position });
+            self.send(DropEvent::DragMoved {
+                position,
+                modifiers: current_modifiers(),
+            });
 
             // Continue accepting copy
             NSDragOperation::Copy
@@ -905,7 +899,6 @@ define_class!(
         #[unsafe(method(draggingExited:))]
         fn draggingExited(&self, _sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
             self.send(DropEvent::DragLeft);
-            self.send(DropEvent::FilesHoveredLeft);
         }
 
         /// Called to prepare for a drop.
@@ -926,12 +919,21 @@ define_class!(
             let position = self.get_position(sender);
             let operation = sender.draggingSourceOperationMask();
 
-            // Check for file drops first
+            // Treat file drops as a standard text/uri-list payload
             if let Some(paths) = self.get_file_paths(sender) {
-                for path in paths {
-                    self.send(DropEvent::FileDropped(path));
-                }
-                self.send(DropEvent::FilesHoveredLeft);
+                let uris = paths
+                    .into_iter()
+                    .map(|p| path_to_file_uri(&p))
+                    .collect::<Vec<_>>()
+                    .join("\r\n");
+
+                self.send(DropEvent::DragDropped {
+                    position,
+                    data: uris.into_bytes(),
+                    format: "text/uri-list".to_string(),
+                    action: DropAction::from_operation(operation),
+                });
+
                 return objc2::runtime::Bool::YES;
             }
 
@@ -996,12 +998,6 @@ impl DropTargetDelegate {
         let pasteboard = self.get_pasteboard_raw(sender);
         let formats = self.get_formats_from_pasteboard(&pasteboard);
 
-        if let Some(paths) = self.get_file_paths_from_pasteboard(&pasteboard) {
-            for path in paths {
-                self.send(DropEvent::FileHovered(path));
-            }
-        }
-
         self.send(DropEvent::DragEntered { position, formats });
         NSDragOperation::Copy
     }
@@ -1012,14 +1008,16 @@ impl DropTargetDelegate {
         sender: *mut objc2::runtime::AnyObject,
     ) -> NSDragOperation {
         let position = self.get_position_raw(sender);
-        self.send(DropEvent::DragMoved { position });
+        self.send(DropEvent::DragMoved {
+            position,
+            modifiers: current_modifiers(),
+        });
         NSDragOperation::Copy
     }
 
     #[allow(unsafe_code)]
     fn handle_dragging_exited_raw(&self, _sender: *mut objc2::runtime::AnyObject) {
         self.send(DropEvent::DragLeft);
-        self.send(DropEvent::FilesHoveredLeft);
     }
 
     #[allow(unsafe_code)]
@@ -1039,11 +1037,21 @@ impl DropTargetDelegate {
         let operation = self.get_operation_mask_raw(sender);
         let pasteboard = self.get_pasteboard_raw(sender);
 
+        // Treat file drops as a standard text/uri-list payload.
         if let Some(paths) = self.get_file_paths_from_pasteboard(&pasteboard) {
-            for path in paths {
-                self.send(DropEvent::FileDropped(path));
-            }
-            self.send(DropEvent::FilesHoveredLeft);
+            let uris = paths
+                .into_iter()
+                .map(|p| path_to_file_uri(&p))
+                .collect::<Vec<_>>()
+                .join("\r\n");
+
+            self.send(DropEvent::DragDropped {
+                position,
+                data: uris.into_bytes(),
+                format: "text/uri-list".to_string(),
+                action: DropAction::from_operation(operation),
+            });
+
             return objc2::runtime::Bool::YES;
         }
 
@@ -1288,4 +1296,65 @@ fn percent_decode(input: &str) -> String {
     }
 
     result
+}
+
+fn percent_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+
+    for b in input.as_bytes() {
+        match *b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
+                out.push(*b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+
+    out
+}
+
+fn path_to_file_uri(path: &std::path::Path) -> String {
+    let raw = path.to_string_lossy();
+    let encoded = percent_encode(raw.as_ref());
+
+    if encoded.starts_with('/') {
+        format!("file:///{}", encoded.trim_start_matches('/'))
+    } else {
+        // Fallback for unexpected relative paths.
+        format!("file:///{}", encoded)
+    }
+}
+
+fn current_modifiers() -> Modifiers {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return Modifiers::empty();
+    };
+
+    let app = NSApplication::sharedApplication(mtm);
+    let Some(event) = app.currentEvent() else {
+        return Modifiers::empty();
+    };
+
+    // `modifierFlags` is a bitset that includes Shift/Control/Option/Command.
+    let flags = event.modifierFlags();
+
+    let mut modifiers = Modifiers::empty();
+    modifiers.set(
+        Modifiers::SHIFT,
+        flags.contains(objc2_app_kit::NSEventModifierFlags::Shift),
+    );
+    modifiers.set(
+        Modifiers::CTRL,
+        flags.contains(objc2_app_kit::NSEventModifierFlags::Control),
+    );
+    modifiers.set(
+        Modifiers::ALT,
+        flags.contains(objc2_app_kit::NSEventModifierFlags::Option),
+    );
+    modifiers.set(
+        Modifiers::LOGO,
+        flags.contains(objc2_app_kit::NSEventModifierFlags::Command),
+    );
+
+    modifiers
 }

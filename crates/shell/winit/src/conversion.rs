@@ -307,13 +307,9 @@ pub fn window_event(
         } else {
             window::Event::Unfocused
         })),
-        WindowEvent::HoveredFile(path) => {
-            Some(Event::Window(window::Event::FileHovered(path.clone())))
-        }
-        WindowEvent::DroppedFile(path) => {
-            Some(Event::Window(window::Event::FileDropped(path.clone())))
-        }
-        WindowEvent::HoveredFileCancelled => Some(Event::Window(window::Event::FilesHoveredLeft)),
+        WindowEvent::HoveredFile(_)
+        | WindowEvent::DroppedFile(_)
+        | WindowEvent::HoveredFileCancelled => None,
         WindowEvent::Touch(touch) => Some(Event::Touch(touch_event(touch, scale_factor))),
         WindowEvent::Moved(position) => {
             let winit::dpi::LogicalPosition { x, y } = position.to_logical(f64::from(scale_factor));

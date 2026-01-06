@@ -1,8 +1,7 @@
 use crate::dnd::{DndAction, DragSourceEvent};
+use crate::keyboard::Modifiers;
 use crate::time::Instant;
 use crate::{Point, Size};
-
-use std::path::PathBuf;
 
 /// A window-related event.
 #[derive(PartialEq, Clone, Debug)]
@@ -46,36 +45,6 @@ pub enum Event {
     /// A window was unfocused.
     Unfocused,
 
-    /// A file is being hovered over the window.
-    ///
-    /// When the user hovers multiple files at once, this event will be emitted
-    /// for each file separately.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Not implemented.
-    FileHovered(PathBuf),
-
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted
-    /// for each file separately.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Not implemented.
-    FileDropped(PathBuf),
-
-    /// A file was hovered, but has exited the window.
-    ///
-    /// There will be a single `FilesHoveredLeft` event triggered even if
-    /// multiple files were hovered.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland:** Not implemented.
-    FilesHoveredLeft,
-
     /// A drag entered this window.
     ///
     /// This is emitted when an external drag (from another application or window)
@@ -91,6 +60,8 @@ pub enum Event {
     DragMoved {
         /// Current position of the drag, relative to the window.
         position: Point,
+        /// Current keyboard modifiers while dragging.
+        modifiers: Modifiers,
     },
 
     /// Data was dropped on this window.

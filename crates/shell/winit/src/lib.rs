@@ -1257,6 +1257,12 @@ async fn run_instance<P>(
                         } else {
                             window.state.update(&program, &window.raw, &window_event);
 
+                            // Keep DnD modifier state in sync.
+                            // Wayland DnD motion events do not include modifiers, so the DnD
+                            // manager attaches this state when emitting `DragMoved`.
+                            dnd_manager
+                                .set_modifiers(conversion::modifiers(window.state.modifiers()));
+
                             if let Some(event) = conversion::window_event(
                                 window_event,
                                 window.state.scale_factor(),

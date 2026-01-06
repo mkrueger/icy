@@ -1,13 +1,10 @@
 //! Drag and Drop page - based on the `examples/dnd` demo.
 
-use icy_ui::dnd::{self, DragData, DropResult};
-use icy_ui::event::{self, Event};
+use icy_ui::dnd::{self, DndAction, DragData, DropResult};
+use icy_ui::keyboard::Modifiers;
 use icy_ui::mouse;
 use icy_ui::widget::{column, container, row, text, text_input, DropTarget, Space};
-use icy_ui::window;
 use icy_ui::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
-
-use std::path::PathBuf;
 
 use crate::Message;
 
@@ -34,36 +31,39 @@ impl Default for DndPageState {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DragState {
     /// Current position of the drag cursor
     position: Point,
     /// Formats offered by the drag source
     formats: Vec<String>,
-    /// Files being hovered (from winit FileHovered events)
-    hovered_files: Vec<PathBuf>,
+    /// Last observed modifiers during DragMoved
+    modifiers: Modifiers,
+    /// Currently advertised action (what we show in the UI)
+    advertised_action: DndAction,
     /// Dropped data (from DragDropped event)
     dropped_data: Option<DroppedData>,
-    /// Dropped files (from winit FileDropped events)
-    dropped_files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
 struct DroppedData {
     data: Vec<u8>,
     format: String,
+    action: DndAction,
+}
+
+fn action_from_modifiers(modifiers: Modifiers) -> DndAction {
+    if modifiers.shift() {
+        DndAction::Move
+    } else if modifiers.alt() {
+        DndAction::Link
+    } else {
+        DndAction::Copy
+    }
 }
 
 pub fn subscription_dnd() -> Subscription<Message> {
-    event::listen_with(|event, _status, _id| match event {
-        Event::Window(window_event) => match window_event {
-            window::Event::FileHovered(path) => Some(Message::DndFileHovered(path)),
-            window::Event::FileDropped(path) => Some(Message::DndFileDropped(path)),
-            window::Event::FilesHoveredLeft => Some(Message::DndFilesHoveredLeft),
-            _ => None,
-        },
-        _ => None,
-    })
+    Subscription::none()
 }
 
 pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Message>> {
@@ -104,13 +104,20 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
             state.incoming_drag = Some(DragState {
                 position: *position,
                 formats: mime_types.clone(),
-                ..Default::default()
+                modifiers: Modifiers::empty(),
+                advertised_action: DndAction::Copy,
+                dropped_data: None,
             });
             None
         }
-        Message::DndDragMoved(position) => {
+        Message::DndDragMoved {
+            position,
+            modifiers,
+        } => {
             if let Some(ref mut drag) = state.incoming_drag {
                 drag.position = *position;
+                drag.modifiers = *modifiers;
+                drag.advertised_action = action_from_modifiers(*modifiers);
             }
             None
         }
@@ -122,11 +129,12 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
             position,
             data,
             mime_type,
+            action,
         } => {
             let preview = preview_data(data, mime_type);
             state.drop_history.push(format!(
-                "Received at ({:.0}, {:.0}): {} - {}",
-                position.x, position.y, mime_type, preview
+                "Received at ({:.0}, {:.0}) as {:?}: {} - {}",
+                position.x, position.y, action, mime_type, preview
             ));
 
             if let Some(ref mut drag) = state.incoming_drag {
@@ -134,53 +142,10 @@ pub fn update_dnd(state: &mut DndPageState, message: &Message) -> Option<Task<Me
                 drag.dropped_data = Some(DroppedData {
                     data: data.clone(),
                     format: mime_type.clone(),
+                    action: *action,
                 });
             }
 
-            None
-        }
-        Message::DndFileHovered(path) => {
-            if let Some(ref mut drag) = state.incoming_drag {
-                drag.hovered_files.push(path.clone());
-            } else {
-                state.incoming_drag = Some(DragState {
-                    hovered_files: vec![path.clone()],
-                    ..Default::default()
-                });
-            }
-            None
-        }
-        Message::DndFileDropped(path) => {
-            let filename = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown");
-            state
-                .drop_history
-                .push(format!("File dropped: {}", filename));
-
-            if let Some(ref mut drag) = state.incoming_drag {
-                drag.dropped_files.push(path.clone());
-            } else {
-                state.incoming_drag = Some(DragState {
-                    dropped_files: vec![path.clone()],
-                    ..Default::default()
-                });
-            }
-
-            None
-        }
-        Message::DndFilesHoveredLeft => {
-            // On Windows, file drops are followed by `FilesHoveredLeft`.
-            // Keep the last drop visible; only clear hover state if nothing was dropped.
-            let should_clear = state
-                .incoming_drag
-                .as_ref()
-                .is_none_or(|drag| drag.dropped_data.is_none() && drag.dropped_files.is_empty());
-
-            if should_clear {
-                state.incoming_drag = None;
-            }
             None
         }
         _ => None,
@@ -198,21 +163,35 @@ pub fn view_dnd(state: &DndPageState) -> Element<'_, Message> {
         view_drop_zone()
     };
 
-    let drop_target: Element<'_, Message> = DropTarget::new(drop_target_content)
+    let drop_target = DropTarget::new(drop_target_content)
+        .formats([
+            "text/plain",
+            "text/uri-list",
+            "text/html",
+            "image/png",
+            "image/jpeg",
+            "image/bmp",
+        ])
         .on_enter(|position, mime_types| Message::DndDragEntered {
             position,
             mime_types,
         })
-        .on_move(Message::DndDragMoved)
-        .on_leave(Message::DndDragLeft)
-        .on_drop(|position, data, mime_type| Message::DndDragDropped {
+        .on_move_with_modifiers(|position, modifiers| Message::DndDragMoved {
             position,
-            data,
-            mime_type,
+            modifiers,
         })
-        .into();
+        .on_leave(Message::DndDragLeft)
+        .on_drop_with_action(
+            |position, data, mime_type, action| Message::DndDragDropped {
+                position,
+                data,
+                mime_type,
+                action,
+            },
+        )
+        .highlight_on_hover(true);
 
-    let main_row = row![drag_source, Space::new().width(40), drop_target,].align_y(Center);
+    let main_row = row![drag_source, Space::new().width(40), drop_target].align_y(Center);
 
     let history: Element<'_, Message> = if state.drop_history.is_empty() {
         Space::new().height(0).into()
@@ -362,7 +341,7 @@ fn view_drop_zone() -> Element<'static, Message> {
 fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
     let title = text("Drop Target").size(18);
 
-    let icon = if drag.dropped_data.is_some() || !drag.dropped_files.is_empty() {
+    let icon = if drag.dropped_data.is_some() {
         text("✅").size(48)
     } else {
         text("📥").size(48)
@@ -377,44 +356,15 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
         text("").size(12)
     };
 
-    let files_info: Element<'static, Message> = if !drag.hovered_files.is_empty() {
-        let file_names: Vec<String> = drag
-            .hovered_files
-            .iter()
-            .filter_map(|p| p.file_name())
-            .filter_map(|n| n.to_str())
-            .map(|s| s.to_string())
-            .collect();
-        column![
-            text(format!("📁 {} file(s)", drag.hovered_files.len())).size(12),
-            text(file_names.join(", ")).size(10),
-        ]
-        .spacing(3)
-        .into()
-    } else {
-        Space::new().height(0).into()
-    };
+    let action_text = text(format!("Action: {:?}", drag.advertised_action)).size(12);
 
     let drop_info: Element<'static, Message> = if let Some(ref dropped) = drag.dropped_data {
         let preview = preview_data(&dropped.data, &dropped.format);
         column![
             text("✓ Dropped!").size(16),
+            text(format!("Action: {:?}", dropped.action)).size(12),
             text(format!("{}", dropped.format)).size(10),
             text(preview).size(11),
-        ]
-        .spacing(3)
-        .into()
-    } else if !drag.dropped_files.is_empty() {
-        let file_names: Vec<String> = drag
-            .dropped_files
-            .iter()
-            .filter_map(|p| p.file_name())
-            .filter_map(|n| n.to_str())
-            .map(|s| s.to_string())
-            .collect();
-        column![
-            text("✓ Files Dropped!").size(16),
-            text(file_names.join(", ")).size(10),
         ]
         .spacing(3)
         .into()
@@ -427,13 +377,13 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
         icon,
         type_label,
         position_text,
-        files_info,
+        action_text,
         drop_info
     ]
     .spacing(5)
     .align_x(Center);
 
-    let has_drop = drag.dropped_data.is_some() || !drag.dropped_files.is_empty();
+    let has_drop = drag.dropped_data.is_some();
 
     container(content)
         .width(Length::Fixed(300.0))
@@ -464,7 +414,7 @@ fn view_drag_active(drag: &DragState) -> Element<'static, Message> {
 
 fn describe_formats(formats: &[String]) -> String {
     if formats.is_empty() {
-        return "File(s)".into();
+        return "Unknown".into();
     }
 
     let has_files = formats

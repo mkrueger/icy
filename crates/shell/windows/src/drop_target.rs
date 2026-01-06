@@ -6,9 +6,11 @@
 
 #![cfg(all(target_os = "windows", feature = "dnd"))]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 use std::sync::{Arc, Once, mpsc};
+
+use icy_ui_core::keyboard::Modifiers;
 
 use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::Graphics::Gdi::ScreenToClient;
@@ -28,6 +30,40 @@ const CF_UNICODETEXT: u16 = 13;
 const CF_HDROP: u16 = 15;
 const CF_DIB: u16 = 8;
 const CF_DIBV5: u16 = 17;
+
+fn percent_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+
+    for b in input.as_bytes() {
+        match *b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
+                out.push(*b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+
+    out
+}
+
+fn path_to_file_uri(path: &Path) -> String {
+    // Best-effort file:// URI encoder for Windows paths.
+    let raw = path.to_string_lossy().replace('\\', "/");
+
+    // UNC paths look like //server/share/...
+    if raw.starts_with("//") {
+        let without_leading = raw.trim_start_matches('/');
+        return format!("file://{}", percent_encode(without_leading));
+    }
+
+    let encoded = percent_encode(&raw);
+
+    if encoded.starts_with('/') {
+        format!("file:///{}", encoded.trim_start_matches('/'))
+    } else {
+        format!("file:///{}", encoded)
+    }
+}
 
 fn ensure_ole_initialized() {
     static ONCE: Once = Once::new();
@@ -56,6 +92,8 @@ pub enum DropEvent {
     DragMoved {
         /// Cursor position, relative to the window.
         position: (f32, f32),
+        /// Current keyboard modifiers while dragging (best-effort).
+        modifiers: Modifiers,
     },
     /// The drag left the window without dropping.
     DragLeft,
@@ -70,12 +108,6 @@ pub enum DropEvent {
         /// Selected drop action.
         action: DropAction,
     },
-    /// A file is being hovered over the window.
-    FileHovered(PathBuf),
-    /// A file was dropped into the window.
-    FileDropped(PathBuf),
-    /// Hovered files have left the window.
-    FilesHoveredLeft,
 }
 
 /// The selected drop action.
@@ -415,20 +447,12 @@ impl IDropTarget_Impl for DropTargetImpl_Impl {
 
         self.send(DropEvent::DragEntered { position, formats });
 
-        if DropTargetImpl::query_get_data(data, CF_HDROP) {
-            if let Some(paths) = DropTargetImpl::get_hdrop_paths(data) {
-                for path in paths {
-                    self.send(DropEvent::FileHovered(path));
-                }
-            }
-        }
-
         Ok(())
     }
 
     fn DragOver(
         &self,
-        _grfkeystate: MODIFIERKEYS_FLAGS,
+        grfkeystate: MODIFIERKEYS_FLAGS,
         pt: &windows::Win32::Foundation::POINTL,
         pdweffect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
@@ -440,14 +464,16 @@ impl IDropTarget_Impl for DropTargetImpl_Impl {
         }
 
         let position = self.window_position(pt);
-        self.send(DropEvent::DragMoved { position });
+        self.send(DropEvent::DragMoved {
+            position,
+            modifiers: modifiers_from_grfkeystate(grfkeystate),
+        });
 
         Ok(())
     }
 
     fn DragLeave(&self) -> windows::core::Result<()> {
         self.send(DropEvent::DragLeft);
-        self.send(DropEvent::FilesHoveredLeft);
         Ok(())
     }
 
@@ -464,15 +490,22 @@ impl IDropTarget_Impl for DropTargetImpl_Impl {
 
         let position = self.window_position(pt);
 
-        // If files are present, emit file drop events.
+        // If files are present, emit them as a standard text/uri-list payload.
         if DropTargetImpl::query_get_data(data, CF_HDROP) {
             if let Some(paths) = DropTargetImpl::get_hdrop_paths(data) {
-                for path in paths {
-                    self.send(DropEvent::FileDropped(path));
-                }
-            }
+                let uris = paths
+                    .into_iter()
+                    .map(|p| path_to_file_uri(&p))
+                    .collect::<Vec<_>>()
+                    .join("\r\n");
 
-            self.send(DropEvent::FilesHoveredLeft);
+                self.send(DropEvent::DragDropped {
+                    position,
+                    data: uris.into_bytes(),
+                    format: "text/uri-list".to_string(),
+                    action: DropAction::Copy,
+                });
+            }
 
             #[allow(unsafe_code)]
             unsafe {
@@ -518,6 +551,19 @@ impl IDropTarget_Impl for DropTargetImpl_Impl {
 
         Ok(())
     }
+}
+
+fn modifiers_from_grfkeystate(state: MODIFIERKEYS_FLAGS) -> Modifiers {
+    // OLE provides at least SHIFT/CTRL in `grfKeyState`.
+    // Alt/Logo are not reliably represented here.
+    const MK_SHIFT_FLAG: u32 = 0x0004;
+    const MK_CONTROL_FLAG: u32 = 0x0008;
+
+    let mut modifiers = Modifiers::empty();
+    let bits = state.0 as u32;
+    modifiers.set(Modifiers::SHIFT, bits & MK_SHIFT_FLAG != 0);
+    modifiers.set(Modifiers::CTRL, bits & MK_CONTROL_FLAG != 0);
+    modifiers
 }
 
 fn register_clipboard_format(name: &str) -> u16 {

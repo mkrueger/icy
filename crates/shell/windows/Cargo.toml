@@ -19,6 +19,7 @@ dnd = []
 
 [dependencies]
 log.workspace = true
+icy_ui_core.workspace = true
 
 # Windows API bindings (only on Windows)
 [target.'cfg(target_os = "windows")'.dependencies]

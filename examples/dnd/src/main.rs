@@ -10,14 +10,15 @@
 //! 2. **Drag Source**: Starting a drag to other applications
 //!    - Click and drag from the "Drag me!" box to start a drag
 
-use icy_ui::dnd::{self, DragData, DropResult};
+use icy_ui::dnd::{self, DndAction, DragData, DropResult};
 use icy_ui::event::{self, Event};
+use icy_ui::keyboard::Modifiers;
 use icy_ui::mouse;
 use icy_ui::widget::{column, container, row, text, text_input, Space};
 use icy_ui::window;
 use icy_ui::{Center, Element, Fill, Length, Point, Subscription, Task, Theme};
 
-use std::path::PathBuf;
+use std::borrow::Cow;
 
 pub fn main() -> icy_ui::Result {
     icy_ui::application(DndDemo::default, DndDemo::update, DndDemo::view)
@@ -39,41 +40,45 @@ enum Message {
 
     // External drag events (from outside the app via Wayland DnD)
     DragEntered {
+        window: window::Id,
         position: Point,
         formats: Vec<String>,
     },
-    DragMoved(Point),
-    DragLeft,
+    DragMoved {
+        window: window::Id,
+        position: Point,
+        modifiers: Modifiers,
+    },
+    DragLeft(window::Id),
     DragDropped {
+        window: window::Id,
         position: Point,
         data: Vec<u8>,
         format: String,
+        action: DndAction,
     },
-
-    // File drag events (winit native - works on X11/Windows/macOS)
-    FileHovered(PathBuf),
-    FileDropped(PathBuf),
-    FilesHoveredLeft,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct DragState {
+    window: window::Id,
     /// Current position of the drag cursor
     position: Point,
     /// Formats offered by the drag source
     formats: Vec<String>,
-    /// Files being hovered (from winit FileHovered events)
-    hovered_files: Vec<PathBuf>,
+    /// Last observed modifiers during DragMoved (best-effort per platform)
+    modifiers: Modifiers,
+    /// Currently advertised action (what we last told the backend we will do)
+    advertised_action: DndAction,
     /// Dropped data (from DragDropped event)
     dropped_data: Option<DroppedData>,
-    /// Dropped files (from winit FileDropped events)
-    dropped_files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
 struct DroppedData {
     data: Vec<u8>,
     format: String,
+    action: DndAction,
 }
 
 struct DndDemo {
@@ -100,33 +105,57 @@ impl Default for DndDemo {
 
 impl DndDemo {
     fn subscription(&self) -> Subscription<Message> {
-        event::listen_with(|event, _status, _id| match event {
+        event::listen_with(|event, _status, id| match event {
             Event::Window(window_event) => match window_event {
-                window::Event::DragEntered { position, formats } => {
-                    Some(Message::DragEntered { position, formats })
-                }
-                window::Event::DragMoved { position } => Some(Message::DragMoved(position)),
-                window::Event::DragLeft => Some(Message::DragLeft),
+                window::Event::DragEntered { position, formats } => Some(Message::DragEntered {
+                    window: id,
+                    position,
+                    formats,
+                }),
+                window::Event::DragMoved {
+                    position,
+                    modifiers,
+                } => Some(Message::DragMoved {
+                    window: id,
+                    position,
+                    modifiers,
+                }),
+                window::Event::DragLeft => Some(Message::DragLeft(id)),
                 window::Event::DragDropped {
                     position,
                     data,
                     format,
-                    ..
+                    action,
                 } => Some(Message::DragDropped {
+                    window: id,
                     position,
                     data,
                     format,
+                    action,
                 }),
-                window::Event::FileHovered(path) => Some(Message::FileHovered(path)),
-                window::Event::FileDropped(path) => Some(Message::FileDropped(path)),
-                window::Event::FilesHoveredLeft => Some(Message::FilesHoveredLeft),
                 _ => None,
             },
             _ => None,
         })
     }
 
+    fn action_from_modifiers(modifiers: Modifiers) -> DndAction {
+        if modifiers.shift() {
+            DndAction::Move
+        } else if modifiers.alt() {
+            DndAction::Link
+        } else {
+            // Default + CTRL (common on Windows/Linux) both map to Copy.
+            DndAction::Copy
+        }
+    }
+
+    fn formats_to_cow(formats: &[String]) -> Vec<Cow<'static, str>> {
+        formats.iter().cloned().map(Cow::Owned).collect()
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
+        println!("Message: {:?}", message);
         match message {
             Message::TextChanged(new_text) => {
                 self.drag_text = new_text;
@@ -154,82 +183,133 @@ impl DndDemo {
                 }
             }
 
-            Message::DragEntered { position, formats } => {
+            Message::DragEntered {
+                window,
+                position,
+                formats,
+            } => {
+                // Until we receive `DragMoved` (with modifiers), default to Copy.
+                let action = DndAction::Copy;
+
+                let formats_for_task = Self::formats_to_cow(&formats);
+
                 self.incoming_drag = Some(DragState {
+                    window,
                     position,
                     formats,
-                    ..Default::default()
+                    modifiers: Modifiers::empty(),
+                    advertised_action: action,
+                    dropped_data: None,
                 });
+
+                return dnd::accept_drag(window, formats_for_task, action);
             }
 
-            Message::DragMoved(position) => {
+            Message::DragMoved {
+                window,
+                position,
+                modifiers,
+            } => {
+                if self.incoming_drag.is_none() {
+                    // Some Wayland compositor/source combinations can deliver motion
+                    // without a prior Enter (or Enter can be missed). Keep the UI
+                    // responsive by creating a minimal drag state.
+                    self.incoming_drag = Some(DragState {
+                        window,
+                        position,
+                        formats: Vec::new(),
+                        modifiers,
+                        advertised_action: Self::action_from_modifiers(modifiers),
+                        dropped_data: None,
+                    });
+                }
+
                 if let Some(ref mut drag) = self.incoming_drag {
+                    if drag.window != window {
+                        return Task::none();
+                    }
+
                     drag.position = position;
+                    drag.modifiers = modifiers;
+
+                    let desired_action = Self::action_from_modifiers(modifiers);
+                    if desired_action != drag.advertised_action {
+                        drag.advertised_action = desired_action;
+                        // Only (re)advertise acceptance if we have formats from DragEntered.
+                        if !drag.formats.is_empty() {
+                            let formats = Self::formats_to_cow(&drag.formats);
+                            return dnd::accept_drag(window, formats, desired_action);
+                        }
+                    }
                 }
             }
 
-            Message::DragLeft => {
-                self.incoming_drag = None;
+            Message::DragLeft(window) => {
+                // Ensure we stop advertising acceptance when leaving.
+                let had_drag = match self.incoming_drag.as_ref() {
+                    Some(drag) => drag.window == window,
+                    None => false,
+                };
+
+                // Keep the "Dropped!" UI visible even if the platform sends DragLeft
+                // immediately after the drop.
+                let keep_dropped = self
+                    .incoming_drag
+                    .as_ref()
+                    .is_some_and(|drag| drag.window == window && drag.dropped_data.is_some());
+
+                if !keep_dropped {
+                    self.incoming_drag = None;
+                }
+
+                if had_drag && !keep_dropped {
+                    return dnd::reject_drag(window);
+                }
             }
 
             Message::DragDropped {
+                window,
                 position,
                 data,
                 format,
+                action,
             } => {
                 // Add to history
                 let preview = Self::preview_data(&data, &format);
                 self.drop_history.push(format!(
-                    "Received at ({:.0}, {:.0}): {} - {}",
-                    position.x, position.y, format, preview
+                    "Received at ({:.0}, {:.0}) as {:?}: {} - {}",
+                    position.x, position.y, action, format, preview
                 ));
 
-                // Update drag state to show drop result
-                if let Some(ref mut drag) = self.incoming_drag {
-                    drag.position = position;
-                    drag.dropped_data = Some(DroppedData { data, format });
-                }
-            }
-
-            Message::FileHovered(path) => {
-                if let Some(ref mut drag) = self.incoming_drag {
-                    drag.hovered_files.push(path);
-                } else {
-                    self.incoming_drag = Some(DragState {
-                        hovered_files: vec![path],
-                        ..Default::default()
-                    });
-                }
-            }
-
-            Message::FileDropped(path) => {
-                // Add to history
-                let filename = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown");
-                self.drop_history
-                    .push(format!("File dropped: {}", filename));
-
-                if let Some(ref mut drag) = self.incoming_drag {
-                    drag.dropped_files.push(path);
-                } else {
-                    self.incoming_drag = Some(DragState {
-                        dropped_files: vec![path],
-                        ..Default::default()
-                    });
-                }
-            }
-
-            Message::FilesHoveredLeft => {
-                // On Windows, file drops are followed by `FilesHoveredLeft`.
-                // Keep the last drop visible; only clear hover state if nothing was dropped.
-                let should_clear = self.incoming_drag.as_ref().is_none_or(|drag| {
-                    drag.dropped_data.is_none() && drag.dropped_files.is_empty()
-                });
-
-                if should_clear {
-                    self.incoming_drag = None;
+                // Update drag state to show drop result.
+                // If we didn't see DragEntered/DragMoved (or state was cleared), still
+                // create the UI state so the drop feedback is visible.
+                match self.incoming_drag.as_mut() {
+                    Some(drag) if drag.window == window => {
+                        drag.position = position;
+                        if drag.formats.is_empty() {
+                            drag.formats = vec![format.clone()];
+                        }
+                        drag.dropped_data = Some(DroppedData {
+                            data,
+                            format,
+                            action,
+                        });
+                    }
+                    _ => {
+                        self.incoming_drag = Some(DragState {
+                            window,
+                            position,
+                            formats: vec![format.clone()],
+                            modifiers: Modifiers::empty(),
+                            advertised_action: DndAction::Copy,
+                            dropped_data: Some(DroppedData {
+                                data,
+                                format,
+                                action,
+                            }),
+                        });
+                    }
                 }
             }
         }
@@ -399,7 +479,7 @@ impl DndDemo {
     fn view_drag_active(&self, drag: &DragState) -> Element<'_, Message> {
         let title = text("Drop Target").size(18);
 
-        let icon = if drag.dropped_data.is_some() || !drag.dropped_files.is_empty() {
+        let icon = if drag.dropped_data.is_some() {
             text("✅").size(48)
         } else {
             text("📥").size(48)
@@ -416,46 +496,16 @@ impl DndDemo {
             text("").size(12)
         };
 
-        // Files being hovered
-        let files_info: Element<'_, Message> = if !drag.hovered_files.is_empty() {
-            let file_names: Vec<String> = drag
-                .hovered_files
-                .iter()
-                .filter_map(|p| p.file_name())
-                .filter_map(|n| n.to_str())
-                .map(|s| s.to_string())
-                .collect();
-            column![
-                text(format!("📁 {} file(s)", drag.hovered_files.len())).size(12),
-                text(file_names.join(", ")).size(10),
-            ]
-            .spacing(3)
-            .into()
-        } else {
-            Space::new().height(0).into()
-        };
+        let action_text = text(format!("Action: {:?}", drag.advertised_action)).size(12);
 
         // Dropped data info
         let drop_info: Element<'_, Message> = if let Some(ref dropped) = drag.dropped_data {
             let preview = Self::preview_data(&dropped.data, &dropped.format);
             column![
                 text("✓ Dropped!").size(16),
+                text(format!("Action: {:?}", dropped.action)).size(12),
                 text(format!("{}", dropped.format)).size(10),
                 text(preview).size(11),
-            ]
-            .spacing(3)
-            .into()
-        } else if !drag.dropped_files.is_empty() {
-            let file_names: Vec<String> = drag
-                .dropped_files
-                .iter()
-                .filter_map(|p| p.file_name())
-                .filter_map(|n| n.to_str())
-                .map(|s| s.to_string())
-                .collect();
-            column![
-                text("✓ Files Dropped!").size(16),
-                text(file_names.join(", ")).size(10),
             ]
             .spacing(3)
             .into()
@@ -468,13 +518,13 @@ impl DndDemo {
             icon,
             type_label,
             position_text,
-            files_info,
+            action_text,
             drop_info,
         ]
         .spacing(5)
         .align_x(Center);
 
-        let has_drop = drag.dropped_data.is_some() || !drag.dropped_files.is_empty();
+        let has_drop = drag.dropped_data.is_some();
 
         container(content)
             .width(Length::Fixed(300.0))
@@ -504,7 +554,7 @@ impl DndDemo {
 
     fn describe_formats(formats: &[String]) -> String {
         if formats.is_empty() {
-            return "File(s)".into();
+            return "Unknown".into();
         }
 
         let has_files = formats

@@ -6,10 +6,10 @@
 mod about;
 mod pages;
 
-use std::path::PathBuf;
-
+use icy_ui::dnd::DndAction;
 use icy_ui::dnd::DropResult;
 use icy_ui::keyboard::Key;
+use icy_ui::keyboard::Modifiers;
 use icy_ui::widget::{
     button, column, container, date_picker, pane_grid, row, rule, scrollable, space, text,
     text_editor, toaster,
@@ -372,16 +372,17 @@ pub enum Message {
         position: Point,
         mime_types: Vec<String>,
     },
-    DndDragMoved(Point),
+    DndDragMoved {
+        position: Point,
+        modifiers: Modifiers,
+    },
     DndDragLeft,
     DndDragDropped {
         position: Point,
         data: Vec<u8>,
         mime_type: String,
+        action: DndAction,
     },
-    DndFileHovered(PathBuf),
-    DndFileDropped(PathBuf),
-    DndFilesHoveredLeft,
 
     // QR Code
     QrCodeInputChanged(String),

@@ -6,6 +6,7 @@
 
 use crate::core::clipboard::Format;
 use crate::core::dnd::{DndAction, DragData};
+use crate::core::keyboard::Modifiers;
 use crate::core::layout;
 use crate::core::mouse;
 use crate::core::overlay;
@@ -328,10 +329,16 @@ pub struct DropTarget<'a, Message, Theme = crate::Theme, Renderer = crate::Rende
     on_enter: Option<Box<dyn Fn(Point, Vec<String>) -> Message + 'a>>,
     /// Message when drag moves
     on_move: Option<Box<dyn Fn(Point) -> Message + 'a>>,
+
+    /// Message when drag moves (with modifiers)
+    on_move_with_modifiers: Option<Box<dyn Fn(Point, Modifiers) -> Message + 'a>>,
     /// Message when drag leaves
     on_leave: Option<Message>,
     /// Message when drop occurs
     on_drop: Option<Box<dyn Fn(Point, Vec<u8>, String) -> Message + 'a>>,
+
+    /// Message when drop occurs (with negotiated action)
+    on_drop_with_action: Option<Box<dyn Fn(Point, Vec<u8>, String, DndAction) -> Message + 'a>>,
     /// Preferred action
     preferred_action: DndAction,
     /// Highlight when drag is over
@@ -346,8 +353,10 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
             accepted_formats: Vec::new(),
             on_enter: None,
             on_move: None,
+            on_move_with_modifiers: None,
             on_leave: None,
             on_drop: None,
+            on_drop_with_action: None,
             preferred_action: DndAction::Copy,
             highlight_on_hover: false,
         }
@@ -398,6 +407,15 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
         self
     }
 
+    /// Sets the message to emit when a drag moves within this target.
+    ///
+    /// The callback receives the position and the current keyboard modifiers.
+    #[must_use]
+    pub fn on_move_with_modifiers(mut self, f: impl Fn(Point, Modifiers) -> Message + 'a) -> Self {
+        self.on_move_with_modifiers = Some(Box::new(f));
+        self
+    }
+
     /// Sets the message to emit when a drag leaves this target.
     #[must_use]
     pub fn on_leave(mut self, message: Message) -> Self {
@@ -411,6 +429,19 @@ impl<'a, Message, Theme, Renderer> DropTarget<'a, Message, Theme, Renderer> {
     #[must_use]
     pub fn on_drop(mut self, f: impl Fn(Point, Vec<u8>, String) -> Message + 'a) -> Self {
         self.on_drop = Some(Box::new(f));
+        self
+    }
+
+    /// Sets the message to emit when data is dropped on this target.
+    ///
+    /// The callback receives the position, the dropped data, its MIME type,
+    /// and the negotiated DnD action.
+    #[must_use]
+    pub fn on_drop_with_action(
+        mut self,
+        f: impl Fn(Point, Vec<u8>, String, DndAction) -> Message + 'a,
+    ) -> Self {
+        self.on_drop_with_action = Some(Box::new(f));
         self
     }
 
@@ -529,7 +560,10 @@ where
                     }
                 }
             }
-            Event::Window(crate::core::window::Event::DragMoved { position }) => {
+            Event::Window(crate::core::window::Event::DragMoved {
+                position,
+                modifiers,
+            }) => {
                 let is_over = bounds.contains(*position);
 
                 if is_over && !state.is_hovered {
@@ -549,18 +583,31 @@ where
                     if let Some(on_move) = &self.on_move {
                         shell.publish(on_move(*position));
                     }
+
+                    if let Some(on_move_with_modifiers) = &self.on_move_with_modifiers {
+                        shell.publish(on_move_with_modifiers(*position, *modifiers));
+                    }
                 }
             }
             Event::Window(crate::core::window::Event::DragDropped {
                 position,
                 data,
                 format,
-                ..
+                action,
             }) => {
                 if bounds.contains(*position) {
                     state.is_hovered = false;
                     if let Some(on_drop) = &self.on_drop {
                         shell.publish(on_drop(*position, data.clone(), format.clone()));
+                    }
+
+                    if let Some(on_drop_with_action) = &self.on_drop_with_action {
+                        shell.publish(on_drop_with_action(
+                            *position,
+                            data.clone(),
+                            format.clone(),
+                            *action,
+                        ));
                     }
                 }
             }

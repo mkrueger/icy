@@ -58,8 +58,17 @@ struct State {
     dnd_initialized: bool,
     /// Track last known position for drop events
     last_position: (f32, f32),
+
+    /// Track last offered MIME types (from `OfferEvent::Enter`)
+    last_formats: Vec<String>,
+
+    /// Whether we already emitted a drop for the current offer
+    drop_emitted: bool,
     /// Whether a surface has been registered for DnD
     surface_registered: bool,
+
+    /// Last known keyboard modifiers (best-effort via winit)
+    modifiers: crate::core::keyboard::Modifiers,
 }
 
 /// macOS-specific DnD state using icy_ui_macos.
@@ -222,7 +231,10 @@ impl DndManager {
                             data_requests: HashMap::new(),
                             dnd_initialized: true,
                             last_position: (0.0, 0.0),
+                            last_formats: Vec::new(),
+                            drop_emitted: false,
                             surface_registered,
+                            modifiers: crate::core::keyboard::Modifiers::empty(),
                         },
                     };
                 }
@@ -238,7 +250,10 @@ impl DndManager {
                     data_requests: HashMap::new(),
                     dnd_initialized: false,
                     last_position: (0.0, 0.0),
+                    last_formats: Vec::new(),
+                    drop_emitted: false,
                     surface_registered: false,
+                    modifiers: crate::core::keyboard::Modifiers::empty(),
                 },
             }
         }
@@ -386,7 +401,10 @@ impl DndManager {
                     data_requests: HashMap::new(),
                     dnd_initialized: false,
                     last_position: (0.0, 0.0),
+                    last_formats: Vec::new(),
+                    drop_emitted: false,
                     surface_registered: false,
+                    modifiers: crate::core::keyboard::Modifiers::empty(),
                 },
             }
         }
@@ -490,6 +508,7 @@ impl DndManager {
         {
             use crate::core::Event;
             use crate::core::dnd::DndAction;
+            use crate::core::keyboard::Modifiers;
             use crate::core::window::Event as WindowEvent;
 
             let mut events = Vec::new();
@@ -528,9 +547,13 @@ impl DndManager {
                                 formats,
                             }));
                         }
-                        icy_ui_macos::dnd::DropEvent::DragMoved { position } => {
+                        icy_ui_macos::dnd::DropEvent::DragMoved {
+                            position,
+                            modifiers,
+                        } => {
                             events.push(Event::Window(WindowEvent::DragMoved {
                                 position: crate::core::Point::new(position.0, position.1),
+                                modifiers,
                             }));
                         }
                         icy_ui_macos::dnd::DropEvent::DragLeft => {
@@ -556,15 +579,7 @@ impl DndManager {
                                 action,
                             }));
                         }
-                        icy_ui_macos::dnd::DropEvent::FileHovered(path) => {
-                            events.push(Event::Window(WindowEvent::FileHovered(path)));
-                        }
-                        icy_ui_macos::dnd::DropEvent::FileDropped(path) => {
-                            events.push(Event::Window(WindowEvent::FileDropped(path)));
-                        }
-                        icy_ui_macos::dnd::DropEvent::FilesHoveredLeft => {
-                            events.push(Event::Window(WindowEvent::FilesHoveredLeft));
-                        }
+                        _ => {}
                     }
                 }
             }
@@ -585,6 +600,7 @@ impl DndManager {
         {
             use crate::core::Event;
             use crate::core::dnd::DndAction;
+            use crate::core::keyboard::Modifiers;
             use crate::core::window::Event as WindowEvent;
 
             let mut events = Vec::new();
@@ -598,9 +614,13 @@ impl DndManager {
                                 formats,
                             }));
                         }
-                        icy_ui_windows::DropEvent::DragMoved { position } => {
+                        icy_ui_windows::DropEvent::DragMoved {
+                            position,
+                            modifiers,
+                        } => {
                             events.push(Event::Window(WindowEvent::DragMoved {
                                 position: crate::core::Point::new(position.0, position.1),
+                                modifiers,
                             }));
                         }
                         icy_ui_windows::DropEvent::DragLeft => {
@@ -626,20 +646,28 @@ impl DndManager {
                                 action,
                             }));
                         }
-                        icy_ui_windows::DropEvent::FileHovered(path) => {
-                            events.push(Event::Window(WindowEvent::FileHovered(path)));
-                        }
-                        icy_ui_windows::DropEvent::FileDropped(path) => {
-                            events.push(Event::Window(WindowEvent::FileDropped(path)));
-                        }
-                        icy_ui_windows::DropEvent::FilesHoveredLeft => {
-                            events.push(Event::Window(WindowEvent::FilesHoveredLeft));
-                        }
+                        _ => {}
                     }
                 }
             }
 
             events
+        }
+    }
+
+    /// Update the last known keyboard modifiers.
+    ///
+    /// On Wayland, smithay-clipboard DnD motion events do not include modifier
+    /// state, so we track it separately via winit.
+    pub fn set_modifiers(&mut self, modifiers: crate::core::keyboard::Modifiers) {
+        #[cfg(all(feature = "wayland", unix, not(target_os = "macos")))]
+        {
+            self.state.modifiers = modifiers;
+        }
+
+        #[cfg(not(all(feature = "wayland", unix, not(target_os = "macos"))))]
+        {
+            let _ = modifiers;
         }
     }
 
@@ -995,6 +1023,8 @@ impl DndManager {
                 } => {
                     let _ = rect_id;
                     self.state.last_position = (x as f32, y as f32);
+                    self.state.last_formats = mime_types.clone();
+                    self.state.drop_emitted = false;
                     Some(crate::core::Event::Window(WindowEvent::DragEntered {
                         position: Point::new(x as f32, y as f32),
                         formats: mime_types,
@@ -1004,14 +1034,69 @@ impl DndManager {
                     self.state.last_position = (x as f32, y as f32);
                     Some(crate::core::Event::Window(WindowEvent::DragMoved {
                         position: Point::new(x as f32, y as f32),
+                        modifiers: self.state.modifiers,
                     }))
                 }
                 OfferEvent::Leave | OfferEvent::LeaveDestination => {
                     Some(crate::core::Event::Window(WindowEvent::DragLeft))
                 }
                 OfferEvent::Drop => {
-                    // The actual data comes in OfferEvent::Data
-                    None
+                    // Some compositors / sources may not send `OfferEvent::Data` unless
+                    // we explicitly request the data. To make drops reliable, eagerly
+                    // fetch a preferred format here.
+                    if self.state.drop_emitted {
+                        return None;
+                    }
+
+                    // Mark handled early so we never retry on repeated drop notifications.
+                    self.state.drop_emitted = true;
+
+                    let Some(ref clipboard) = self.state.clipboard else {
+                        return None;
+                    };
+
+                    let preferred_format = self
+                        .state
+                        .last_formats
+                        .iter()
+                        .find(|m| m.as_str() == "text/uri-list")
+                        .or_else(|| {
+                            self.state
+                                .last_formats
+                                .iter()
+                                .find(|m| m.starts_with("text/plain"))
+                        })
+                        .or_else(|| {
+                            self.state
+                                .last_formats
+                                .iter()
+                                .find(|m| m.as_str() == "UTF8_STRING")
+                        })
+                        .or_else(|| self.state.last_formats.first());
+
+                    let Some(mime_type) = preferred_format.cloned() else {
+                        return None;
+                    };
+
+                    let (x, y) = self.state.last_position;
+                    let action = convert_wayland_action(self.state.last_action);
+
+                    match clipboard.peek_dnd_offer(&mime_type) {
+                        Ok(data) => Some(crate::core::Event::Window(WindowEvent::DragDropped {
+                            position: Point::new(x, y),
+                            data: data.data,
+                            format: mime_type,
+                            action,
+                        })),
+                        Err(e) => {
+                            log::debug!(
+                                "DnD drop: failed to read offer for {}: {:?}",
+                                mime_type,
+                                e
+                            );
+                            None
+                        }
+                    }
                 }
                 OfferEvent::SelectedAction(action) => {
                     // Track the selected action
@@ -1024,9 +1109,15 @@ impl DndManager {
                         let _ = channel.send(Some(data.clone()));
                     }
 
+                    // If we already emitted a drop via `OfferEvent::Drop`, don't emit again.
+                    if self.state.drop_emitted {
+                        return None;
+                    }
+
                     // Emit a drop event with tracked position and action
                     let (x, y) = self.state.last_position;
                     let action = convert_wayland_action(self.state.last_action);
+                    self.state.drop_emitted = true;
                     Some(crate::core::Event::Window(WindowEvent::DragDropped {
                         position: Point::new(x, y),
                         data,

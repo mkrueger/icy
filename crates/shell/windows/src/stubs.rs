@@ -3,10 +3,11 @@
 //! These provide the same API as the Windows implementations but return errors
 //! or no-ops, allowing the crate to compile on all platforms.
 
-use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::mpsc;
+
+use icy_ui_core::keyboard::Modifiers;
 
 /// Errors that can occur during drag operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +126,8 @@ pub enum DropEvent {
     DragMoved {
         /// Cursor position relative to the window.
         position: (f32, f32),
+        /// Current keyboard modifiers while dragging (best-effort).
+        modifiers: Modifiers,
     },
     /// The drag left the window without dropping.
     DragLeft,
@@ -139,12 +142,6 @@ pub enum DropEvent {
         /// Selected drop action.
         action: DropAction,
     },
-    /// A file is being hovered over the window.
-    FileHovered(PathBuf),
-    /// A file was dropped into the window.
-    FileDropped(PathBuf),
-    /// Hovered files have left the window.
-    FilesHoveredLeft,
 }
 
 /// The selected drop action.
