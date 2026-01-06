@@ -14,7 +14,7 @@ keywords.workspace = true
 icy_ui_core.workspace = true
 icy_ui_core.features = ["serde"]
 
-bincode.workspace = true
+bitcode.workspace = true
 futures.workspace = true
 log.workspace = true
 thiserror.workspace = true

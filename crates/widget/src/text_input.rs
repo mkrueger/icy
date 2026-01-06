@@ -1506,7 +1506,7 @@ where
         };
 
         // Build a TextRun child for the editable text.
-        // AccessKit uses `character_lengths` + `word_lengths` to support
+        // AccessKit uses `character_lengths` + `word_starts` to support
         // per-character announcements, caret tracking, and word navigation.
         let mut character_lengths: Vec<u8> = Vec::new();
         let mut ok_character_lengths = true;
@@ -1519,11 +1519,12 @@ where
             character_lengths.push(len as u8);
         }
 
-        let mut word_lengths: Vec<u8> = Vec::new();
-        let mut ok_word_lengths = true;
+        // Collect word start indices (in grapheme/character units).
+        let mut word_starts: Vec<u8> = Vec::new();
+        let mut ok_word_starts = true;
         if ok_character_lengths {
             let total_graphemes = character_lengths.len();
-            let mut sum: usize = 0;
+            let mut char_index: usize = 0;
             for (_, segment) in
                 UnicodeSegmentation::split_word_bound_indices(accessible_text.as_str())
             {
@@ -1531,17 +1532,18 @@ where
                 if count == 0 {
                     continue;
                 }
-                if count > u8::MAX as usize {
-                    ok_word_lengths = false;
+                // Record the start index of each word segment
+                if char_index > u8::MAX as usize {
+                    ok_word_starts = false;
                     break;
                 }
-                word_lengths.push(count as u8);
-                sum += count;
+                word_starts.push(char_index as u8);
+                char_index += count;
             }
 
-            // If segmentation didn't cover everything as expected, skip word lengths.
-            if ok_word_lengths && sum != total_graphemes {
-                ok_word_lengths = false;
+            // Sanity check: total should match
+            if ok_word_starts && char_index != total_graphemes {
+                ok_word_starts = false;
             }
         }
 
@@ -1554,8 +1556,8 @@ where
             text_run = text_run.with_character_lengths(character_lengths);
         }
 
-        if ok_word_lengths {
-            text_run = text_run.with_word_lengths(word_lengths);
+        if ok_word_starts && !word_starts.is_empty() {
+            text_run = text_run.with_word_starts(word_starts);
         }
 
         // Build the widget info with all accessibility properties

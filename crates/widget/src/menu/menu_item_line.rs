@@ -717,14 +717,21 @@ where
             );
         }
 
+        // Clip label to its own bounds so it never bleeds into the shortcut/suffix area.
+        let label_layout = children.next().unwrap();
+        let label_viewport = label_layout
+            .bounds()
+            .intersection(viewport)
+            .unwrap_or(*viewport);
+
         (&self.label_rich as &dyn Widget<Message, crate::Theme, crate::Renderer>).draw(
             &tree.children[1],
             renderer,
             theme,
             style,
-            children.next().unwrap(),
+            label_layout,
             cursor,
-            viewport,
+            &label_viewport,
         );
 
         (&self.shortcut_text as &dyn Widget<Message, crate::Theme, crate::Renderer>).draw(

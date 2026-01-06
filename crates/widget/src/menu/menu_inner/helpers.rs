@@ -313,6 +313,10 @@ where
     use event::Status::{Captured, Ignored};
 
     menu.tree.inner.with_data_mut(|state| {
+        let mut layout_changed = false;
+        let before_menu_states_len = state.menu_states.len();
+        let before_active_root_len = state.active_root.len();
+
         state.view_cursor = view_cursor;
 
         // remove invalid menus
@@ -354,6 +358,12 @@ where
                 let _ = state.active_root.pop();
                 let _ = state.menu_states.pop();
             }
+        }
+
+        if state.menu_states.len() != before_menu_states_len
+            || state.active_root.len() != before_active_root_len
+        {
+            layout_changed = true;
         }
 
         // update active item
@@ -520,11 +530,18 @@ where
                 state.menu_states.truncate(1);
             }
             state.menu_states.push(ms);
+
+            layout_changed = true;
         } else if !menu.is_overlay && remove {
             state.menu_states.truncate(1);
+
+            layout_changed = true;
         }
 
         // Request redraw to update the visual highlight
+        if layout_changed {
+            shell.invalidate_layout();
+        }
         shell.request_redraw();
 
         Captured
@@ -648,10 +665,13 @@ where
         ItemWidth::Static(s) => f32::from(menu_tree.width.unwrap_or(s)),
         ItemWidth::Dynamic { min, max } => {
             // PASS 1: Measure intrinsic columns of each item.
-            let mut max_label_column_w: f32 = f32::from(min);
+            let min_width: f32 = f32::from(min);
+            let mut max_label_column_w: f32 = 0.0;
             let mut max_shortcut_w: f32 = 0.0;
             let mut max_suffix_w: f32 = 0.0;
             let mut gap: Option<f32> = None;
+            let mut max_other_intrinsic_w: f32 = 0.0;
+            let mut observed_outer_padding_x: f32 = 0.0;
             let max_allowed = f32::from(max);
 
             let mut line_item_indices: Vec<usize> = Vec::with_capacity(menu_tree.children.len());
@@ -659,12 +679,15 @@ where
             for mt in menu_tree.children.iter_mut() {
                 let w = mt.item.as_widget_mut();
                 // Layout with unbounded width to get intrinsic metrics
-                let _ = w.layout(
+                let node = w.layout(
                     &mut tree[mt.index],
                     renderer,
                     &Limits::new(Size::ZERO, Size::new(max_allowed, f32::MAX))
                         .width(Length::Shrink),
                 );
+
+                let node_size = node.size();
+                let node_w = node_size.width;
 
                 if let Some(state) = find_menu_item_line_state(&tree[mt.index]) {
                     let metrics = state.metrics;
@@ -674,7 +697,31 @@ where
                     if gap.is_none() {
                         gap = Some(metrics.gap);
                     }
+
+                    // Estimate outer horizontal padding (e.g., the Button padding that wraps
+                    // MenuItemLine). Only trust measurements that did not saturate to max_allowed.
+                    if node_w.is_finite() && node_w < (max_allowed - 0.5) {
+                        let trailing_w = metrics.shortcut_w.max(metrics.suffix_w);
+                        let inner_w = metrics.label_column_w
+                            + if trailing_w > 0.0 {
+                                metrics.gap + trailing_w
+                            } else {
+                                0.0
+                            };
+
+                        if node_w > inner_w + 0.5 {
+                            observed_outer_padding_x =
+                                observed_outer_padding_x.max((node_w - inner_w).max(0.0));
+                        }
+                    }
+
                     line_item_indices.push(mt.index);
+                } else if node_w.is_finite() {
+                    // Non-standard items (e.g., separators) still matter, but avoid letting a
+                    // single Fill-width widget force the menu to max width.
+                    if node_w < (max_allowed - 0.5) {
+                        max_other_intrinsic_w = max_other_intrinsic_w.max(node_w);
+                    }
                 }
             }
 
@@ -682,13 +729,28 @@ where
             let gap = gap.unwrap_or(24.0);
             // Shortcut and suffix share the same trailing column (an item has one or the other, not both)
             let trailing_col_w = max_shortcut_w.max(max_suffix_w);
-            let computed = max_label_column_w
+
+            // If we could not observe padding (e.g., due to saturation), fall back to the
+            // menu_button horizontal padding (16px left + 16px right).
+            let padding_x = if observed_outer_padding_x > 0.0 {
+                observed_outer_padding_x
+            } else {
+                32.0
+            };
+
+            // Required width from the MenuItemLine columns plus outer padding.
+            let columns_required_w = (max_label_column_w
                 + if trailing_col_w > 0.0 {
                     gap + trailing_col_w
                 } else {
                     0.0
-                };
-            let menu_width = computed.min(max_allowed);
+                }
+                + padding_x)
+                .max(min_width);
+
+            let menu_width = columns_required_w
+                .max(max_other_intrinsic_w)
+                .min(max_allowed);
 
             let columns = MenuItemLineColumns {
                 menu_width,
@@ -697,19 +759,6 @@ where
                 suffix_w: trailing_col_w,
                 gap,
             };
-
-            #[cfg(debug_assertions)]
-            if matches!(
-                std::env::var("ICY_MENU_DEBUG").as_deref(),
-                Ok("1") | Ok("true") | Ok("TRUE")
-            ) {
-                eprintln!(
-                    "[menu] get_children_layout: menu_width={:.1} trailing_col_w={:.1} line_item_count={}",
-                    menu_width,
-                    trailing_col_w,
-                    line_item_indices.len()
-                );
-            }
 
             // Store columns in each item's state BEFORE the second layout pass
             for idx in &line_item_indices {
@@ -725,7 +774,7 @@ where
                 let _ = w.layout(
                     &mut tree[mt.index],
                     renderer,
-                    &Limits::new(Size::ZERO, Size::new(menu_width, f32::MAX)).width(Length::Shrink),
+                    &Limits::new(Size::new(menu_width, 0.0), Size::new(menu_width, f32::MAX)),
                 );
             }
 
@@ -785,20 +834,6 @@ where
         .collect();
 
     let height = child_sizes.iter().fold(0.0, |acc, x| acc + x.height);
-
-    #[cfg(debug_assertions)]
-    if matches!(
-        std::env::var("ICY_MENU_DEBUG").as_deref(),
-        Ok("1") | Ok("true") | Ok("TRUE")
-    ) {
-        eprintln!(
-            "[menu] get_children_layout: final_width={:.1} height={:.1} item_count={} item_width={:?}",
-            width,
-            height,
-            menu_tree.children.len(),
-            item_width
-        );
-    }
 
     (Size::new(width, height), child_positions, child_sizes)
 }

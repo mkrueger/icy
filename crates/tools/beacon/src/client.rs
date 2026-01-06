@@ -235,7 +235,7 @@ async fn _connect() -> Result<net::TcpStream, io::Error> {
 }
 
 async fn send(stream: &mut net::tcp::OwnedWriteHalf, message: Message) -> Result<(), io::Error> {
-    let bytes = bincode::serialize(&message).expect("Encode input message");
+    let bytes = bitcode::serialize(&message).expect("Encode input message");
     let size = bytes.len() as u64;
 
     stream.write_all(&size.to_be_bytes()).await?;
@@ -257,5 +257,5 @@ async fn receive(
 
     let _n = stream.read_exact(&mut buffer[..size]).await?;
 
-    Ok(bincode::deserialize(buffer)?)
+    Ok(bitcode::deserialize(buffer)?)
 }

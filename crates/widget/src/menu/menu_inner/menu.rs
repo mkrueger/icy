@@ -707,7 +707,7 @@ where
                 vertical_offset: main_offset,
             };
 
-            let Some(tree_entry) = state.tree.children.first_mut() else {
+            let Some(tree_entry) = state.tree.children.get_mut(index) else {
                 return;
             };
             let menu_bounds = MenuBounds::new(
@@ -1004,8 +1004,15 @@ where
                     > = None;
 
                     self.tree.inner.with_data_mut(|state| {
+                        // Pop the submenu panel and restore selection to the item that opened it.
+                        let last_opening_index = state.active_root.pop();
                         let _ = state.menu_states.pop();
-                        let _ = state.active_root.pop();
+
+                        if let (Some(opening_index), Some(parent_state)) =
+                            (last_opening_index, state.menu_states.last_mut())
+                        {
+                            parent_state.index = Some(opening_index);
+                        }
 
                         #[cfg(feature = "accessibility")]
                         {
@@ -1034,6 +1041,7 @@ where
                         shell.request_a11y_focus(target);
                     }
 
+                    shell.invalidate_layout();
                     shell.request_redraw();
                     Captured
                 } else {
@@ -1084,47 +1092,150 @@ where
             }
 
             keyboard::Key::Named(Named::ArrowRight) => {
-                // First check if we're on an item that has a submenu
-                let menu_roots = &self.menu_roots;
-                let has_submenu = self.tree.inner.with_data(|state| {
-                    if !state.open || state.menu_states.is_empty() || state.active_root.is_empty() {
-                        return false;
-                    }
+                // If current item has a submenu: open it and select its first item.
+                // Otherwise, switch to the next root menu (menubar behavior).
 
-                    let Some(hover) = state.menu_states.last() else {
-                        return false;
-                    };
+                #[cfg(feature = "accessibility")]
+                let mut a11y_focus_request: Option<
+                    crate::core::accessibility::NodeId,
+                > = None;
 
-                    let Some(hover_index) = hover.index else {
-                        return false;
-                    };
+                let mut opened_submenu = false;
 
-                    let Some(first_root) = state.active_root.first().copied() else {
-                        return false;
-                    };
-                    let Some(root_entry) = menu_roots.get(first_root) else {
-                        return false;
-                    };
-                    // Get the current menu items
-                    let active_menu = state
-                        .active_root
-                        .iter()
-                        .skip(1)
-                        .fold(&root_entry.children, |mt, next| {
-                            mt.get(*next).map(|m| &m.children).unwrap_or(mt)
+                {
+                    let menu_roots = &mut self.menu_roots;
+                    let item_width = self.item_width;
+                    let item_height = self.item_height;
+                    let bounds_expand = self.bounds_expand;
+                    let is_overlay = self.is_overlay;
+                    let cross_offset = self.cross_offset as f32;
+
+                    self.tree.inner.with_data_mut(|state| {
+                        if !state.open
+                            || state.menu_states.is_empty()
+                            || state.active_root.is_empty()
+                        {
+                            return;
+                        }
+
+                        let Some(first_root) = state.active_root.first().copied() else {
+                            return;
+                        };
+
+                        let Some(root_entry) = menu_roots.get_mut(first_root) else {
+                            return;
+                        };
+
+                        let Some(tree_entry) = state.tree.children.get_mut(first_root) else {
+                            return;
+                        };
+
+                        let Some(last_menu_state) = state.menu_states.last_mut() else {
+                            return;
+                        };
+                        let Some(hover_index) = last_menu_state.index else {
+                            return;
+                        };
+
+                        // Current menu list (based on active_root path)
+                        let active_menu = state.active_root.iter().skip(1).fold(
+                            &mut root_entry.children,
+                            |mt, &next| {
+                                if next < mt.len() {
+                                    &mut mt[next].children
+                                } else {
+                                    mt
+                                }
+                            },
+                        );
+
+                        let Some(item) = active_menu.get_mut(hover_index) else {
+                            return;
+                        };
+
+                        if item.children.is_empty() {
+                            return;
+                        }
+
+                        let last_menu_bounds = &last_menu_state.menu_bounds;
+                        let Some(&item_pos) = last_menu_bounds.child_positions.get(hover_index)
+                        else {
+                            return;
+                        };
+                        let Some(&item_size) = last_menu_bounds.child_sizes.get(hover_index) else {
+                            return;
+                        };
+
+                        let item_position =
+                            Point::new(0.0, item_pos + last_menu_state.scroll_offset);
+                        let item_bounds = Rectangle::new(item_position, item_size)
+                            + (last_menu_bounds.children_bounds.position() - Point::ORIGIN);
+
+                        let aod = Aod {
+                            horizontal: true,
+                            vertical: true,
+                            horizontal_overlap: false,
+                            vertical_overlap: true,
+                            horizontal_direction: state.horizontal_direction,
+                            vertical_direction: state.vertical_direction,
+                            horizontal_offset: cross_offset,
+                            vertical_offset: 0.0,
+                        };
+
+                        let menu_bounds = MenuBounds::new(
+                            item,
+                            renderer,
+                            item_width,
+                            item_height,
+                            viewport_size,
+                            overlay_offset,
+                            &aod,
+                            bounds_expand,
+                            item_bounds,
+                            &mut tree_entry.children,
+                            is_overlay,
+                        );
+
+                        let selected_index = item.children.iter().position(|m| !m.is_separator);
+
+                        if is_overlay {
+                            state.active_root.push(hover_index);
+                        } else {
+                            state.menu_states.truncate(1);
+                        }
+
+                        state.menu_states.push(MenuState {
+                            index: selected_index,
+                            scroll_offset: 0.0,
+                            menu_bounds,
                         });
 
-                    hover_index < active_menu.len()
-                        && !active_menu
-                            .get(hover_index)
-                            .map_or(true, |m| m.children.is_empty())
-                });
+                        opened_submenu = true;
 
-                if has_submenu {
-                    // The submenu will be opened automatically by the hover logic
-                    // We just need to trigger a "hover" on the submenu's first item
-                    // For now, ignore and let the overlay logic handle it
-                    Ignored
+                        #[cfg(feature = "accessibility")]
+                        {
+                            if let Some(item_index) = selected_index {
+                                let panel_index = state.menu_states.len() - 1;
+                                let item_id = crate::core::widget::Id::from(format!(
+                                    "icy_ui.menu/{}/panel/{}/item/{}",
+                                    first_root, panel_index, item_index
+                                ));
+                                a11y_focus_request = Some(
+                                    crate::core::accessibility::node_id_from_widget_id(&item_id),
+                                );
+                            }
+                        }
+                    });
+                }
+
+                if opened_submenu {
+                    #[cfg(feature = "accessibility")]
+                    if let Some(target) = a11y_focus_request {
+                        shell.request_a11y_focus(target);
+                    }
+                    shell.invalidate_layout();
+                    shell.request_redraw();
+                    Captured
                 } else {
                     // Switch to next root menu
                     let current_root = self.tree.inner.with_data(|state| {

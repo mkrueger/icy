@@ -89,7 +89,7 @@ icy_ui_tester = { version = "0.1.0", path = "crates/tools/tester" }
 icy_ui_highlighter = { version = "0.1.0", path = "crates/extras/highlighter" }
 icy_ui_selector = { version = "0.1.0", path = "crates/extras/selector" }
 
-bincode = "1.3"
+bitcode = { version = "0.6", features = ["serde"] }
 bitflags = "2.0"
 bytemuck = { version = "1.0", features = ["derive"] }
 bytes = "1.6"
@@ -100,12 +100,12 @@ futures = { version = "0.3", default-features = false, features = [
     "std",
     "async-await",
 ] }
-glam = "0.25"
+glam = "0.30.9"
 guillotiere = "0.6"
 half = "2.2"
 image = { version = "0.25", default-features = false }
 kamadak-exif = "0.6"
-kurbo = "0.10"
+kurbo = "0.13.0"
 lilt = "0.8"
 log = "0.4"
 lyon = "1.0"
@@ -115,12 +115,12 @@ nom = "8"
 num-traits = "0.2"
 ouroboros = "0.18"
 png = "0.18"
-pulldown-cmark = "0.12"
-qrcode = { version = "0.13", default-features = false }
+pulldown-cmark = "0.13.0"
+qrcode = { version = "0.14.1", default-features = false }
 raw-window-handle = "0.6"
 resvg = "0.45"
 rfd = "0.17.0"
-ron = "0.10"
+ron = "0.12.0"
 rustc-hash = "2.0"
 semver = "1.0"
 serde = "1.0"
@@ -128,9 +128,12 @@ sha2 = "0.10"
 sipper = "0.1"
 slotmap = "1.0"
 smol = "2"
+
+# Winit needs a specfic version of smol_str
 smol_str = "0.2"
+
 softbuffer = { version = "0.4", default-features = false }
-sysinfo = "0.33"
+sysinfo = "0.37.2"
 thiserror = "2"
 tiny-skia = { version = "0.11", default-features = false, features = [
     "std",
@@ -138,15 +141,16 @@ tiny-skia = { version = "0.11", default-features = false, features = [
 ] }
 tokio = "1.49.0"
 tracing = "0.1"
-two-face = { version = "0.4", default-features = false, features = [
+two-face = { version = "0.5.1", default-features = false, features = [
     "syntect-default-fancy",
 ] }
-unicode-segmentation = "1.0"
+unicode-segmentation = "1.12.0"
 url = "2.5"
 wasm-bindgen-futures = "0.4"
-wasmtimer = "0.4.2"
-web-sys = "0.3.69"
+wasmtimer = "0.4.3"
+web-sys = "0.3.83"
 web-time = "1.1"
+
 wgpu = { version = "27.0", default-features = false, features = [
     "std",
     "wgsl",
@@ -154,8 +158,8 @@ wgpu = { version = "27.0", default-features = false, features = [
 winit = { version = "0.30.12", default-features = false, features = ["rwh_06"] }
 
 # Accessibility
-accesskit = "0.18"
-accesskit_winit = "0.24"
+accesskit = "0.22.0"
+accesskit_winit = "0.30.0"
 
 # Clipboard backends
 clipboard-rs = "0.3"

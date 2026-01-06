@@ -173,10 +173,10 @@ pub struct WidgetInfo {
     /// See `accesskit::Node::set_character_lengths`.
     pub character_lengths: Option<Vec<u8>>,
 
-    /// For text runs, the length of each word in characters, as defined by `character_lengths`.
+    /// For text runs, the index of each word in characters, as defined by `character_lengths`.
     ///
-    /// See `accesskit::Node::set_word_lengths`.
-    pub word_lengths: Option<Vec<u8>>,
+    /// See `accesskit::Node::set_word_starts`.
+    pub word_starts: Option<Vec<u8>>,
     /// The numeric value (for sliders, spinboxes).
     pub numeric_value: Option<f64>,
     /// The minimum numeric value.
@@ -234,7 +234,7 @@ impl Default for WidgetInfo {
             required: false,
             value: None,
             character_lengths: None,
-            word_lengths: None,
+            word_starts: None,
             numeric_value: None,
             min_value: None,
             max_value: None,
@@ -515,9 +515,9 @@ impl WidgetInfo {
         self
     }
 
-    /// Sets text run word lengths (in characters) for `Role::TextRun`.
-    pub fn with_word_lengths(mut self, lengths: impl Into<Vec<u8>>) -> Self {
-        self.word_lengths = Some(lengths.into());
+    /// Sets text run word start indices (in characters) for `Role::TextRun`.
+    pub fn with_word_starts(mut self, starts: impl Into<Vec<u8>>) -> Self {
+        self.word_starts = Some(starts.into());
         self
     }
 
@@ -610,8 +610,8 @@ impl WidgetInfo {
             node.set_character_lengths(character_lengths);
         }
 
-        if let Some(word_lengths) = self.word_lengths {
-            node.set_word_lengths(word_lengths);
+        if let Some(word_starts) = self.word_starts {
+            node.set_word_starts(word_starts);
         }
 
         if let Some(numeric_value) = self.numeric_value {

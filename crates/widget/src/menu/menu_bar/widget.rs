@@ -51,6 +51,11 @@ where
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
+        // Ensure our widget tree is initialized (some codepaths may skip diff())
+        if tree.children.len() != self.menu_roots.len() {
+            menu_roots_diff(&self.menu_roots, tree);
+        }
+
         // Ensure inner.tree is initialized (diff() may not have been called)
         let state = tree.state.downcast_mut::<MenuBarState>();
         state.inner.with_data_mut(|inner| {

@@ -244,6 +244,7 @@ struct State {
     is_pressed: bool,
     is_focused: bool,
     last_is_focused: bool,
+    warned_missing_children: bool,
 }
 
 impl operation::Focusable for State {
@@ -302,7 +303,11 @@ where
     ) -> layout::Node {
         // Ensure tree has children (may not be initialized in some overlay scenarios)
         if tree.children.is_empty() {
-            log::warn!("Button: tree.children is empty in layout(), reinitializing");
+            let state = tree.state.downcast_mut::<State>();
+            if !state.warned_missing_children {
+                log::warn!("Button: tree.children is empty (first occurrence); reinitializing");
+                state.warned_missing_children = true;
+            }
             tree.children = self.children();
         }
 
@@ -365,7 +370,11 @@ where
         viewport: &Rectangle,
     ) {
         if tree.children.is_empty() {
-            log::warn!("Button: tree.children is empty in update(), reinitializing");
+            let state = tree.state.downcast_mut::<State>();
+            if !state.warned_missing_children {
+                log::warn!("Button: tree.children is empty (first occurrence); reinitializing");
+                state.warned_missing_children = true;
+            }
             tree.children = self.children();
         }
 
