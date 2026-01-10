@@ -137,7 +137,7 @@ impl Target {
     }
 
     /// Write multiple formats at once.
-    pub fn write_multi<T>(self, formats: Vec<(Vec<u8>, Vec<String>)>) -> Task<T> {
+    pub fn write_multiormats: Vec<(Vec<u8>, Vec<String>)>) -> Task<T> {
         task::effect(crate::Action::Clipboard(Action::WriteMulti {
             target: self.0,
             formats,
