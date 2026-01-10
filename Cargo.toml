@@ -31,6 +31,7 @@ members = [
     "crates/shell/winit",
     "crates/shell/macos",
     "crates/shell/windows",
+    "crates/shell/smithay-clipboard",
 
     # Developer tools
     "crates/tools/beacon",
@@ -163,9 +164,7 @@ accesskit_winit = "0.30.0"
 
 # Clipboard backends
 clipboard-rs = "0.3"
-smithay-clipboard = { git = "https://github.com/mkrueger/smithay-clipboard.git", rev = "0be79e9828bb42ea6591afe95e2f189458577054", features = [
-    "dnd",
-] }
+smithay-clipboard = { path = "crates/shell/smithay-clipboard", features = ["dnd"] }
 wayland-client = "0.31"
 
 [workspace.lints.rust]
